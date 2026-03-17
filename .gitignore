@@ -1,0 +1,4 @@
+node_modules/.bin/dsv2dsv
+/node_modules
+/dist-electron
+/node_modules
