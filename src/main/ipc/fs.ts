@@ -5,8 +5,11 @@ import { homedir } from 'os'
 
 function resolveFsPath(rawPath: string): string {
   if (rawPath === '~') return homedir()
-  if (rawPath.startsWith('~/.clawd-collab/') || rawPath.startsWith('~\\.clawd-collab\\')) {
-    return join(homedir(), 'clawd-collab', rawPath.replace(/^~[/.]clawd-collab[\\/]?/, ''))
+  if (rawPath.startsWith('~/.clawd-collab/')) {
+    return join(homedir(), 'clawd-collab', rawPath.slice('~/.clawd-collab/'.length))
+  }
+  if (rawPath.startsWith('~\\.clawd-collab\\')) {
+    return join(homedir(), 'clawd-collab', rawPath.slice('~\\.clawd-collab\\'.length))
   }
   if (rawPath.startsWith('~/') || rawPath.startsWith('~\\')) return join(homedir(), rawPath.slice(2))
   if (rawPath.startsWith('/clawd-collab/')) return join(homedir(), rawPath.slice(1))
