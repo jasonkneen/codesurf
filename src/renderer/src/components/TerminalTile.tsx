@@ -106,7 +106,7 @@ export function TerminalTile({ tileId, workspaceDir, width, height, fontSize = 1
   return (
     <div
       ref={containerRef}
-      style={{ width: '100%', height: 'calc(100% + 20px)', background: '#1e1e1e', padding: '4px 6px 20px 6px', boxSizing: 'border-box', overflow: 'hidden' }}
+      style={{ width: '100%', height: 'calc(100% + 4px)', background: '#1e1e1e', padding: '4px 6px 0 6px', boxSizing: 'border-box', overflow: 'hidden' }}
     />
   )
 }

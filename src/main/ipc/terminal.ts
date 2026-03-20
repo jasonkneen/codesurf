@@ -3,6 +3,7 @@ import { existsSync, chmodSync } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { bus } from '../event-bus'
+import { writeMCPConfigToWorkspace } from '../mcp-server'
 
 function ensureNodePtySpawnHelperExecutable(): void {
   const candidates = [
@@ -104,6 +105,23 @@ export function registerTerminalIPC(): void {
     if (isAgent) {
       const mcpConfigPath = join(homedir(), 'clawd-collab', 'mcp-server.json')
       spawnEnv.COLLABORATOR_MCP_CONFIG = mcpConfigPath
+
+      // Auto-allow collaborator MCP tools for Claude Code CLI launches
+      const isClaude = launchBin.includes('claude')
+      if (isClaude) {
+        const mcpToolNames = [
+          'mcp__collaborator__canvas_create_tile', 'mcp__collaborator__canvas_open_file',
+          'mcp__collaborator__canvas_pan_to', 'mcp__collaborator__canvas_list_tiles',
+          'mcp__collaborator__card_complete', 'mcp__collaborator__card_update',
+          'mcp__collaborator__card_error', 'mcp__collaborator__canvas_event',
+          'mcp__collaborator__request_input', 'mcp__collaborator__update_progress',
+          'mcp__collaborator__log_activity', 'mcp__collaborator__create_task',
+          'mcp__collaborator__update_task', 'mcp__collaborator__notify',
+          'mcp__collaborator__ask',
+        ]
+        args.push('--allowedTools', mcpToolNames.join(','))
+      }
+
       bus.publish({
         channel: `tile:${tileId}`,
         type: 'system',
@@ -111,6 +129,9 @@ export function registerTerminalIPC(): void {
         payload: { action: 'agent_launched', agent: launchBin }
       })
     }
+
+    // Ensure .mcp.json exists in workspace so Claude Code auto-discovers collaborator tools
+    writeMCPConfigToWorkspace(workspaceDir).catch(() => {})
 
     const term: PtyInstance = pty.spawn(bin, args, {
       name: 'xterm-256color',

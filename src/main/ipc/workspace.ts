@@ -4,6 +4,7 @@ import { join, resolve, basename } from 'path'
 import { homedir } from 'os'
 import type { Config, Workspace, AppSettings } from '../../shared/types'
 import { DEFAULT_SETTINGS, withDefaultSettings } from '../../shared/types'
+import { writeMCPConfigToWorkspace } from '../mcp-server'
 
 const COLLAB_DIR = join(homedir(), 'clawd-collab')
 const CONFIG_PATH = join(COLLAB_DIR, 'config.json')
@@ -92,6 +93,8 @@ export function registerWorkspaceIPC(): void {
     if (existing) {
       config.activeWorkspaceIndex = config.workspaces.indexOf(existing)
       await writeConfig(config)
+      // Write MCP config so Claude Code in terminal tiles auto-discovers our tools
+      writeMCPConfigToWorkspace(folderPath).catch(() => {})
       return existing
     }
     const id = `ws-${Date.now()}`
@@ -100,6 +103,7 @@ export function registerWorkspaceIPC(): void {
     config.workspaces.push(workspace)
     config.activeWorkspaceIndex = config.workspaces.length - 1
     await writeConfig(config)
+    writeMCPConfigToWorkspace(folderPath).catch(() => {})
     return workspace
   })
 
@@ -109,6 +113,7 @@ export function registerWorkspaceIPC(): void {
     if (idx !== -1) {
       config.activeWorkspaceIndex = idx
       await writeConfig(config)
+      writeMCPConfigToWorkspace(config.workspaces[idx].path).catch(() => {})
     }
   })
 

@@ -10,7 +10,26 @@ import { ipcMain, BrowserWindow } from 'electron'
 import { query, type Query, type Options } from '@anthropic-ai/claude-agent-sdk'
 import { spawn, ChildProcess, execFileSync } from 'child_process'
 import * as net from 'net'
-import { createOpencodeClient } from '@opencode-ai/sdk/v2/client'
+import { getMCPPort } from '../mcp-server'
+// Lazy-loaded: @opencode-ai/sdk only exports ESM, Electron main is CJS.
+// externalizeDepsPlugin converts dynamic import() to require() which can't
+// resolve ESM-only exports — wrap in try/catch so the app still starts.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let _createOpencodeClient: any = null
+async function getOpencodeClient(): Promise<any> {
+  if (!_createOpencodeClient) {
+    try {
+      const mod = await import('@opencode-ai/sdk/v2/client')
+      _createOpencodeClient = mod.createOpencodeClient
+    } catch {
+      throw new Error(
+        'OpenCode SDK could not be loaded (ESM/CJS mismatch). ' +
+        'Use the opencode CLI directly or check @opencode-ai/sdk compatibility.'
+      )
+    }
+  }
+  return _createOpencodeClient
+}
 
 interface ChatMessage {
   role: 'user' | 'assistant' | 'system'
@@ -166,7 +185,8 @@ let cachedOpenCodeModels: Array<{ id: string; label: string; description?: strin
 async function fetchOpenCodeModels(): Promise<Array<{ id: string; label: string; description?: string }>> {
   const mgr = OpenCodeServerManager.getInstance()
   const { url } = await mgr.ensureRunning()
-  const client = createOpencodeClient({ baseUrl: url })
+  const createClient = await getOpencodeClient()
+  const client = createClient({ baseUrl: url })
 
   const timeoutPromise = new Promise<never>((_, reject) => {
     setTimeout(() => reject(new Error('OpenCode provider.list timed out after 10s')), 10_000)
@@ -248,6 +268,19 @@ function chatClaude(req: ChatRequest): void {
   }
   const thinkingConfig = thinkingMap[req.thinking ?? ''] ?? { type: 'adaptive' }
 
+  // Wire up the collaborator MCP server so agents can use canvas/kanban tools
+  const mcpPort = getMCPPort()
+  const mcpServers: Record<string, { type: 'http'; url: string }> = {}
+  const mcpToolNames = [
+    'canvas_create_tile', 'canvas_open_file', 'canvas_pan_to', 'canvas_list_tiles',
+    'card_complete', 'card_update', 'card_error', 'canvas_event', 'request_input',
+    'update_progress', 'log_activity', 'create_task', 'update_task', 'notify', 'ask',
+  ]
+  if (mcpPort) {
+    mcpServers['collaborator'] = { type: 'http', url: `http://127.0.0.1:${mcpPort}/mcp` }
+    log('MCP server attached at port', mcpPort)
+  }
+
   const options: Options = {
     model: req.model,
     abortController,
@@ -255,6 +288,9 @@ function chatClaude(req: ChatRequest): void {
     includePartialMessages: true,
     permissionMode: permMode as any,
     thinking: thinkingConfig as any,
+    ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
+    // Auto-allow all collaborator MCP tools so agents don't need manual approval
+    allowedTools: mcpToolNames.map(t => `mcp__collaborator__${t}`),
   }
 
   // Resume existing session for multi-turn

@@ -643,6 +643,19 @@ export async function startMCPServer(): Promise<number> {
       }
       await fs.writeFile(configPath, JSON.stringify(mcpConfig, null, 2))
 
+      // Write .mcp.json to all known workspace directories so Claude Code
+      // sessions in terminal tiles auto-discover the collaborator MCP server
+      try {
+        const userConfigPath = join(getColabDir(), 'config.json')
+        const userConfigRaw = await fs.readFile(userConfigPath, 'utf8')
+        const userConfig = JSON.parse(userConfigRaw) as { workspaces?: Array<{ path: string }> }
+        if (userConfig.workspaces) {
+          for (const ws of userConfig.workspaces) {
+            writeMCPConfigToWorkspace(ws.path).catch(() => {})
+          }
+        }
+      } catch { /* no workspaces yet */ }
+
       console.log(`[MCP] Kanban server running on port ${serverPort}`)
       resolve(serverPort)
     })
@@ -653,4 +666,40 @@ export async function startMCPServer(): Promise<number> {
 
 export function getMCPPort(): number | null {
   return serverPort
+}
+
+/**
+ * Write a .mcp.json to a workspace directory so Claude Code sessions
+ * in terminal tiles auto-discover the collaborator MCP server.
+ * Also adds tool permissions so MCP tools don't need manual approval.
+ */
+export async function writeMCPConfigToWorkspace(workspacePath: string): Promise<void> {
+  if (!serverPort) return
+  const mcpJsonPath = join(workspacePath, '.mcp.json')
+  const collaboratorUrl = `http://127.0.0.1:${serverPort}/mcp`
+
+  // Read existing .mcp.json to preserve user-added servers
+  let existing: Record<string, unknown> = {}
+  try {
+    const raw = await fs.readFile(mcpJsonPath, 'utf8')
+    const parsed = JSON.parse(raw)
+    if (parsed && typeof parsed === 'object') existing = parsed as Record<string, unknown>
+  } catch { /**/ }
+
+  const existingServers = typeof existing.mcpServers === 'object' && existing.mcpServers !== null
+    ? existing.mcpServers as Record<string, unknown>
+    : {}
+
+  existingServers['collaborator'] = {
+    type: 'http',
+    url: collaboratorUrl,
+  }
+
+  const config = {
+    ...existing,
+    mcpServers: existingServers,
+  }
+
+  await fs.writeFile(mcpJsonPath, JSON.stringify(config, null, 2))
+  console.log(`[MCP] Wrote .mcp.json to ${workspacePath}`)
 }

@@ -138,7 +138,7 @@ export function TileChrome({
           style={{
             width: 28, height: '100%',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'grab', flexShrink: 0, color: '#444', fontSize: 11
+            cursor: 'grab', flexShrink: 0, color: '#666', fontSize: 11
           }}
         >
           ::
@@ -162,17 +162,23 @@ export function TileChrome({
         <button
           data-no-drag=""
           style={{
-            width: 20, height: 20, borderRadius: 4, background: 'transparent',
+            width: 24, height: 24, borderRadius: 4, background: 'transparent',
             border: 'none', cursor: 'pointer', flexShrink: 0,
-            color: '#555', fontSize: 10, display: 'flex', alignItems: 'center', justifyContent: 'center'
+            color: '#666', fontSize: 16, display: 'flex', alignItems: 'center', justifyContent: 'center'
           }}
           onClick={e => { e.stopPropagation(); toggle() }}
           onMouseDown={e => e.stopPropagation()}
           onMouseEnter={e => (e.currentTarget.style.color = '#aaa')}
-          onMouseLeave={e => (e.currentTarget.style.color = '#555')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#666')}
           title={expanded ? 'Collapse' : 'Expand'}
         >
-          {expanded ? '⊡' : '⊞'}
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            {expanded ? (
+              <path d="M3 5.5h8M3 8.5h8M5.5 3v8M8.5 3v8" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
+            ) : (
+              <path d="M2 2h4v4H2zM8 2h4v4H8zM2 8h4v4H2zM8 8h4v4H8z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
+            )}
+          </svg>
         </button>
 
         {/* Bus event indicator */}
@@ -202,15 +208,20 @@ export function TileChrome({
         <button
           data-no-drag=""
           style={{
-            width: 14, height: 14, borderRadius: '50%', background: '#444',
-            border: 'none', cursor: 'pointer', flexShrink: 0, transition: 'background 0.1s',
-            marginLeft: 6
+            width: 24, height: 24, borderRadius: 4, background: 'transparent',
+            border: 'none', cursor: 'pointer', flexShrink: 0,
+            color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            marginLeft: 4
           }}
           onClick={e => { e.stopPropagation(); onClose() }}
           onMouseDown={e => e.stopPropagation()}
-          onMouseEnter={e => (e.currentTarget.style.background = '#ff5f56')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#444')}
-        />
+          onMouseEnter={e => (e.currentTarget.style.color = '#ff5f56')}
+          onMouseLeave={e => (e.currentTarget.style.color = '#666')}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+            <path d="M2 2l8 8M10 2l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </button>
       </div>
 
       {/* Content — position:relative so BrowserTile's position:absolute inset:0
