@@ -897,12 +897,10 @@ export function Sidebar({
   return (
     <div style={{
       width: collapsed ? 0 : width,
-      flexShrink: 0,
-      background: '#1a1a1a',
-      borderRight: collapsed ? 'none' : '1px solid #252525',
+      height: '100%',
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
-      transition: 'width 0.15s ease'
+      transition: 'width 0.15s ease',
     }}>
       <div style={{ padding: '10px 12px 8px', borderBottom: '1px solid #252525' }}>
         <div
@@ -1133,39 +1131,29 @@ export function Sidebar({
         )}
       </div>
 
-      <div style={{ borderTop: '1px solid #252525', padding: '8px 12px', display: 'flex', flexDirection: 'column', gap: 6 }}>
-        <button
-          style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: '1px solid #2d2d2d', background: '#222', color: '#ccc', fontSize: fonts.size, cursor: 'pointer', fontFamily: 'inherit' }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#222')}
-          onClick={onNewTerminal}
-        >
-          New Terminal
-        </button>
-        <button
-          style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: '1px solid #2d2d2d', background: '#222', color: '#666', fontSize: fonts.size, cursor: 'pointer', fontFamily: 'inherit' }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#222')}
-          onClick={onNewKanban}
-        >
-          Agent Board
-        </button>
-        <button
-          style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: '1px solid #2d2d2d', background: '#222', color: '#666', fontSize: fonts.size, cursor: 'pointer', fontFamily: 'inherit' }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#222')}
-          onClick={onNewBrowser}
-        >
-          Browser
-        </button>
-        <button
-          style={{ width: '100%', padding: '6px 0', borderRadius: 6, border: '1px solid #2d2d2d', background: '#222', color: '#666', fontSize: fonts.size, cursor: 'pointer', fontFamily: 'inherit' }}
-          onMouseEnter={e => (e.currentTarget.style.background = '#2a2a2a')}
-          onMouseLeave={e => (e.currentTarget.style.background = '#222')}
-          onClick={onNewChat}
-        >
-          Chat
-        </button>
+      <div style={{ borderTop: '1px solid #252525', padding: '8px 12px', display: 'flex', justifyContent: 'flex-end', gap: 4 }}>
+        {([
+          { label: 'New Terminal', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /><path d="M7 11h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: onNewTerminal },
+          { label: 'Agent Board', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /></svg>, action: onNewKanban },
+          { label: 'Browser', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M1 5h12" stroke="currentColor" strokeWidth="1.2" /><circle cx="3" cy="3.5" r="0.5" fill="currentColor" /><circle cx="5" cy="3.5" r="0.5" fill="currentColor" /></svg>, action: onNewBrowser },
+          { label: 'Chat', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h10a1 1 0 011 1v6a1 1 0 01-1 1H5l-3 2.5V10H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>, action: onNewChat },
+        ] as { label: string; icon: React.ReactNode; action: () => void }[]).map(btn => (
+          <button
+            key={btn.label}
+            title={btn.label}
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              border: '1px solid #2d2d2d', background: 'transparent',
+              color: '#555', cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#ccc' }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555' }}
+            onClick={btn.action}
+          >
+            {btn.icon}
+          </button>
+        ))}
       </div>
 
       <div

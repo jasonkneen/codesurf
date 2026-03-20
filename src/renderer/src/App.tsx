@@ -1118,105 +1118,129 @@ function App(): JSX.Element {
   return (
     <FontTokenProvider value={fontTokens}>
     <FontProvider value={appFonts}>
-    <div className="w-full h-full flex flex-col" style={{ background: '#1e1e1e', color: '#d4d4d4', fontFamily: appFonts.sans, fontSize: appFonts.size }}>
-      {/* Titlebar — traffic lights area */}
-      <div
-        className="flex items-center flex-shrink-0"
-        style={{
-          height: 44,
-          background: '#1e1e1e',
-          borderBottom: '1px solid #2d2d2d',
-          // @ts-ignore
-          WebkitAppRegion: 'drag',
-          paddingLeft: 80 // leave space for traffic lights
-        }}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>
-            {workspace?.name ?? 'Collaborator'}
-          </span>
-          {workspace && (
-            <span style={{ fontSize: 11, color: '#555' }}>{workspace.path}</span>
-          )}
-        </div>
-        <div style={{ marginLeft: 'auto', marginRight: 16, display: 'flex', gap: 4, alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
-          {/* Stats */}
-          <span style={{ fontSize: 11, color: '#777', marginRight: 8 }}>
-            {Math.round(viewport.zoom * 100)}% · {tiles.length} tile{tiles.length !== 1 ? 's' : ''}
-          </span>
-
-          {/* Icon buttons */}
-          {([
-            { icon: <Icon glyph="□" size={15} />, label: 'New Window (⌘N)', action: () => window.electron.window?.new(), active: false },
-            { icon: <Icon glyph="+" size={15} />, label: 'New Tab (⌘T)', action: () => window.electron.window?.newTab(), active: false },
-            { icon: <Icon glyph="◉" size={15} />, label: 'Minimap', action: () => setShowMinimap(p => !p), active: showMinimap },
-            { icon: <Icon glyph="◯" size={15} />, label: 'MCP Servers', action: () => { setShowSettings(true) }, active: false },
-            { icon: <Icon glyph="⚙" size={15} />, label: 'Settings', action: () => setShowSettings(true), active: false },
-          ] as { icon: React.ReactNode; label: string; action: () => void; active: boolean }[]).map(btn => (
-            <button
-              key={btn.label}
-              title={btn.label}
-              onClick={btn.action}
-              style={{
-                width: 30, height: 30, borderRadius: 6,
-                background: btn.active ? 'rgba(74,158,255,0.15)' : 'transparent',
-                border: btn.active ? '1px solid rgba(74,158,255,0.3)' : '1px solid transparent',
-                cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                color: btn.active ? '#4a9eff' : '#666',
-                transition: 'all 0.1s'
-              }}
-              onMouseEnter={e => {
-                e.currentTarget.style.background = btn.active ? 'rgba(74,158,255,0.2)' : 'rgba(255,255,255,0.06)'
-                e.currentTarget.style.color = btn.active ? '#4a9eff' : '#ccc'
-                e.currentTarget.style.borderColor = btn.active ? 'rgba(74,158,255,0.4)' : 'rgba(255,255,255,0.1)'
-              }}
-              onMouseLeave={e => {
-                e.currentTarget.style.background = btn.active ? 'rgba(74,158,255,0.15)' : 'transparent'
-                e.currentTarget.style.color = btn.active ? '#4a9eff' : '#666'
-                e.currentTarget.style.borderColor = btn.active ? 'rgba(74,158,255,0.3)' : 'transparent'
-              }}
-            >
-              {btn.icon}
-            </button>
-          ))}
+    <div className="w-full h-full flex" style={{ background: '#111', color: '#d4d4d4', fontFamily: appFonts.sans, fontSize: appFonts.size }}>
+      {/* Sidebar inset panel — rounded, padded from window edges, traffic lights sit on top */}
+      <div style={{
+        padding: '8px 0 8px 8px',
+        flexShrink: 0,
+        display: 'flex',
+        flexDirection: 'column',
+      }}>
+        <div style={{
+          height: '100%',
+          background: '#1a1a1a',
+          borderRadius: 10,
+          border: sidebarCollapsed ? 'none' : '1px solid #252525',
+          overflow: 'hidden',
+          display: 'flex',
+          flexDirection: 'column',
+        }}>
+          {/* Traffic light drag zone — sits inside the sidebar panel */}
+          <div
+            style={{
+              height: 52,
+              flexShrink: 0,
+              // @ts-ignore
+              WebkitAppRegion: 'drag',
+            }}
+          />
+          {/* Sidebar content */}
+          <div style={{ flex: 1, overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+            <Suspense fallback={
+              <div style={{
+                flex: 1,
+                color: '#666',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 11
+              }}>
+                Loading sidebar…
+              </div>
+            }>
+              <LazySidebar
+                workspace={workspace}
+                workspaces={workspaces}
+                onSwitchWorkspace={handleSwitchWorkspace}
+                onNewWorkspace={handleNewWorkspace}
+                onOpenFolder={handleOpenFolder}
+                onOpenFile={handleOpenFile}
+                onNewTerminal={() => addTile('terminal')}
+                onNewKanban={() => addTile('kanban')}
+                onNewBrowser={() => addTile('browser')}
+                onNewChat={() => addTile('chat')}
+                collapsed={sidebarCollapsed}
+                onToggleCollapse={() => setSidebarCollapsed(p => !p)}
+              />
+            </Suspense>
+          </div>
         </div>
       </div>
 
-      {/* Main layout */}
-      <div className="flex-1 flex overflow-hidden" style={{ position: 'relative' }}>
-        <Suspense fallback={
-          <div
-            style={{
-              width: sidebarCollapsed ? 32 : 280,
-              background: '#1e1e1e',
-              borderRight: '1px solid #2d2d2d',
-              color: '#666',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 11
-            }}
-          >
-            Loading sidebar…
+      {/* Main area — toolbar + canvas */}
+      <div className="flex-1 flex flex-col overflow-hidden" style={{ position: 'relative' }}>
+        {/* Toolbar row — drag region with workspace info + buttons */}
+        <div
+          className="flex items-center flex-shrink-0"
+          style={{
+            height: 52,
+            // @ts-ignore
+            WebkitAppRegion: 'drag',
+            paddingLeft: 16,
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            <span style={{ fontSize: 13, color: '#888', fontWeight: 500 }}>
+              {workspace?.name ?? 'Collaborator'}
+            </span>
+            {workspace && (
+              <span style={{ fontSize: 11, color: '#555' }}>{workspace.path}</span>
+            )}
           </div>
-        }>
-          <LazySidebar
-            workspace={workspace}
-            workspaces={workspaces}
-            onSwitchWorkspace={handleSwitchWorkspace}
-            onNewWorkspace={handleNewWorkspace}
-            onOpenFolder={handleOpenFolder}
-            onOpenFile={handleOpenFile}
-            onNewTerminal={() => addTile('terminal')}
-            onNewKanban={() => addTile('kanban')}
-            onNewBrowser={() => addTile('browser')}
-            onNewChat={() => addTile('chat')}
-            collapsed={sidebarCollapsed}
-            onToggleCollapse={() => setSidebarCollapsed(p => !p)}
-          />
-        </Suspense>
+          <div style={{ marginLeft: 'auto', marginRight: 16, display: 'flex', gap: 4, alignItems: 'center', WebkitAppRegion: 'no-drag' } as React.CSSProperties}>
+            {/* Stats */}
+            <span style={{ fontSize: 11, color: '#777', marginRight: 8 }}>
+              {Math.round(viewport.zoom * 100)}% · {tiles.length} tile{tiles.length !== 1 ? 's' : ''}
+            </span>
 
-        {/* Sidebar collapse pill — floats over the canvas left edge, always visible */}
+            {/* Icon buttons */}
+            {([
+              { icon: <Icon glyph="□" size={15} />, label: 'New Window (⌘N)', action: () => window.electron.window?.new(), active: false },
+              { icon: <Icon glyph="+" size={15} />, label: 'New Tab (⌘T)', action: () => window.electron.window?.newTab(), active: false },
+              { icon: <Icon glyph="◉" size={15} />, label: 'Minimap', action: () => setShowMinimap(p => !p), active: showMinimap },
+              { icon: <Icon glyph="◯" size={15} />, label: 'MCP Servers', action: () => { setShowSettings(true) }, active: false },
+              { icon: <Icon glyph="⚙" size={15} />, label: 'Settings', action: () => setShowSettings(true), active: false },
+            ] as { icon: React.ReactNode; label: string; action: () => void; active: boolean }[]).map(btn => (
+              <button
+                key={btn.label}
+                title={btn.label}
+                onClick={btn.action}
+                style={{
+                  width: 30, height: 30, borderRadius: 6,
+                  background: btn.active ? 'rgba(74,158,255,0.15)' : 'transparent',
+                  border: btn.active ? '1px solid rgba(74,158,255,0.3)' : '1px solid transparent',
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  color: btn.active ? '#4a9eff' : '#666',
+                  transition: 'all 0.1s'
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.background = btn.active ? 'rgba(74,158,255,0.2)' : 'rgba(255,255,255,0.06)'
+                  e.currentTarget.style.color = btn.active ? '#4a9eff' : '#ccc'
+                  e.currentTarget.style.borderColor = btn.active ? 'rgba(74,158,255,0.4)' : 'rgba(255,255,255,0.1)'
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.background = btn.active ? 'rgba(74,158,255,0.15)' : 'transparent'
+                  e.currentTarget.style.color = btn.active ? '#4a9eff' : '#666'
+                  e.currentTarget.style.borderColor = btn.active ? 'rgba(74,158,255,0.3)' : 'transparent'
+                }}
+              >
+                {btn.icon}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Sidebar collapse pill — floats over the canvas left edge */}
         <div
           onClick={() => setSidebarCollapsed(p => !p)}
           style={{
@@ -1226,8 +1250,8 @@ function App(): JSX.Element {
             transform: 'translateY(-50%)',
             width: 16,
             height: 40,
-            background: '#252525',
-            border: '1px solid #333',
+            background: '#1a1a1a',
+            border: '1px solid #252525',
             borderLeft: 'none',
             borderRadius: '0 6px 6px 0',
             cursor: 'pointer',
@@ -1237,8 +1261,8 @@ function App(): JSX.Element {
             userSelect: 'none',
             zIndex: 200,
           }}
-          onMouseEnter={e => { e.currentTarget.style.background = '#333'; e.currentTarget.style.color = '#aaa' }}
-          onMouseLeave={e => { e.currentTarget.style.background = '#252525'; e.currentTarget.style.color = '#555' }}
+          onMouseEnter={e => { e.currentTarget.style.background = '#252525'; e.currentTarget.style.color = '#aaa' }}
+          onMouseLeave={e => { e.currentTarget.style.background = '#1a1a1a'; e.currentTarget.style.color = '#555' }}
         >
           {sidebarCollapsed ? '▸' : '◂'}
         </div>

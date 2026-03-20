@@ -24,7 +24,7 @@ function createWindow(asTab = false): BrowserWindow {
     show: false,
     autoHideMenuBar: true,
     titleBarStyle: 'hiddenInset',
-    backgroundColor: '#1a1a1a',
+    backgroundColor: '#111111',
     // macOS native tabs — all windows share the same tabbing group
     tabbingIdentifier: 'collaborator',
     webPreferences: {
