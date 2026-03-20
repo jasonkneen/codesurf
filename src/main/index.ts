@@ -11,6 +11,9 @@ import { registerStreamIPC } from './ipc/stream'
 import { registerGitIPC } from './ipc/git'
 import { registerBusIPC } from './ipc/bus'
 import { registerChatIPC } from './ipc/chat'
+import { registerActivityIPC } from './ipc/activity'
+import { registerCollabIPC, stopAllCollabWatchers } from './ipc/collab'
+import { flushAll as flushActivityStore } from './activity-store'
 // browserTile BrowserView IPC was removed — renderer uses <webview> tag directly
 
 function createWindow(asTab = false): BrowserWindow {
@@ -80,6 +83,8 @@ app.whenReady().then(async () => {
   registerGitIPC()
   registerBusIPC()
   registerChatIPC()
+  registerActivityIPC()
+  registerCollabIPC()
   // registerBrowserTileIPC() — removed, renderer uses <webview> tag directly
 
   // Start local MCP server for agent→kanban callbacks
@@ -340,6 +345,11 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('before-quit', () => {
+  flushActivityStore()
+  stopAllCollabWatchers()
 })
 
 app.on('window-all-closed', () => {

@@ -355,10 +355,85 @@ export interface BusSubscription {
   subscriberId: string     // who subscribed — usually a tile ID
 }
 
+// ─── Activity Store Types ────────────────────────────────────────────────────
+
+export type ActivityType = 'task' | 'tool' | 'skill' | 'context'
+export type ActivityStatus = 'pending' | 'running' | 'done' | 'error' | 'paused'
+
+/** A single activity record persisted per-workspace */
+export interface ActivityRecord {
+  id: string
+  tileId: string
+  workspaceId: string
+  type: ActivityType
+  status: ActivityStatus
+  title: string
+  detail?: string
+  metadata?: Record<string, unknown>
+  agent?: string
+  createdAt: number
+  updatedAt: number
+}
+
+/** Query filter for activity:query IPC */
+export interface ActivityQuery {
+  workspaceId: string
+  tileId?: string
+  type?: ActivityType
+  status?: ActivityStatus
+  agent?: string
+  limit?: number
+}
+
 /** Channel metadata (optional, for UI display) */
 export interface ChannelInfo {
   name: string             // human-readable label
   channel: string          // bus channel pattern
   unread: number           // unread event count for badge
   lastEvent?: BusEvent     // most recent event
+}
+
+// ─── Collab Protocol Types ──────────────────────────────────────────────────
+
+/** A skill/tool available to an agent — toggleable from the drawer */
+export interface SkillConfig {
+  id: string
+  name: string
+  enabled: boolean
+  source: 'builtin' | 'mcp'
+  server?: string          // MCP server name (if source === 'mcp')
+  description?: string
+}
+
+/** A context item dropped into the drawer — notes or reference files */
+export interface ContextItem {
+  id: string
+  name: string
+  type: 'note' | 'file'
+  content?: string         // inline text (notes)
+  path?: string            // filesystem path (files)
+}
+
+/** Per-tile collab state persisted to .collab/{tileId}/state.json */
+export interface CollabState {
+  tasks: CollabTask[]
+  paused: boolean
+  pausedAt?: number
+}
+
+/** A task within collab state — superset of what shows in the drawer */
+export interface CollabTask {
+  id: string
+  title: string
+  status: ActivityStatus
+  createdAt: number
+  updatedAt: number
+  agent?: string
+  detail?: string
+}
+
+/** Skills selection persisted to .collab/{tileId}/skills.json */
+export interface CollabSkills {
+  enabled: string[]
+  disabled: string[]
 }

@@ -275,6 +275,8 @@ function chatClaude(req: ChatRequest): void {
     'canvas_create_tile', 'canvas_open_file', 'canvas_pan_to', 'canvas_list_tiles',
     'card_complete', 'card_update', 'card_error', 'canvas_event', 'request_input',
     'update_progress', 'log_activity', 'create_task', 'update_task', 'notify', 'ask',
+    // Collab tools
+    'reload_objective', 'pause_task', 'get_context',
   ]
   if (mcpPort) {
     mcpServers['collaborator'] = { type: 'http', url: `http://127.0.0.1:${mcpPort}/mcp` }

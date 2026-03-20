@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { existsSync, chmodSync } from 'fs'
+import { promises as fsP } from 'fs'
 import { homedir } from 'os'
 import { join } from 'path'
 import { bus } from '../event-bus'
@@ -87,7 +88,7 @@ function flushTerminalToBus(tileId: string): void {
 }
 
 export function registerTerminalIPC(): void {
-  ipcMain.handle('terminal:create', (event, tileId: string, workspaceDir: string, launchBin?: string, launchArgs?: string[]) => {
+  ipcMain.handle('terminal:create', async (event, tileId: string, workspaceDir: string, launchBin?: string, launchArgs?: string[]) => {
     // Kill any existing terminal with this id
     if (terminals.has(tileId)) {
       try { terminals.get(tileId)!.kill() } catch { /* ignore */ }
@@ -102,9 +103,45 @@ export function registerTerminalIPC(): void {
     const agentBins = ['claude', 'codex', 'aider', 'opencode']
     const isAgent = launchBin && agentBins.some(a => launchBin.includes(a))
     const spawnEnv: Record<string, string> = { ...process.env as Record<string, string>, CARD_ID: tileId }
+
+    // Set COLLAB_DIR so agents know where their .collab folder is
+    const collabDir = join(workspaceDir, '.collab', tileId)
+    spawnEnv.COLLAB_DIR = collabDir
+
     if (isAgent) {
       const mcpConfigPath = join(homedir(), 'clawd-collab', 'mcp-server.json')
       spawnEnv.COLLABORATOR_MCP_CONFIG = mcpConfigPath
+
+      // Ensure .collab dir exists before reading/spawning
+      await fsP.mkdir(join(collabDir, 'context'), { recursive: true })
+
+      // Inject objective.md via -p if it exists
+      const objectivePath = join(collabDir, 'objective.md')
+      let objective = ''
+      try {
+        objective = await fsP.readFile(objectivePath, 'utf8')
+      } catch { /* no objective yet */ }
+
+      // Always inject a collab preamble so the agent knows about its .collab folder
+      const preamble = [
+        objective.trim() || '# Objective\n\nAwaiting tasks from the collaborator drawer.',
+        '',
+        `## Collab Directory`,
+        `Your collab folder is at: ${collabDir}`,
+        `Check ${collabDir}/objective.md for updated objectives.`,
+        `Use the reload_objective MCP tool to fetch the latest version.`,
+      ].join('\n')
+      args.push('-p', preamble)
+
+      // Read skills.json to filter --allowedTools
+      let skillFilter: string[] | null = null
+      try {
+        const skillsRaw = await fsP.readFile(join(collabDir, 'skills.json'), 'utf8')
+        const skills = JSON.parse(skillsRaw) as { enabled?: string[]; disabled?: string[] }
+        if (skills.disabled && skills.disabled.length > 0) {
+          skillFilter = skills.disabled
+        }
+      } catch { /* no skills config */ }
 
       // Auto-allow collaborator MCP tools for Claude Code CLI launches
       const isClaude = launchBin.includes('claude')
@@ -118,8 +155,15 @@ export function registerTerminalIPC(): void {
           'mcp__collaborator__log_activity', 'mcp__collaborator__create_task',
           'mcp__collaborator__update_task', 'mcp__collaborator__notify',
           'mcp__collaborator__ask',
+          // Collab tools
+          'mcp__collaborator__reload_objective', 'mcp__collaborator__pause_task',
+          'mcp__collaborator__get_context',
         ]
-        args.push('--allowedTools', mcpToolNames.join(','))
+        // Filter out disabled skills from allowed tools
+        const filteredTools = skillFilter
+          ? mcpToolNames.filter(t => !skillFilter!.some(d => t.includes(d)))
+          : mcpToolNames
+        args.push('--allowedTools', filteredTools.join(','))
       }
 
       bus.publish({

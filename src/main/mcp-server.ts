@@ -270,6 +270,42 @@ const TOOLS = [
       },
       required: ['channel', 'question']
     }
+  },
+  // ── Collab tools ────────────────────────────────────────────────────────
+  {
+    name: 'reload_objective',
+    description: 'Read the latest objective.md for a tile. Call this when you receive a reload signal or need to refresh your instructions.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tile_id: { type: 'string', description: 'The tile ID whose objective to read' }
+      },
+      required: ['tile_id']
+    }
+  },
+  {
+    name: 'pause_task',
+    description: 'Pause a task. The drawer UI will show it as paused and the operator can resume it.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        channel: { type: 'string', description: 'Channel to publish to (e.g. tile:abc123)' },
+        task_id: { type: 'string' },
+        reason: { type: 'string', description: 'Why the task is being paused' }
+      },
+      required: ['channel', 'task_id']
+    }
+  },
+  {
+    name: 'get_context',
+    description: 'Read all context files dropped into a tile\'s .collab context folder. Returns concatenated content of all notes and reference files.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        tile_id: { type: 'string', description: 'The tile ID whose context to read' }
+      },
+      required: ['tile_id']
+    }
   }
 ]
 
@@ -291,7 +327,7 @@ function sendToRenderer(event: string, data: unknown): void {
   })
 }
 
-function handleTool(name: string, args: Record<string, unknown>): string {
+async function handleTool(name: string, args: Record<string, unknown>): Promise<string> {
   const cardId = args.card_id as string
 
   // ── Canvas tools ──────────────────────────────────────────────────────────
@@ -458,10 +494,70 @@ function handleTool(name: string, args: Record<string, unknown>): string {
     return `Question asked on ${args.channel}: "${args.question}"`
   }
 
+  // ── Collab tools ────────────────────────────────────────────────────────
+
+  if (name === 'reload_objective') {
+    const tileId = args.tile_id as string
+    // Search all known workspace paths for .collab/{tileId}/objective.md
+    try {
+      const userConfigPath = join(getColabDir(), 'config.json')
+      const raw = await fs.readFile(userConfigPath, 'utf8')
+      const cfg = JSON.parse(raw) as { workspaces?: Array<{ path: string }> }
+      if (cfg.workspaces) {
+        for (const ws of cfg.workspaces) {
+          const objPath = join(ws.path, '.collab', tileId, 'objective.md')
+          try {
+            const content = await fs.readFile(objPath, 'utf8')
+            return content
+          } catch { /* not in this workspace */ }
+        }
+      }
+    } catch { /**/ }
+    return `No objective.md found for tile ${tileId}`
+  }
+
+  if (name === 'pause_task') {
+    const evt = bus.publish({
+      channel: args.channel as string,
+      type: 'task',
+      source: 'mcp',
+      payload: { task_id: args.task_id, status: 'paused', action: 'update', reason: args.reason }
+    })
+    sendToRenderer('bus:event', evt)
+    return `Task ${args.task_id} paused${args.reason ? `: ${args.reason}` : ''}`
+  }
+
+  if (name === 'get_context') {
+    const tileId = args.tile_id as string
+    try {
+      const userConfigPath = join(getColabDir(), 'config.json')
+      const raw = await fs.readFile(userConfigPath, 'utf8')
+      const cfg = JSON.parse(raw) as { workspaces?: Array<{ path: string }> }
+      if (cfg.workspaces) {
+        for (const ws of cfg.workspaces) {
+          const ctxDir = join(ws.path, '.collab', tileId, 'context')
+          try {
+            const entries = await fs.readdir(ctxDir)
+            const parts: string[] = []
+            for (const entry of entries) {
+              if (entry.startsWith('.')) continue
+              try {
+                const content = await fs.readFile(join(ctxDir, entry), 'utf8')
+                parts.push(`--- ${entry} ---\n${content}`)
+              } catch { /**/ }
+            }
+            if (parts.length > 0) return parts.join('\n\n')
+          } catch { /* not in this workspace */ }
+        }
+      }
+    } catch { /**/ }
+    return `No context files found for tile ${tileId}`
+  }
+
   return 'Unknown tool'
 }
 
-function handleMCP(req: MCPRequest): unknown {
+async function handleMCP(req: MCPRequest): Promise<unknown> {
   if (req.method === 'initialize') {
     return {
       jsonrpc: '2.0', id: req.id,
@@ -480,7 +576,7 @@ function handleMCP(req: MCPRequest): unknown {
   if (req.method === 'tools/call') {
     const name = req.params?.name ?? ''
     const args = (req.params?.arguments ?? {}) as Record<string, unknown>
-    const result = handleTool(name, args)
+    const result = await handleTool(name, args)
     return {
       jsonrpc: '2.0', id: req.id,
       result: { content: [{ type: 'text', text: result }] }
@@ -584,10 +680,10 @@ export async function startMCPServer(): Promise<number> {
 
       let body = ''
       req.on('data', chunk => { body += chunk })
-      req.on('end', () => {
+      req.on('end', async () => {
         try {
           const mcpReq: MCPRequest = JSON.parse(body)
-          const response = handleMCP(mcpReq)
+          const response = await handleMCP(mcpReq)
           res.writeHead(200, {
             'Content-Type': 'application/json',
             'Access-Control-Allow-Origin': '*'

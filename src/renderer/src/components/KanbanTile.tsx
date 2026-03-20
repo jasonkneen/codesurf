@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { KanbanCard, KanbanCardData } from './KanbanCard'
 import { buildAgentBrief } from '../utils/agentBrief'
 import { ActivityFeed, ActivityEvent } from './ActivityFeed'
+import type { ActivityRecord } from '../../../shared/types'
 
 interface KanbanColumn { id: string; title: string }
 
@@ -50,7 +51,219 @@ const DEFAULT_COLUMNS: KanbanColumn[] = [
   { id: 'done',    title: 'Done' }
 ]
 
+type KanbanMode = 'board' | 'overview'
+
+// ─── Agent Overview (auto-generated from activity store) ────────────────────
+
+const STATUS_ORDER: Record<string, number> = { running: 0, pending: 1, error: 2, done: 3 }
+const STATUS_COLORS: Record<string, string> = {
+  pending: '#8b949e', running: '#58a6ff', done: '#3fb950', error: '#f85149',
+}
+const TYPE_ICONS: Record<string, string> = {
+  task: 'T', tool: 'W', file: 'F', note: 'N',
+}
+
+function AgentOverview({ workspaceId, onFocusTile }: {
+  workspaceId: string
+  onFocusTile?: (tileId: string) => void
+}): JSX.Element {
+  const [groups, setGroups] = useState<Record<string, ActivityRecord[]>>({})
+  const [loading, setLoading] = useState(true)
+  const refreshTimer = useRef<ReturnType<typeof setInterval> | null>(null)
+
+  const refresh = useCallback(() => {
+    if (!workspaceId || !window.electron?.activity) return
+    window.electron.activity.byAgent(workspaceId).then((result: Record<string, ActivityRecord[]>) => {
+      setGroups(result)
+      setLoading(false)
+    }).catch(() => setLoading(false))
+  }, [workspaceId])
+
+  useEffect(() => {
+    refresh()
+    refreshTimer.current = setInterval(refresh, 3000)
+    return () => { if (refreshTimer.current) clearInterval(refreshTimer.current) }
+  }, [refresh])
+
+  const agentKeys = Object.keys(groups).sort((a, b) => {
+    // Named agents first, tile:xxx fallbacks last
+    const aIsTile = a.startsWith('tile:')
+    const bIsTile = b.startsWith('tile:')
+    if (aIsTile !== bIsTile) return aIsTile ? 1 : -1
+    return a.localeCompare(b)
+  })
+
+  if (loading) {
+    return <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#444', fontSize: 12 }}>Loading activity...</div>
+  }
+
+  if (agentKeys.length === 0) {
+    return (
+      <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, color: '#555' }}>
+        <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <rect x="3" y="3" width="18" height="18" rx="4" />
+          <path d="M9 12h6M12 9v6" strokeLinecap="round" />
+        </svg>
+        <span style={{ fontSize: 12 }}>No activity yet</span>
+        <span style={{ fontSize: 10, color: '#444', maxWidth: 200, textAlign: 'center', lineHeight: 1.4 }}>
+          Activity from terminals and chats will appear here automatically, grouped by agent
+        </span>
+      </div>
+    )
+  }
+
+  return (
+    <div style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
+      {agentKeys.map((agentKey, i) => {
+        const records = groups[agentKey]
+        const sorted = [...records].sort((a, b) => {
+          const sa = STATUS_ORDER[a.status] ?? 9
+          const sb = STATUS_ORDER[b.status] ?? 9
+          if (sa !== sb) return sa - sb
+          return b.updatedAt - a.updatedAt
+        })
+        const running = records.filter(r => r.status === 'running').length
+        const pending = records.filter(r => r.status === 'pending').length
+        const done = records.filter(r => r.status === 'done').length
+        const isAgent = !agentKey.startsWith('tile:')
+        const label = isAgent ? agentKey : agentKey.replace('tile:', '').slice(0, 8)
+
+        return (
+          <div
+            key={agentKey}
+            style={{
+              flex: 1, minWidth: 200, maxWidth: 320,
+              display: 'flex', flexDirection: 'column',
+              borderRight: i < agentKeys.length - 1 ? '1px solid #21262d' : 'none',
+            }}
+          >
+            {/* Column header */}
+            <div style={{
+              padding: '8px 10px 6px', flexShrink: 0,
+              display: 'flex', alignItems: 'center', gap: 6,
+              borderBottom: '1px solid #21262d',
+            }}>
+              {running > 0 && (
+                <span style={{
+                  width: 6, height: 6, borderRadius: '50%',
+                  background: '#58a6ff', boxShadow: '0 0 6px #58a6ff',
+                  display: 'inline-block', flexShrink: 0,
+                }} />
+              )}
+              <span style={{
+                flex: 1, fontSize: 11, fontWeight: 700,
+                color: isAgent ? '#58a6ff' : '#8b949e',
+                textTransform: 'uppercase', letterSpacing: 0.5,
+                overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+              }}>
+                {label}
+              </span>
+              <div style={{ display: 'flex', gap: 4, flexShrink: 0 }}>
+                {running > 0 && <StatusPill count={running} color="#58a6ff" />}
+                {pending > 0 && <StatusPill count={pending} color="#8b949e" />}
+                {done > 0 && <StatusPill count={done} color="#3fb950" />}
+              </div>
+            </div>
+
+            {/* Records */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '4px 6px' }}>
+              {sorted.map(record => (
+                <ActivityRecordRow
+                  key={record.id}
+                  record={record}
+                  onFocusTile={onFocusTile}
+                />
+              ))}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function StatusPill({ count, color }: { count: number; color: string }): JSX.Element {
+  return (
+    <span style={{
+      fontSize: 9, fontWeight: 700, color,
+      background: `${color}18`, borderRadius: 8,
+      padding: '1px 5px', minWidth: 16, textAlign: 'center',
+    }}>
+      {count}
+    </span>
+  )
+}
+
+function ActivityRecordRow({ record, onFocusTile }: {
+  record: ActivityRecord
+  onFocusTile?: (tileId: string) => void
+}): JSX.Element {
+  const [hovered, setHovered] = useState(false)
+  const statusColor = STATUS_COLORS[record.status] ?? '#555'
+  const typeIcon = TYPE_ICONS[record.type] ?? '?'
+
+  return (
+    <div
+      style={{
+        padding: '5px 6px', marginBottom: 2,
+        borderRadius: 5,
+        background: hovered ? '#161b22' : 'transparent',
+        display: 'flex', alignItems: 'flex-start', gap: 6,
+        cursor: onFocusTile ? 'pointer' : 'default',
+        transition: 'background 0.1s',
+      }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onClick={() => onFocusTile?.(record.tileId)}
+      title={`${record.type} — ${record.status}\nTile: ${record.tileId.slice(0, 8)}\n${new Date(record.updatedAt).toLocaleString()}`}
+    >
+      {/* Status dot */}
+      <span style={{
+        width: 8, height: 8, borderRadius: '50%', flexShrink: 0, marginTop: 3,
+        border: `1.5px solid ${statusColor}`,
+        background: record.status === 'running' ? statusColor : 'transparent',
+      }} />
+
+      {/* Type badge */}
+      <span style={{
+        fontSize: 8, fontWeight: 700, width: 14, height: 14,
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 3, flexShrink: 0, marginTop: 1,
+        color: statusColor, background: `${statusColor}15`,
+      }}>
+        {typeIcon}
+      </span>
+
+      {/* Content */}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontSize: 11, color: '#c9d1d9',
+          overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+        }}>
+          {record.title}
+        </div>
+        {record.detail && (
+          <div style={{
+            fontSize: 10, color: '#555', marginTop: 1,
+            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
+          }}>
+            {record.detail}
+          </div>
+        )}
+      </div>
+
+      {/* Time */}
+      <span style={{ fontSize: 9, color: '#333', flexShrink: 0, marginTop: 2 }}>
+        {new Date(record.updatedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+      </span>
+    </div>
+  )
+}
+
+// ─── Main KanbanTile ────────────────────────────────────────────────────────
+
 export function KanbanTile({ tileId, workspaceId, workspaceDir, width, height, onFocusTile }: Props): JSX.Element {
+  const [mode, setMode] = useState<KanbanMode>('board')
   const [columns, setColumns] = useState<KanbanColumn[]>(DEFAULT_COLUMNS)
   const [cards, setCards] = useState<KanbanCardData[]>([])
   const [loaded, setLoaded] = useState(false)
@@ -401,27 +614,56 @@ export function KanbanTile({ tileId, workspaceId, workspaceDir, width, height, o
       {/* Header */}
       <div style={{ height: HEADER, flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 12px', borderBottom: '1px solid #21262d' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 11, fontWeight: 700, color: '#58a6ff', letterSpacing: 1, textTransform: 'uppercase' }}>Board</span>
-          <span style={{ fontSize: 10, color: '#444', background: '#1c2128', border: '1px solid #30363d', borderRadius: 10, padding: '1px 7px' }}>
-            {cards.length} card{cards.length !== 1 ? 's' : ''}
-          </span>
-          {Object.keys(activeTerminals).filter(id => isActive(id)).length > 0 && (
-            <span style={{ fontSize: 10, color: '#3fb950', display: 'flex', alignItems: 'center', gap: 4 }}>
-              <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 6px #3fb950', display: 'inline-block' }} />
-              {Object.keys(activeTerminals).filter(id => isActive(id)).length} active
-            </span>
+          {/* Mode toggle */}
+          <div style={{ display: 'flex', borderRadius: 5, overflow: 'hidden', border: '1px solid #30363d' }}>
+            {(['board', 'overview'] as const).map(m => (
+              <button
+                key={m}
+                onClick={() => setMode(m)}
+                style={{
+                  fontSize: 10, fontWeight: mode === m ? 700 : 400,
+                  padding: '2px 8px', border: 'none', cursor: 'pointer',
+                  background: mode === m ? '#21262d' : 'transparent',
+                  color: mode === m ? '#58a6ff' : '#555',
+                  fontFamily: 'inherit', textTransform: 'uppercase', letterSpacing: 0.5,
+                }}
+              >
+                {m}
+              </button>
+            ))}
+          </div>
+
+          {mode === 'board' && (
+            <>
+              <span style={{ fontSize: 10, color: '#444', background: '#1c2128', border: '1px solid #30363d', borderRadius: 10, padding: '1px 7px' }}>
+                {cards.length} card{cards.length !== 1 ? 's' : ''}
+              </span>
+              {Object.keys(activeTerminals).filter(id => isActive(id)).length > 0 && (
+                <span style={{ fontSize: 10, color: '#3fb950', display: 'flex', alignItems: 'center', gap: 4 }}>
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: '#3fb950', boxShadow: '0 0 6px #3fb950', display: 'inline-block' }} />
+                  {Object.keys(activeTerminals).filter(id => isActive(id)).length} active
+                </span>
+              )}
+            </>
           )}
         </div>
-        <button
-          onClick={() => setColumns(prev => [...prev, { id: `col-${Date.now()}`, title: 'New List' }])}
-          style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, background: '#21262d', color: '#8b949e', border: '1px solid #30363d', cursor: 'pointer', fontFamily: 'inherit' }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#58a6ff'; e.currentTarget.style.background = '#2d333b' }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#8b949e'; e.currentTarget.style.background = '#21262d' }}
-        >+ List</button>
+        {mode === 'board' && (
+          <button
+            onClick={() => setColumns(prev => [...prev, { id: `col-${Date.now()}`, title: 'New List' }])}
+            style={{ fontSize: 11, padding: '3px 10px', borderRadius: 5, background: '#21262d', color: '#8b949e', border: '1px solid #30363d', cursor: 'pointer', fontFamily: 'inherit' }}
+            onMouseEnter={e => { e.currentTarget.style.color = '#58a6ff'; e.currentTarget.style.background = '#2d333b' }}
+            onMouseLeave={e => { e.currentTarget.style.color = '#8b949e'; e.currentTarget.style.background = '#21262d' }}
+          >+ List</button>
+        )}
       </div>
 
-      {/* Terminal task activity */}
-      {terminalTaskCards.length > 0 && (
+      {/* Overview mode */}
+      {mode === 'overview' && (
+        <AgentOverview workspaceId={workspaceId} onFocusTile={onFocusTile} />
+      )}
+
+      {/* Board mode — terminal task activity */}
+      {mode === 'board' && terminalTaskCards.length > 0 && (
         <div style={{ borderBottom: '1px solid #21262d', background: '#0b1017', padding: '4px 8px' }}>
           <div style={{ fontSize: 10, fontWeight: 700, color: '#58a6ff', letterSpacing: 0.5, textTransform: 'uppercase', marginBottom: 4 }}>Task Activity</div>
           <div style={{ display: 'flex', gap: 8, overflowX: 'auto', paddingBottom: 2 }}>
@@ -460,8 +702,8 @@ export function KanbanTile({ tileId, workspaceId, workspaceDir, width, height, o
         </div>
       )}
 
-      {/* Columns */}
-      <div style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
+      {/* Columns (board mode only) */}
+      {mode === 'board' && <div style={{ flex: 1, display: 'flex', overflowX: 'auto', overflowY: 'hidden' }}>
         {columns.map((col, ci) => {
           const colCards = cards.filter(c => c.columnId === col.id)
           const isOver = dragOver === col.id
@@ -547,36 +789,38 @@ export function KanbanTile({ tileId, workspaceId, workspaceDir, width, height, o
             </div>
           )
         })}
-      </div>
+      </div>}
 
-      <ActivityFeed
-        events={activityLog}
-        onClearAll={() => setActivityLog([])}
-        onJumpToCard={cardId => {
-          const el = document.querySelector(`[data-card-id="${cardId}"]`)
-          el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-        }}
-        onReply={(eventId, cardId, message) => {
-          // Find the terminal ID for this card and write the message to it
-          const card = cards.find(c => c.id === cardId)
-          if (card?.launched) {
-            const termId = `kterm-${cardId}`
-            window.electron?.terminal?.write?.(termId, message + '\r')
-          }
-          // Mark event as answered
-          setActivityLog(prev => prev.map(ev => ev.id === eventId ? { ...ev, answered: true } : ev))
-          // Log the reply
-          setActivityLog(prev => [...prev, {
-            id: `ev-${Date.now()}`,
-            ts: Date.now(),
-            cardId,
-            cardTitle: card?.title ?? cardId,
-            event: 'reply',
-            message: `You: ${message}`,
-            type: 'custom'
-          }])
-        }}
-      />
+      {mode === 'board' && (
+        <ActivityFeed
+          events={activityLog}
+          onClearAll={() => setActivityLog([])}
+          onJumpToCard={cardId => {
+            const el = document.querySelector(`[data-card-id="${cardId}"]`)
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+          }}
+          onReply={(eventId, cardId, message) => {
+            // Find the terminal ID for this card and write the message to it
+            const card = cards.find(c => c.id === cardId)
+            if (card?.launched) {
+              const termId = `kterm-${cardId}`
+              window.electron?.terminal?.write?.(termId, message + '\r')
+            }
+            // Mark event as answered
+            setActivityLog(prev => prev.map(ev => ev.id === eventId ? { ...ev, answered: true } : ev))
+            // Log the reply
+            setActivityLog(prev => [...prev, {
+              id: `ev-${Date.now()}`,
+              ts: Date.now(),
+              cardId,
+              cardTitle: card?.title ?? cardId,
+              event: 'reply',
+              message: `You: ${message}`,
+              type: 'custom'
+            }])
+          }}
+        />
+      )}
     </div>
   )
 }

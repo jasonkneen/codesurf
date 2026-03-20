@@ -152,6 +152,53 @@ contextBridge.exposeInMainWorld('electron', {
     inject: (cardId: string, message: string) => ipcRenderer.invoke('terminal:write', cardId, message + '\r')
   },
 
+  // Activity store (persisted per-workspace)
+  activity: {
+    upsert: (workspaceId: string, data: {
+      id?: string
+      tileId: string
+      type: 'task' | 'tool' | 'skill' | 'context'
+      status?: 'pending' | 'running' | 'done' | 'error' | 'paused'
+      title: string
+      detail?: string
+      metadata?: Record<string, unknown>
+      agent?: string
+    }) => ipcRenderer.invoke('activity:upsert', workspaceId, data),
+    query: (query: {
+      workspaceId: string
+      tileId?: string
+      type?: string
+      status?: string
+      agent?: string
+      limit?: number
+    }) => ipcRenderer.invoke('activity:query', query),
+    byTile: (workspaceId: string, tileId: string) => ipcRenderer.invoke('activity:byTile', workspaceId, tileId),
+    delete: (workspaceId: string, id: string) => ipcRenderer.invoke('activity:delete', workspaceId, id),
+    clearTile: (workspaceId: string, tileId: string) => ipcRenderer.invoke('activity:clearTile', workspaceId, tileId),
+    byAgent: (workspaceId: string) => ipcRenderer.invoke('activity:byAgent', workspaceId),
+  },
+
+  // Collab protocol (.collab folder)
+  collab: {
+    ensureDir: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:ensureDir', workspacePath, tileId),
+    writeObjective: (workspacePath: string, tileId: string, md: string) => ipcRenderer.invoke('collab:writeObjective', workspacePath, tileId, md),
+    readObjective: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:readObjective', workspacePath, tileId),
+    writeSkills: (workspacePath: string, tileId: string, skills: { enabled: string[], disabled: string[] }) => ipcRenderer.invoke('collab:writeSkills', workspacePath, tileId, skills),
+    readSkills: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:readSkills', workspacePath, tileId),
+    writeState: (workspacePath: string, tileId: string, state: any) => ipcRenderer.invoke('collab:writeState', workspacePath, tileId, state),
+    readState: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:readState', workspacePath, tileId),
+    addContext: (workspacePath: string, tileId: string, filename: string, content: string) => ipcRenderer.invoke('collab:addContext', workspacePath, tileId, filename, content),
+    removeContext: (workspacePath: string, tileId: string, filename: string) => ipcRenderer.invoke('collab:removeContext', workspacePath, tileId, filename),
+    listContext: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:listContext', workspacePath, tileId),
+    readContext: (workspacePath: string, tileId: string, filename: string) => ipcRenderer.invoke('collab:readContext', workspacePath, tileId, filename),
+    watchState: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:watchState', workspacePath, tileId),
+    unwatchState: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:unwatchState', workspacePath, tileId),
+    onStateChanged: (callback: (data: { workspacePath: string, tileId: string, state: any }) => void) => {
+      ipcRenderer.on('collab:stateChanged', (_, data) => callback(data))
+      return () => ipcRenderer.removeAllListeners('collab:stateChanged')
+    },
+  },
+
   // Event bus
   bus: {
     publish: (channel: string, type: string, source: string, payload: Record<string, unknown>) =>

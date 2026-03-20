@@ -1588,6 +1588,8 @@ function App(): JSX.Element {
                 >
                   <LazyTileChrome
                     tile={activeTile}
+                    workspaceId={workspace?.id}
+                    workspaceDir={workspace?.path}
                     onClose={() => closeTile(tile.id)}
                     onTitlebarMouseDown={e => handleTileMouseDown(e, tile)}
                     onResizeMouseDown={(e, dir) => handleResizeMouseDown(e, tile, dir)}

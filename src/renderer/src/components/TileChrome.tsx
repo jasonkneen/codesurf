@@ -1,12 +1,13 @@
-import React, { useState, useRef, useEffect } from 'react'
-import type { TileState } from '../../../shared/types'
+import React, { useState, useRef, useEffect, useCallback } from 'react'
+import type { TileState, SkillConfig, ContextItem, ActivityStatus } from '../../../shared/types'
+import { buildObjective } from '../utils/objectiveBuilder'
 
 // --- Drawer data types ---
 
 interface TaskItem {
   id: string
   title: string
-  status: 'pending' | 'in-progress' | 'done' | 'error'
+  status: 'pending' | 'in-progress' | 'done' | 'error' | 'paused'
   detail?: string
   timestamp: number
 }
@@ -21,33 +22,21 @@ interface ToolItem {
   timestamp: number
 }
 
-interface FileItem {
-  id: string
-  path: string
-  action: 'read' | 'write' | 'create' | 'delete' | 'edit'
-  timestamp: number
-}
-
-interface NoteItem {
-  id: string
-  content: string
-  source?: string
-  timestamp: number
-}
-
-type DrawerTab = 'tasks' | 'tools' | 'files' | 'notes'
+type DrawerTab = 'tasks' | 'tools' | 'skills' | 'context'
 
 interface DrawerData {
   tasks: TaskItem[]
   tools: ToolItem[]
-  files: FileItem[]
-  notes: NoteItem[]
+  skills: SkillConfig[]
+  context: ContextItem[]
 }
 
 // --- TileChrome props ---
 
 interface Props {
   tile: TileState
+  workspaceId?: string
+  workspaceDir?: string
   onClose: () => void
   onTitlebarMouseDown: (e: React.MouseEvent) => void
   onResizeMouseDown: (e: React.MouseEvent, dir: 'e' | 's' | 'se' | 'w' | 'n' | 'nw' | 'ne' | 'sw') => void
@@ -114,17 +103,17 @@ function TabIcon({ tab }: { tab: DrawerTab }): JSX.Element {
       <path d="M6.5 3.5l2 2" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
     </svg>
   )
-  if (tab === 'files') return (
+  if (tab === 'skills') return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <path d="M6 1l1.5 3.5H11l-3 2.2 1.2 3.3L6 7.8 2.8 10l1.2-3.3-3-2.2h3.5z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
+    </svg>
+  )
+  // context
+  return (
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <path d="M3 1.5h4l2.5 2.5V10.5H3z" stroke="currentColor" strokeWidth="1" strokeLinejoin="round" />
       <path d="M7 1.5V4h2.5" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" />
-    </svg>
-  )
-  // notes
-  return (
-    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-      <rect x="1.5" y="1.5" width="9" height="9" rx="1.5" stroke="currentColor" strokeWidth="1" />
-      <path d="M3.5 4h5M3.5 6h5M3.5 8h3" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
+      <path d="M4.5 6.5h3M4.5 8h2" stroke="currentColor" strokeWidth="0.8" strokeLinecap="round" />
     </svg>
   )
 }
@@ -132,10 +121,10 @@ function TabIcon({ tab }: { tab: DrawerTab }): JSX.Element {
 // ─── Tab labels ──────────────────────────────────────────────────────────────
 
 const TAB_LABELS: Record<DrawerTab, string> = {
-  tasks: 'Tasks', tools: 'Tools', files: 'Files', notes: 'Notes'
+  tasks: 'Tasks', tools: 'Tools', skills: 'Skills', context: 'Context'
 }
 
-const ALL_TABS: DrawerTab[] = ['tasks', 'tools', 'files', 'notes']
+const ALL_TABS: DrawerTab[] = ['tasks', 'tools', 'skills', 'context']
 
 // ─── Status icons ────────────────────────────────────────────────────────────
 
@@ -150,6 +139,12 @@ function TaskStatusIcon({ status }: { status: TaskItem['status'] }): JSX.Element
     <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
       <circle cx="6" cy="6" r="5" stroke="#e54d2e" strokeWidth="1.2" />
       <path d="M4 4l4 4M8 4l-4 4" stroke="#e54d2e" strokeWidth="1.2" strokeLinecap="round" />
+    </svg>
+  )
+  if (status === 'paused') return (
+    <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+      <circle cx="6" cy="6" r="5" stroke="#ffb432" strokeWidth="1.2" />
+      <path d="M4.5 4v4M7.5 4v4" stroke="#ffb432" strokeWidth="1.2" strokeLinecap="round" />
     </svg>
   )
   if (status === 'in-progress') return (
@@ -187,41 +182,128 @@ function ToolStatusIcon({ status }: { status: ToolItem['status'] }): JSX.Element
   )
 }
 
-const FILE_ACTION_COLORS: Record<FileItem['action'], string> = {
-  read: '#888', write: '#e2c08d', create: '#73c991', delete: '#f44747', edit: '#4a9eff'
-}
-
-const FILE_ACTION_LABELS: Record<FileItem['action'], string> = {
-  read: 'R', write: 'W', create: '+', delete: 'D', edit: 'E'
-}
-
 // ─── Drawer tab content panels ───────────────────────────────────────────────
 
-function TasksPanel({ tasks }: { tasks: TaskItem[] }): JSX.Element {
+// ── Small action button for task rows ───────────────────────────────────────
+
+function ActionBtn({ title, color, onClick, children }: {
+  title: string; color: string; onClick: () => void; children: React.ReactNode
+}): JSX.Element {
+  return (
+    <button
+      title={title}
+      onClick={e => { e.stopPropagation(); onClick() }}
+      style={{
+        width: 18, height: 18, borderRadius: 3, border: 'none', cursor: 'pointer',
+        background: 'transparent', color, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, padding: 0,
+      }}
+      onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.06)')}
+      onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+    >
+      {children}
+    </button>
+  )
+}
+
+function TasksPanel({ tasks, onUpdateTask, onDeleteTask, onAddTask }: {
+  tasks: TaskItem[]
+  onUpdateTask: (id: string, status: TaskItem['status']) => void
+  onDeleteTask: (id: string) => void
+  onAddTask: (title: string) => void
+}): JSX.Element {
+  const [adding, setAdding] = useState(false)
+  const [newTitle, setNewTitle] = useState('')
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { if (adding) inputRef.current?.focus() }, [adding])
+
+  const submit = () => {
+    const t = newTitle.trim()
+    if (t) { onAddTask(t); setNewTitle(''); setAdding(false) }
+  }
+
   const pending = tasks.filter(t => t.status !== 'done')
   const done = tasks.filter(t => t.status === 'done')
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-      {tasks.length === 0 ? (
+    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0', display: 'flex', flexDirection: 'column' }}>
+      {/* Add task bar */}
+      <div style={{ padding: '4px 8px', flexShrink: 0 }}>
+        {adding ? (
+          <div style={{ display: 'flex', gap: 4 }}>
+            <input
+              ref={inputRef}
+              value={newTitle}
+              onChange={e => setNewTitle(e.target.value)}
+              onKeyDown={e => { if (e.key === 'Enter') submit(); if (e.key === 'Escape') { setAdding(false); setNewTitle('') } }}
+              placeholder="Task title..."
+              style={{
+                flex: 1, height: 24, borderRadius: 4, border: '1px solid #333',
+                background: '#1a1a1a', color: '#ccc', fontSize: 11, padding: '0 6px',
+                outline: 'none',
+              }}
+              onFocus={e => (e.currentTarget.style.borderColor = '#4a9eff')}
+              onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+            />
+            <button onClick={submit} style={{
+              height: 24, borderRadius: 4, border: 'none', background: '#4a9eff', color: '#fff',
+              fontSize: 10, fontWeight: 600, padding: '0 8px', cursor: 'pointer',
+            }}>Add</button>
+          </div>
+        ) : (
+          <button onClick={() => setAdding(true)} style={{
+            width: '100%', height: 24, borderRadius: 4, border: '1px dashed #333',
+            background: 'transparent', color: '#555', fontSize: 10, cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4,
+          }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = '#555'; e.currentTarget.style.color = '#888' }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = '#333'; e.currentTarget.style.color = '#555' }}
+          >
+            <span style={{ fontSize: 13, lineHeight: 1 }}>+</span> Add task
+          </button>
+        )}
+      </div>
+
+      {tasks.length === 0 && !adding ? (
         <EmptyState text="No tasks yet" />
       ) : (
         <>
           {pending.map(t => (
-            <div key={t.id} style={{ padding: '5px 12px', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-              <div style={{ marginTop: 1, flexShrink: 0 }}><TaskStatusIcon status={t.status} /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
-                {t.detail && <div style={{ fontSize: 10, color: '#444', marginTop: 1 }}>{t.detail}</div>}
+            <div key={t.id} style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ flexShrink: 0 }}><TaskStatusIcon status={t.status} /></div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {t.title}
+              </div>
+              <div style={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+                {t.status === 'paused' ? (
+                  <ActionBtn title="Resume" color="#4a9eff" onClick={() => onUpdateTask(t.id, 'in-progress')}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2l5 3-5 3z" fill="currentColor"/></svg>
+                  </ActionBtn>
+                ) : t.status !== 'done' ? (
+                  <ActionBtn title="Pause" color="#ffb432" onClick={() => onUpdateTask(t.id, 'paused')}>
+                    <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M3 2v6M7 2v6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>
+                  </ActionBtn>
+                ) : null}
+                <ActionBtn title="Done" color="#3fb950" onClick={() => onUpdateTask(t.id, 'done')}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2 5.5l2.5 2.5 3.5-4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </ActionBtn>
+                <ActionBtn title="Delete" color="#666" onClick={() => onDeleteTask(t.id)}>
+                  <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+                </ActionBtn>
               </div>
             </div>
           ))}
           {done.length > 0 && pending.length > 0 && <Divider />}
           {done.map(t => (
-            <div key={t.id} style={{ padding: '5px 12px', display: 'flex', alignItems: 'flex-start', gap: 6 }}>
-              <div style={{ marginTop: 1, flexShrink: 0 }}><TaskStatusIcon status={t.status} /></div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 11, color: '#555', textDecoration: 'line-through', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.title}</div>
+            <div key={t.id} style={{ padding: '4px 8px', display: 'flex', alignItems: 'center', gap: 4 }}>
+              <div style={{ flexShrink: 0 }}><TaskStatusIcon status={t.status} /></div>
+              <div style={{ flex: 1, minWidth: 0, fontSize: 11, color: '#555', textDecoration: 'line-through', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {t.title}
               </div>
+              <ActionBtn title="Delete" color="#444" onClick={() => onDeleteTask(t.id)}>
+                <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+              </ActionBtn>
             </div>
           ))}
         </>
@@ -253,50 +335,120 @@ function ToolsPanel({ tools }: { tools: ToolItem[] }): JSX.Element {
   )
 }
 
-function FilesPanel({ files }: { files: FileItem[] }): JSX.Element {
+function SkillsPanel({ skills, onToggle }: {
+  skills: SkillConfig[]
+  onToggle: (id: string) => void
+}): JSX.Element {
+  const builtin = skills.filter(s => s.source === 'builtin')
+  const mcpGroups = new Map<string, SkillConfig[]>()
+  for (const s of skills.filter(s => s.source === 'mcp')) {
+    const key = s.server ?? 'MCP'
+    if (!mcpGroups.has(key)) mcpGroups.set(key, [])
+    mcpGroups.get(key)!.push(s)
+  }
+
+  const renderSkill = (s: SkillConfig) => (
+    <div key={s.id} style={{ padding: '3px 8px', display: 'flex', alignItems: 'center', gap: 6 }}>
+      <button
+        onClick={() => onToggle(s.id)}
+        style={{
+          width: 28, height: 14, borderRadius: 7, border: 'none', cursor: 'pointer',
+          background: s.enabled ? '#4a9eff' : '#333', position: 'relative',
+          transition: 'background 0.15s', flexShrink: 0, padding: 0,
+        }}
+      >
+        <div style={{
+          width: 10, height: 10, borderRadius: 5, background: '#fff',
+          position: 'absolute', top: 2, left: s.enabled ? 16 : 2,
+          transition: 'left 0.15s',
+        }} />
+      </button>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontSize: 11, color: s.enabled ? '#bbb' : '#555', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</div>
+        {s.description && <div style={{ fontSize: 9, color: '#444', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.description}</div>}
+      </div>
+    </div>
+  )
+
   return (
     <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-      {files.length === 0 ? (
-        <EmptyState text="No file activity yet" />
+      {skills.length === 0 ? (
+        <EmptyState text="No skills available" />
       ) : (
-        files.slice().reverse().map(f => (
-          <div key={f.id} style={{ padding: '4px 12px', display: 'flex', alignItems: 'center', gap: 6 }}>
-            <span style={{
-              fontSize: 9, fontWeight: 700, width: 14, textAlign: 'center',
-              color: FILE_ACTION_COLORS[f.action],
-            }}>
-              {FILE_ACTION_LABELS[f.action]}
-            </span>
-            <span style={{
-              fontSize: 11, color: '#aaa', flex: 1, minWidth: 0,
-              overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-              direction: 'rtl', textAlign: 'left',
-            }}>
-              {f.path.split('/').pop()}
-            </span>
-            <span style={{ fontSize: 9, color: '#333', flexShrink: 0 }}>
-              {new Date(f.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-            </span>
-          </div>
-        ))
+        <>
+          {builtin.length > 0 && (
+            <>
+              <div style={{ padding: '6px 8px 2px', fontSize: 9, fontWeight: 700, color: '#555', letterSpacing: 1, textTransform: 'uppercase' }}>Built-in</div>
+              {builtin.map(renderSkill)}
+            </>
+          )}
+          {[...mcpGroups.entries()].map(([server, list]) => (
+            <React.Fragment key={server}>
+              <div style={{ padding: '6px 8px 2px', fontSize: 9, fontWeight: 700, color: '#555', letterSpacing: 1, textTransform: 'uppercase' }}>{server}</div>
+              {list.map(renderSkill)}
+            </React.Fragment>
+          ))}
+        </>
       )}
     </div>
   )
 }
 
-function NotesPanel({ notes }: { notes: NoteItem[] }): JSX.Element {
+function ContextPanel({ items, onAddNote, onRemoveItem }: {
+  items: ContextItem[]
+  onAddNote: (text: string) => void
+  onRemoveItem: (id: string) => void
+}): JSX.Element {
+  const [note, setNote] = useState('')
+  const submitNote = () => {
+    const t = note.trim()
+    if (t) { onAddNote(t); setNote('') }
+  }
+
   return (
-    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0' }}>
-      {notes.length === 0 ? (
-        <EmptyState text="No notes yet" />
+    <div style={{ flex: 1, overflowY: 'auto', padding: '4px 0', display: 'flex', flexDirection: 'column' }}>
+      {/* Note input */}
+      <div style={{ padding: '4px 8px', flexShrink: 0 }}>
+        <textarea
+          value={note}
+          onChange={e => setNote(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); submitNote() } }}
+          placeholder="Add a note..."
+          rows={2}
+          style={{
+            width: '100%', borderRadius: 4, border: '1px solid #333', background: '#1a1a1a',
+            color: '#ccc', fontSize: 11, padding: '4px 6px', resize: 'vertical', outline: 'none',
+            minHeight: 36, maxHeight: 100, lineHeight: 1.4,
+          }}
+          onFocus={e => (e.currentTarget.style.borderColor = '#4a9eff')}
+          onBlur={e => (e.currentTarget.style.borderColor = '#333')}
+        />
+        {note.trim() && (
+          <button onClick={submitNote} style={{
+            marginTop: 3, height: 20, borderRadius: 3, border: 'none', background: '#4a9eff',
+            color: '#fff', fontSize: 10, fontWeight: 600, padding: '0 8px', cursor: 'pointer',
+          }}>Save note</button>
+        )}
+      </div>
+
+      {/* Context items list */}
+      {items.length === 0 ? (
+        <EmptyState text="No context items" />
       ) : (
-        notes.slice().reverse().map(n => (
-          <div key={n.id} style={{ padding: '5px 12px', borderBottom: '1px solid #1a1a1a' }}>
-            <div style={{ fontSize: 11, color: '#bbb', lineHeight: 1.4 }}>{n.content}</div>
-            <div style={{ fontSize: 9, color: '#444', marginTop: 2, display: 'flex', justifyContent: 'space-between' }}>
-              {n.source && <span>{n.source}</span>}
-              <span>{new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
+        items.map(c => (
+          <div key={c.id} style={{ padding: '4px 8px', display: 'flex', alignItems: 'flex-start', gap: 6, borderBottom: '1px solid #1a1a1a' }}>
+            <span style={{ fontSize: 9, color: c.type === 'note' ? '#4a9eff' : '#e2c08d', fontWeight: 600, marginTop: 2, flexShrink: 0 }}>
+              {c.type === 'note' ? 'N' : 'F'}
+            </span>
+            <div style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ fontSize: 11, color: '#bbb', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</div>
+              {c.type === 'note' && c.content && (
+                <div style={{ fontSize: 10, color: '#555', marginTop: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.content.slice(0, 80)}</div>
+              )}
             </div>
+            <ActionBtn title="Remove" color="#555" onClick={() => onRemoveItem(c.id)}>
+              <svg width="10" height="10" viewBox="0 0 10 10" fill="none"><path d="M2.5 2.5l5 5M7.5 2.5l-5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/></svg>
+            </ActionBtn>
           </div>
         ))
       )}
@@ -314,21 +466,27 @@ function Divider(): JSX.Element {
 
 // ─── Tabbed drawer container ─────────────────────────────────────────────────
 
-function DrawerPanel({ data, activeTab, onTabChange }: {
+function DrawerPanel({ data, activeTab, onTabChange, onUpdateTask, onDeleteTask, onAddTask, onToggleSkill, onAddNote, onRemoveContext }: {
   data: DrawerData
   activeTab: DrawerTab
   onTabChange: (tab: DrawerTab) => void
+  onUpdateTask: (id: string, status: TaskItem['status']) => void
+  onDeleteTask: (id: string) => void
+  onAddTask: (title: string) => void
+  onToggleSkill: (id: string) => void
+  onAddNote: (text: string) => void
+  onRemoveContext: (id: string) => void
 }): JSX.Element {
   const counts: Record<DrawerTab, number> = {
     tasks: data.tasks.filter(t => t.status !== 'done').length,
     tools: data.tools.filter(t => t.status === 'running').length,
-    files: data.files.length,
-    notes: data.notes.length,
+    skills: data.skills.filter(s => s.enabled).length,
+    context: data.context.length,
   }
 
   return (
     <div style={{ width: '100%', height: '100%', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-      {/* Tab bar — same style as old header */}
+      {/* Tab bar */}
       <div style={{
         height: 32, flexShrink: 0,
         display: 'flex', alignItems: 'center',
@@ -352,10 +510,10 @@ function DrawerPanel({ data, activeTab, onTabChange }: {
       </div>
 
       {/* Active panel */}
-      {activeTab === 'tasks' && <TasksPanel tasks={data.tasks} />}
+      {activeTab === 'tasks' && <TasksPanel tasks={data.tasks} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask} />}
       {activeTab === 'tools' && <ToolsPanel tools={data.tools} />}
-      {activeTab === 'files' && <FilesPanel files={data.files} />}
-      {activeTab === 'notes' && <NotesPanel notes={data.notes} />}
+      {activeTab === 'skills' && <SkillsPanel skills={data.skills} onToggle={onToggleSkill} />}
+      {activeTab === 'context' && <ContextPanel items={data.context} onAddNote={onAddNote} onRemoveItem={onRemoveContext} />}
     </div>
   )
 }
@@ -396,6 +554,65 @@ function TabButton({ tab, active, count, onClick }: {
       )}
     </button>
   )
+}
+
+// ─── Activity store persistence ─────────────────────────────────────────────
+
+function persistToActivityStore(
+  workspaceId: string | undefined,
+  tileId: string,
+  evt: { type: string; payload: Record<string, unknown>; id: string },
+): void {
+  if (!workspaceId || !window.electron?.activity) return
+  const p = evt.payload as any
+
+  if (evt.type === 'task') {
+    window.electron.activity.upsert(workspaceId, {
+      id: p.task_id ?? p.id ?? evt.id,
+      tileId,
+      type: 'task',
+      status: p.status === 'done' ? 'done' : p.status === 'error' ? 'error' : p.status === 'in-progress' ? 'running' : 'pending',
+      title: p.title ?? 'Untitled task',
+      detail: p.detail,
+      metadata: p,
+    })
+  }
+
+  if (evt.type === 'tool_start' || evt.type === 'tool') {
+    window.electron.activity.upsert(workspaceId, {
+      id: p.tool_id ?? p.id ?? evt.id,
+      tileId,
+      type: 'tool',
+      status: evt.type === 'tool_start' ? 'running' : (p.error ? 'error' : 'done'),
+      title: p.name ?? p.tool ?? 'Unknown tool',
+      detail: p.input?.toString()?.slice(0, 200),
+      metadata: p,
+    })
+  }
+
+  if (evt.type === 'file' || evt.type === 'file_activity') {
+    window.electron.activity.upsert(workspaceId, {
+      id: p.file_id ?? evt.id,
+      tileId,
+      type: 'skill',
+      status: 'done',
+      title: p.path ?? p.file ?? 'unknown',
+      detail: p.action,
+      metadata: p,
+    })
+  }
+
+  if (evt.type === 'note' || evt.type === 'notification' || evt.type === 'progress') {
+    window.electron.activity.upsert(workspaceId, {
+      id: evt.id,
+      tileId,
+      type: 'context',
+      status: 'done',
+      title: p.message ?? p.text ?? p.title ?? p.status ?? JSON.stringify(p).slice(0, 200),
+      detail: p.source ?? evt.type,
+      metadata: p,
+    })
+  }
 }
 
 // ─── Event processing helpers ────────────────────────────────────────────────
@@ -446,36 +663,14 @@ function processEvent(evt: { type: string; payload: Record<string, unknown>; id:
     })
   }
 
-  if (evt.type === 'file' || evt.type === 'file_activity') {
-    setData(prev => {
-      const fileId = p?.file_id ?? evt.id
-      if (prev.files.some(f => f.id === fileId)) return prev
-      return { ...prev, files: [...prev.files, {
-        id: fileId,
-        path: p?.path ?? p?.file ?? 'unknown',
-        action: (p?.action as FileItem['action']) ?? 'read',
-        timestamp: evt.timestamp,
-      }]}
-    })
-  }
-
-  if (evt.type === 'note' || evt.type === 'notification' || evt.type === 'progress') {
-    setData(prev => {
-      if (prev.notes.some(n => n.id === evt.id)) return prev
-      return { ...prev, notes: [...prev.notes, {
-        id: evt.id,
-        content: p?.message ?? p?.text ?? p?.title ?? p?.status ?? JSON.stringify(p).slice(0, 200),
-        source: p?.source ?? evt.type,
-        timestamp: evt.timestamp,
-      }]}
-    })
-  }
+  // Skills and context are managed interactively via the drawer, not from bus events.
+  // Bus events for files/notes are persisted to the activity store but don't populate the drawer.
 }
 
 // ─── Main TileChrome ─────────────────────────────────────────────────────────
 
 export function TileChrome({
-  tile, onClose, onTitlebarMouseDown, onResizeMouseDown, onContextMenu,
+  tile, workspaceId, workspaceDir, onClose, onTitlebarMouseDown, onResizeMouseDown, onContextMenu,
   onExpandChange, children, isSelected, forceExpanded,
   busUnreadCount, onBusPopupToggle, showBusPopup, busEvents
 }: Props): JSX.Element {
@@ -483,7 +678,7 @@ export function TileChrome({
   const expanded = forceExpanded ?? localExpanded
   const [drawerOpen, setDrawerOpen] = useState(false)
   const [activeTab, setActiveTab] = useState<DrawerTab>('tasks')
-  const [data, setData] = useState<DrawerData>({ tasks: [], tools: [], files: [], notes: [] })
+  const [data, setData] = useState<DrawerData>({ tasks: [], tools: [], skills: [], context: [] })
   const hasDrawer = DRAWER_TYPES.has(tile.type)
 
   const toggle = () => {
@@ -492,16 +687,156 @@ export function TileChrome({
     onExpandChange?.(next)
   }
 
+  // ── Collab: auto-regenerate objective.md on drawer state change ────────
+  const regenTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  const regenerateObjective = useCallback(() => {
+    if (!workspaceDir) return
+    if (regenTimer.current) clearTimeout(regenTimer.current)
+    regenTimer.current = setTimeout(() => {
+      const md = buildObjective({
+        tileId: tile.id,
+        tasks: data.tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: (t.status === 'in-progress' ? 'running' : t.status) as ActivityStatus,
+        })),
+        skills: data.skills,
+        context: data.context,
+      })
+      window.electron?.collab?.writeObjective(workspaceDir, tile.id, md)
+
+      // Also sync state.json
+      window.electron?.collab?.writeState(workspaceDir, tile.id, {
+        tasks: data.tasks.map(t => ({
+          id: t.id,
+          title: t.title,
+          status: (t.status === 'in-progress' ? 'running' : t.status) as ActivityStatus,
+          createdAt: t.timestamp,
+          updatedAt: Date.now(),
+        })),
+        paused: false,
+      })
+
+      // Sync skills.json
+      window.electron?.collab?.writeSkills(workspaceDir, tile.id, {
+        enabled: data.skills.filter(s => s.enabled).map(s => s.id),
+        disabled: data.skills.filter(s => !s.enabled).map(s => s.id),
+      })
+    }, 1000)
+  }, [workspaceDir, tile.id, data.tasks, data.skills, data.context])
+
+  useEffect(() => { regenerateObjective() }, [regenerateObjective])
+  useEffect(() => () => { if (regenTimer.current) clearTimeout(regenTimer.current) }, [])
+
+  // ── Collab: ensure .collab dir + start watcher on mount ────────────────
+  useEffect(() => {
+    if (!workspaceDir || !hasDrawer) return
+    window.electron?.collab?.ensureDir(workspaceDir, tile.id)
+    window.electron?.collab?.watchState(workspaceDir, tile.id)
+    return () => { window.electron?.collab?.unwatchState(workspaceDir, tile.id) }
+  }, [workspaceDir, tile.id, hasDrawer])
+
+  // ── Collab: listen for external state.json changes ─────────────────────
+  useEffect(() => {
+    if (!hasDrawer) return
+    const unsub = window.electron?.collab?.onStateChanged((change: any) => {
+      if (change.tileId !== tile.id) return
+      const state = change.state
+      if (!state?.tasks) return
+      setData(prev => {
+        const merged = [...prev.tasks]
+        for (const t of state.tasks) {
+          const idx = merged.findIndex(m => m.id === t.id)
+          const mapped = t.status === 'running' ? 'in-progress' : t.status
+          if (idx >= 0) {
+            merged[idx] = { ...merged[idx], status: mapped, title: t.title ?? merged[idx].title }
+          } else {
+            merged.push({ id: t.id, title: t.title, status: mapped, timestamp: t.createdAt ?? Date.now() })
+          }
+        }
+        return { ...prev, tasks: merged }
+      })
+    })
+    return () => { unsub?.() }
+  }, [tile.id, hasDrawer])
+
+  // ── Drawer action callbacks ────────────────────────────────────────────
+  const handleAddTask = useCallback((title: string) => {
+    const id = `task-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    setData(prev => ({ ...prev, tasks: [...prev.tasks, { id, title, status: 'pending', timestamp: Date.now() }] }))
+    // Also publish bus event so MCP/agents can see it
+    window.electron?.bus?.publish(`tile:${tile.id}`, 'task', 'drawer', { action: 'create', task_id: id, title, status: 'pending' })
+  }, [tile.id])
+
+  const handleUpdateTask = useCallback((id: string, status: TaskItem['status']) => {
+    setData(prev => ({ ...prev, tasks: prev.tasks.map(t => t.id === id ? { ...t, status } : t) }))
+    window.electron?.bus?.publish(`tile:${tile.id}`, 'task', 'drawer', { action: 'update', task_id: id, status })
+  }, [tile.id])
+
+  const handleDeleteTask = useCallback((id: string) => {
+    setData(prev => ({ ...prev, tasks: prev.tasks.filter(t => t.id !== id) }))
+  }, [])
+
+  const handleToggleSkill = useCallback((id: string) => {
+    setData(prev => ({
+      ...prev,
+      skills: prev.skills.map(s => s.id === id ? { ...s, enabled: !s.enabled } : s),
+    }))
+  }, [])
+
+  const handleAddNote = useCallback((text: string) => {
+    const id = `ctx-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`
+    const item: ContextItem = { id, name: text.slice(0, 40), type: 'note', content: text }
+    setData(prev => ({ ...prev, context: [...prev.context, item] }))
+    // Persist to .collab context folder
+    if (workspaceDir) {
+      window.electron?.collab?.addContext(workspaceDir, tile.id, 'notes.md',
+        [...data.context.filter(c => c.type === 'note').map(c => c.content), text].join('\n\n'))
+    }
+  }, [workspaceDir, tile.id, data.context])
+
+  const handleRemoveContext = useCallback((id: string) => {
+    const item = data.context.find(c => c.id === id)
+    setData(prev => ({ ...prev, context: prev.context.filter(c => c.id !== id) }))
+    if (item?.type === 'file' && item.name && workspaceDir) {
+      window.electron?.collab?.removeContext(workspaceDir, tile.id, item.name)
+    }
+  }, [workspaceDir, tile.id, data.context])
+
+  // ── Load skills from MCP config on mount ───────────────────────────────
+  useEffect(() => {
+    if (!hasDrawer || !workspaceId) return
+    window.electron?.mcp?.getMergedConfig(workspaceId).then((cfg: any) => {
+      if (!cfg?.mcpServers) return
+      const skills: SkillConfig[] = []
+      for (const [server, conf] of Object.entries(cfg.mcpServers)) {
+        const c = conf as any
+        // Each MCP server is listed as a toggleable skill
+        skills.push({
+          id: `mcp:${server}`,
+          name: server,
+          enabled: true,
+          source: 'mcp',
+          server,
+          description: c.url ?? c.command ?? 'MCP server',
+        })
+      }
+      setData(prev => ({ ...prev, skills }))
+    })
+  }, [hasDrawer, workspaceId])
+
   // Listen for all event types on this tile's bus channel
   useEffect(() => {
     if (!hasDrawer) return
     const channel = `tile:${tile.id}`
-    const unsub = window.electron?.bus?.subscribe(channel, (event: any) => {
+    const unsub = window.electron?.bus?.subscribe(channel, `drawer:${tile.id}`, (event: any) => {
       if (!event?.type) return
       processEvent(event, setData)
+      persistToActivityStore(workspaceId, tile.id, event)
     })
     return () => { unsub?.then?.(fn => fn?.()) ?? unsub?.() }
-  }, [tile.id, hasDrawer])
+  }, [tile.id, hasDrawer, workspaceId])
 
   // Also extract from busEvents prop
   useEffect(() => {
@@ -561,7 +896,17 @@ export function TileChrome({
           overflow: 'hidden',
           paddingLeft: 12,
         }}>
-          <DrawerPanel data={data} activeTab={activeTab} onTabChange={setActiveTab} />
+          <DrawerPanel
+            data={data}
+            activeTab={activeTab}
+            onTabChange={setActiveTab}
+            onUpdateTask={handleUpdateTask}
+            onDeleteTask={handleDeleteTask}
+            onAddTask={handleAddTask}
+            onToggleSkill={handleToggleSkill}
+            onAddNote={handleAddNote}
+            onRemoveContext={handleRemoveContext}
+          />
         </div>
       )}
 
