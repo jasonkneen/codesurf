@@ -247,8 +247,10 @@ function App(): JSX.Element {
       setWorkspace(active)
       if (active) {
         const saved: CanvasState | null = await window.electron.canvas.load(active.id)
+        const savedTiles = saved?.tiles ?? []
+        void window.electron.collab.pruneOrphanedTileDirs(active.path, savedTiles.map(tile => tile.id))
         if (saved) {
-          setTiles(saved.tiles ?? [])
+          setTiles(savedTiles)
           setGroups(saved.groups ?? [])
           setViewport(saved.viewport
             ? { tx: saved.viewport.tx, ty: saved.viewport.ty, zoom: saved.viewport.zoom }
@@ -947,8 +949,10 @@ function App(): JSX.Element {
     setWorkspace(ws)
     if (ws) {
       const saved = await window.electron.canvas.load(id)
+      const savedTiles = saved?.tiles ?? []
+      void window.electron.collab.pruneOrphanedTileDirs(ws.path, savedTiles.map(tile => tile.id))
       if (saved) {
-        setTiles(saved.tiles ?? [])
+        setTiles(savedTiles)
         setGroups(saved.groups ?? [])
         setViewport(saved.viewport ? { tx: saved.viewport.tx, ty: saved.viewport.ty, zoom: saved.viewport.zoom } : { tx: 0, ty: 0, zoom: 1 })
         setNextZIndex(saved.nextZIndex ?? 1)

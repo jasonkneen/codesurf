@@ -215,6 +215,7 @@ contextBridge.exposeInMainWorld('electron', {
     watchState: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:watchState', workspacePath, tileId),
     unwatchState: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:unwatchState', workspacePath, tileId),
     removeTileDir: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:removeTileDir', workspacePath, tileId),
+    pruneOrphanedTileDirs: (workspacePath: string, tileIds: string[]) => ipcRenderer.invoke('collab:pruneOrphanedTileDirs', workspacePath, tileIds),
     onStateChanged: (callback: (data: { workspacePath: string, tileId: string, state: any }) => void) => {
       ipcRenderer.on('collab:stateChanged', (_, data) => callback(data))
       return () => ipcRenderer.removeAllListeners('collab:stateChanged')

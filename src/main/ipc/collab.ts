@@ -52,6 +52,25 @@ async function removeDirIfExists(path: string): Promise<void> {
   }
 }
 
+async function pruneOrphanedTileDirs(rootDir: string, validTileIds: Set<string>): Promise<string[]> {
+  try {
+    const entries = await fs.readdir(rootDir, { withFileTypes: true })
+    const removed: string[] = []
+
+    await Promise.all(entries.map(async entry => {
+      if (!entry.isDirectory()) return
+      if (entry.name.startsWith('.')) return
+      if (validTileIds.has(entry.name)) return
+      await removeDirIfExists(join(rootDir, entry.name))
+      removed.push(entry.name)
+    }))
+
+    return removed.sort()
+  } catch {
+    return []
+  }
+}
+
 // ─── Watcher state ──────────────────────────────────────────────────────────
 
 const watchers = new Map<string, { close: () => void }>()
@@ -218,6 +237,17 @@ export function registerCollabIPC(): void {
       removeDirIfExists(legacyCollabDir(workspacePath, tileId)),
     ])
     return true
+  })
+
+  ipcMain.handle('collab:pruneOrphanedTileDirs', async (_, workspacePath: string, tileIds: string[]) => {
+    const validTileIds = new Set(tileIds)
+    const removed = await Promise.all([
+      pruneOrphanedTileDirs(join(workspacePath, '.contex'), validTileIds),
+      pruneOrphanedTileDirs(join(workspacePath, '.collab'), validTileIds),
+    ])
+    return {
+      removed: Array.from(new Set([...removed[0], ...removed[1]])).sort(),
+    }
   })
 }
 

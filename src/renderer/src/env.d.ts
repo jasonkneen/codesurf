@@ -137,6 +137,7 @@ interface ElectronAPI {
     watchState(workspacePath: string, tileId: string): Promise<boolean>
     unwatchState(workspacePath: string, tileId: string): Promise<boolean>
     removeTileDir(workspacePath: string, tileId: string): Promise<boolean>
+    pruneOrphanedTileDirs(workspacePath: string, tileIds: string[]): Promise<{ removed: string[] }>
     onStateChanged(callback: (data: { workspacePath: string; tileId: string; state: any }) => void): () => void
   }
   bus: {
