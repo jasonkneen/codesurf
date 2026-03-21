@@ -1102,11 +1102,11 @@ export function Sidebar({
           style={{
             background: 'transparent', border: 'none',
             cursor: 'pointer', padding: '4px 5px', borderRadius: 4,
-            color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+            color: '#8f96a0', display: 'flex', alignItems: 'center', justifyContent: 'center',
             flexShrink: 0
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#ccc' }}
-          onMouseLeave={e => { e.currentTarget.style.color = '#666' }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#d9dee4' }}
+          onMouseLeave={e => { e.currentTarget.style.color = '#8f96a0' }}
         >
           <SortIcon mode={sortMode} />
         </button>
@@ -1117,10 +1117,10 @@ export function Sidebar({
             style={{
               background: showFileMenu ? '#252525' : 'transparent', border: 'none',
               cursor: 'pointer', padding: '4px 5px', borderRadius: 4,
-              color: showFileMenu ? '#ccc' : '#666', display: 'flex', alignItems: 'center', justifyContent: 'center',
+              color: showFileMenu ? '#e1e6ec' : '#8f96a0', display: 'flex', alignItems: 'center', justifyContent: 'center',
             }}
-            onMouseEnter={e => { if (!showFileMenu) e.currentTarget.style.color = '#ccc' }}
-            onMouseLeave={e => { if (!showFileMenu) e.currentTarget.style.color = '#666' }}
+            onMouseEnter={e => { if (!showFileMenu) e.currentTarget.style.color = '#d9dee4' }}
+            onMouseLeave={e => { if (!showFileMenu) e.currentTarget.style.color = '#8f96a0' }}
           >
             {/* Hamburger / list icon */}
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
@@ -1282,11 +1282,11 @@ export function Sidebar({
               style={{
                 width: 28, height: 28, borderRadius: 6,
                 border: '1px solid #2d2d2d', background: 'transparent',
-                color: '#555', cursor: 'pointer',
+                color: '#8f96a0', cursor: 'pointer',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
               }}
-              onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#ccc' }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#555' }}
+              onMouseEnter={e => { e.currentTarget.style.background = '#2a2a2a'; e.currentTarget.style.color = '#e1e6ec' }}
+              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = '#8f96a0' }}
               onClick={btn.action}
             >
               {btn.icon}

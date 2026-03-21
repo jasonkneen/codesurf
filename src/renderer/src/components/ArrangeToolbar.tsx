@@ -215,7 +215,7 @@ function Btn({ label, title, active, loading, onClick }: {
         background: active
           ? 'linear-gradient(180deg, rgba(74,158,255,0.20) 0%, rgba(74,158,255,0.10) 100%)'
           : 'rgba(30,30,30,0.9)',
-        color: active ? '#d7ebff' : '#888',
+        color: active ? '#edf6ff' : '#a3abb6',
         cursor: loading ? 'wait' : 'pointer',
         transition: 'all 0.12s ease',
         fontSize: 12,
@@ -229,13 +229,13 @@ function Btn({ label, title, active, loading, onClick }: {
       onMouseEnter={e => {
         if (!active) {
           e.currentTarget.style.background = 'rgba(74,158,255,0.08)'
-          e.currentTarget.style.color = '#aaa'
+          e.currentTarget.style.color = '#c2cad4'
         }
       }}
       onMouseLeave={e => {
         if (!active) {
           e.currentTarget.style.background = 'rgba(30,30,30,0.9)'
-          e.currentTarget.style.color = '#888'
+          e.currentTarget.style.color = '#a3abb6'
         }
       }}
     >
@@ -323,7 +323,7 @@ export function ArrangeToolbar({ tiles, groups, onArrange, zoom, onZoomToggle, o
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          color: '#888',
+          color: '#a3abb6',
           transition: 'all 0.12s ease',
           backdropFilter: 'blur(8px)',
           WebkitBackdropFilter: 'blur(8px)',
@@ -331,12 +331,12 @@ export function ArrangeToolbar({ tiles, groups, onArrange, zoom, onZoomToggle, o
         }}
         onMouseEnter={e => {
           e.currentTarget.style.background = 'rgba(74,158,255,0.08)'
-          e.currentTarget.style.color = '#ccc'
+          e.currentTarget.style.color = '#e1e6ec'
           e.currentTarget.style.borderColor = 'rgba(255,255,255,0.1)'
         }}
         onMouseLeave={e => {
           e.currentTarget.style.background = 'rgba(20,20,20,0.92)'
-          e.currentTarget.style.color = '#888'
+          e.currentTarget.style.color = '#a3abb6'
           e.currentTarget.style.borderColor = '#2d2d2d'
         }}
       >
@@ -371,7 +371,7 @@ export function ArrangeToolbar({ tiles, groups, onArrange, zoom, onZoomToggle, o
           title="Toggle zoom to 100%"
           style={{
             fontSize: 10,
-            color: zoom === 1 ? '#4a9eff' : '#888',
+            color: zoom === 1 ? '#69afff' : '#a3abb6',
             background: 'transparent',
             display: 'flex',
             alignItems: 'center',
@@ -387,8 +387,8 @@ export function ArrangeToolbar({ tiles, groups, onArrange, zoom, onZoomToggle, o
             whiteSpace: 'nowrap',
             fontVariantNumeric: 'tabular-nums',
           }}
-          onMouseEnter={e => { e.currentTarget.style.color = '#ccc' }}
-          onMouseLeave={e => { e.currentTarget.style.color = zoom === 1 ? '#4a9eff' : '#888' }}
+          onMouseEnter={e => { e.currentTarget.style.color = '#e1e6ec' }}
+          onMouseLeave={e => { e.currentTarget.style.color = zoom === 1 ? '#69afff' : '#a3abb6' }}
         >
           {Math.round(zoom * 100)}%
         </button>
