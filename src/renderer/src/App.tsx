@@ -1277,6 +1277,7 @@ function App(): JSX.Element {
                 onNewKanban={() => addTile('kanban')}
                 onNewBrowser={() => addTile('browser')}
                 onNewChat={() => addTile('chat')}
+                onSettings={() => setShowSettings(true)}
                 collapsed={sidebarCollapsed}
                 onToggleCollapse={() => setSidebarCollapsed(p => !p)}
               />
@@ -1309,7 +1310,6 @@ function App(): JSX.Element {
             {/* Icon buttons */}
             {([
               { icon: <Icon glyph="+" size={28} />, label: 'New Tab (⌘T)', action: () => window.electron.window?.newTab(), active: false },
-              { icon: <Icon glyph="⚙" size={28} />, label: 'Settings', action: () => setShowSettings(true), active: false },
             ] as { icon: React.ReactNode; label: string; action: () => void; active: boolean }[]).map(btn => (
               <button
                 key={btn.label}
