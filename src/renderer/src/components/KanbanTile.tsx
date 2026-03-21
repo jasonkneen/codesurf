@@ -779,11 +779,26 @@ export function KanbanTile({ tileId, workspaceId, workspaceDir, width, height, o
                     </div>
                   </div>
                 ) : (
-                  <button onClick={() => { setAddingTo(col.id); setAddTitle('') }}
-                    style={{ width: '100%', padding: '5px 0', fontSize: 11, color: '#9dc7ff', background: 'rgba(88,166,255,0.12)', border: '1px dashed #79bcff', borderRadius: 6, cursor: 'pointer', fontFamily: 'inherit', flexShrink: 0, fontWeight: 600 }}
-                    onMouseEnter={e => { e.currentTarget.style.color = '#d7eaff'; e.currentTarget.style.borderColor = '#9dc7ff'; e.currentTarget.style.background = 'rgba(88,166,255,0.24)' }}
-                    onMouseLeave={e => { e.currentTarget.style.color = '#9dc7ff'; e.currentTarget.style.borderColor = '#79bcff'; e.currentTarget.style.background = 'rgba(88,166,255,0.12)' }}
-                  >+ Add card</button>
+                  <button
+                    onClick={() => { setAddingTo(col.id); setAddTitle('') }}
+                    style={{
+                      width: '100%',
+                      padding: '4px 0 2px',
+                      fontSize: 11,
+                      color: '#8b949e',
+                      background: 'transparent',
+                      border: 'none',
+                      cursor: 'pointer',
+                      fontFamily: 'inherit',
+                      flexShrink: 0,
+                      fontWeight: 500,
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.color = '#b7c1cc' }}
+                    onMouseLeave={e => { e.currentTarget.style.color = '#8b949e' }}
+                  >
+                    + Add card
+                  </button>
                 )}
               </div>
             </div>
