@@ -4,6 +4,7 @@ import type { TileState, GroupState } from '../../../shared/types'
 
 const GAP = 40
 const GROUP_PAD = 20
+const SLIDEOUT_RESERVE_WIDTH = 272
 
 type Mode = 'grid' | 'column' | 'row'
 
@@ -92,6 +93,11 @@ function arrangeRow(items: ArrangeItem[]): ArrangeItem[] {
   })
 }
 
+function getArrangeWidth(tile: TileState): number {
+  const reserve = tile.type === 'terminal' || tile.type === 'chat' ? SLIDEOUT_RESERVE_WIDTH : 0
+  return tile.width + reserve
+}
+
 function buildArrangeItems(tiles: TileState[], groups: GroupState[]): ArrangeItem[] {
   const groupMap = new Map(groups.map(group => [group.id, group]))
   const childrenByGroup = new Map<string, string[]>()
@@ -130,7 +136,7 @@ function buildArrangeItems(tiles: TileState[], groups: GroupState[]): ArrangeIte
     tileIds.forEach(id => groupedTileIds.add(id))
     const minX = Math.min(...members.map(tile => tile.x)) - GROUP_PAD
     const minY = Math.min(...members.map(tile => tile.y)) - GROUP_PAD
-    const maxX = Math.max(...members.map(tile => tile.x + tile.width)) + GROUP_PAD
+    const maxX = Math.max(...members.map(tile => tile.x + getArrangeWidth(tile))) + GROUP_PAD
     const maxY = Math.max(...members.map(tile => tile.y + tile.height)) + GROUP_PAD
     items.push({
       id: group.id,
@@ -151,7 +157,7 @@ function buildArrangeItems(tiles: TileState[], groups: GroupState[]): ArrangeIte
       kind: 'tile',
       x: tile.x,
       y: tile.y,
-      width: tile.width,
+      width: getArrangeWidth(tile),
       height: tile.height,
       tileIds: [tile.id],
     })

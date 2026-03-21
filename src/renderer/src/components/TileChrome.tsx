@@ -127,6 +127,10 @@ const TAB_LABELS: Record<DrawerTab, string> = {
 
 const ALL_TABS: DrawerTab[] = ['tasks', 'tools', 'skills', 'context']
 
+function drawerTabTitle(tab: DrawerTab): string {
+  return TAB_LABELS[tab].toUpperCase()
+}
+
 // ─── Status icons ────────────────────────────────────────────────────────────
 
 function TaskStatusIcon({ status }: { status: TaskItem['status'] }): JSX.Element {
@@ -589,6 +593,11 @@ function DrawerPanel({ data, activeTab, onTabChange, onUpdateTask, onDeleteTask,
       </div>
 
       {/* Active panel */}
+      <div style={{ padding: '10px 14px 7px', borderBottom: '1px solid #1b1b1b', display: 'flex', alignItems: 'center', flexShrink: 0 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: '#98a2ad', letterSpacing: 0.7, textTransform: 'uppercase', lineHeight: 1 }}>
+          {drawerTabTitle(activeTab)}
+        </div>
+      </div>
       {activeTab === 'tasks' && <TasksPanel tasks={data.tasks} onUpdateTask={onUpdateTask} onDeleteTask={onDeleteTask} onAddTask={onAddTask} />}
       {activeTab === 'tools' && <ToolsPanel tools={data.tools} />}
       {activeTab === 'skills' && <SkillsPanel skills={data.skills} onToggle={onToggleSkill} />}
@@ -606,30 +615,35 @@ function TabButton({ tab, active, count, onClick }: {
       onClick={onClick}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
+      title={drawerTabTitle(tab)}
+      aria-label={drawerTabTitle(tab)}
       style={{
-        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 5,
+        position: 'relative',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
         height: 28,
+        minWidth: 32,
         background: active ? '#21262d' : (h ? 'rgba(255,255,255,0.03)' : 'transparent'),
         border: `1px solid ${active ? '#30363d' : h ? '#2a2f38' : 'transparent'}`,
         borderRadius: 7,
         cursor: 'pointer',
         color: active ? '#58a6ff' : (h ? '#aeb8c4' : '#6f7782'),
-        fontSize: 11, fontWeight: active ? 700 : 500,
-        padding: '0 11px',
+        padding: '0 9px',
         transition: 'color 0.15s, background 0.15s, border-color 0.15s',
-        flexShrink: 0,
-        textTransform: 'uppercase',
-        letterSpacing: 0.3,
-        whiteSpace: 'nowrap',
+        flex: 1,
       }}
     >
       <TabIcon tab={tab} />
-      <span>{TAB_LABELS[tab]}</span>
       {count > 0 && (
         <span style={{
-          fontSize: 9, fontWeight: 700,
+          position: 'absolute',
+          top: 2,
+          right: 4,
+          fontSize: 8,
+          fontWeight: 700,
           color: active ? '#58a6ff' : (h ? '#aeb8c4' : '#6f7782'),
-          minWidth: 10, textAlign: 'center',
+          minWidth: 10,
+          textAlign: 'center',
+          lineHeight: 1,
         }}>
           {count > 99 ? '99+' : count}
         </span>
@@ -964,12 +978,12 @@ export function TileChrome({
       {hasDrawer && (
         <div style={{
           position: 'absolute',
-          top: 0,
+          top: 5,
+          bottom: 5,
           left: tile.width - 12,
           width: DRAWER_WIDTH + 12,
-          height: '100%',
           background: '#141414',
-          borderRadius: 8,
+          borderRadius: 10,
           border: '1px solid #252525',
           boxShadow: '0 4px 20px rgba(0,0,0,0.4)',
           zIndex: -1,

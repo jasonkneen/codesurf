@@ -1329,6 +1329,8 @@ function App(): JSX.Element {
 
   // ─── Arrange handler ──────────────────────────────────────────────────────
   const handleArrange = useCallback((updated: TileState[]) => {
+    const getArrangeWidth = (tile: TileState) => tile.width + ((tile.type === 'terminal' || tile.type === 'chat') ? 272 : 0)
+
     // Merge positions back — preserve zIndex / other fields from current state
     setTiles(prev => {
       const posIndex: Record<string, { x: number; y: number }> = {}
@@ -1344,7 +1346,7 @@ function App(): JSX.Element {
       if (rect && merged.length > 0) {
         const minX = Math.min(...merged.map(t => t.x))
         const minY = Math.min(...merged.map(t => t.y))
-        const maxX = Math.max(...merged.map(t => t.x + t.width))
+        const maxX = Math.max(...merged.map(t => t.x + getArrangeWidth(t)))
         const maxY = Math.max(...merged.map(t => t.y + t.height))
         const PAD = 60
         const fitZoom = Math.min(
