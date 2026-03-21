@@ -30,10 +30,11 @@ contextBridge.exposeInMainWorld('electron', {
     renameFile: (oldPath: string, newPath: string) => ipcRenderer.invoke('fs:renameFile', oldPath, newPath),
     watch: (dirPath: string, callback: () => void) => {
       const channel = `fs:watch:${dirPath}`
-      ipcRenderer.on(channel, () => callback())
+      const handler = () => callback()
+      ipcRenderer.on(channel, handler)
       ipcRenderer.invoke('fs:watchStart', dirPath)
       return () => {
-        ipcRenderer.removeAllListeners(channel)
+        ipcRenderer.removeListener(channel, handler)
         ipcRenderer.invoke('fs:watchStop', dirPath)
       }
     },
@@ -67,13 +68,15 @@ contextBridge.exposeInMainWorld('electron', {
     destroy: (tileId: string) => ipcRenderer.invoke('terminal:destroy', tileId),
     onData: (tileId: string, callback: (data: string) => void) => {
       const channel = `terminal:data:${tileId}`
-      ipcRenderer.on(channel, (_, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners(channel)
+      const handler = (_: any, data: string) => callback(data)
+      ipcRenderer.on(channel, handler)
+      return () => { ipcRenderer.removeListener(channel, handler) }
     },
     onActive: (tileId: string, callback: () => void) => {
       const channel = `terminal:active:${tileId}`
-      ipcRenderer.on(channel, () => callback())
-      return () => ipcRenderer.removeAllListeners(channel)
+      const handler = () => callback()
+      ipcRenderer.on(channel, handler)
+      return () => { ipcRenderer.removeListener(channel, handler) }
     }
   },
 
@@ -97,8 +100,9 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('stream:start', req),
     stop: (cardId: string) => ipcRenderer.invoke('stream:stop', cardId),
     onChunk: (cb: (event: { cardId: string; type: string; text?: string; toolName?: string; error?: string }) => void) => {
-      ipcRenderer.on('agent:stream', (_, evt) => cb(evt))
-      return () => ipcRenderer.removeAllListeners('agent:stream')
+      const handler = (_: any, evt: { cardId: string; type: string; text?: string; toolName?: string; error?: string }) => cb(evt)
+      ipcRenderer.on('agent:stream', handler)
+      return () => { ipcRenderer.removeListener('agent:stream', handler) }
     }
   },
 
@@ -134,8 +138,9 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.invoke('browserTile:command', payload),
     destroy: (tileId: string) => ipcRenderer.invoke('browserTile:destroy', tileId),
     onEvent: (cb: (event: { tileId: string; currentUrl: string; canGoBack: boolean; canGoForward: boolean; isLoading: boolean; mode: 'desktop' | 'mobile' }) => void) => {
-      ipcRenderer.on('browserTile:event', (_, evt) => cb(evt))
-      return () => ipcRenderer.removeAllListeners('browserTile:event')
+      const handler = (_: any, evt: { tileId: string; currentUrl: string; canGoBack: boolean; canGoForward: boolean; isLoading: boolean; mode: 'desktop' | 'mobile' }) => cb(evt)
+      ipcRenderer.on('browserTile:event', handler)
+      return () => { ipcRenderer.removeListener('browserTile:event', handler) }
     }
   },
 
@@ -163,12 +168,14 @@ contextBridge.exposeInMainWorld('electron', {
     saveWorkspaceServers: (workspaceId: string, servers: Record<string, unknown>) => ipcRenderer.invoke('mcp:saveWorkspaceServers', workspaceId, servers),
     getMergedConfig: (workspaceId: string) => ipcRenderer.invoke('mcp:getMergedConfig', workspaceId),
     onKanban: (cb: (event: string, data: unknown) => void) => {
-      ipcRenderer.on('mcp:kanban', (_, payload) => cb(payload.event, payload.data))
-      return () => ipcRenderer.removeAllListeners('mcp:kanban')
+      const handler = (_: any, payload: any) => cb(payload.event, payload.data)
+      ipcRenderer.on('mcp:kanban', handler)
+      return () => { ipcRenderer.removeListener('mcp:kanban', handler) }
     },
     onInject: (cb: (cardId: string, message: string, appendNewline: boolean) => void) => {
-      ipcRenderer.on('mcp:inject', (_, payload) => cb(payload.cardId, payload.message, payload.appendNewline))
-      return () => ipcRenderer.removeAllListeners('mcp:inject')
+      const handler = (_: any, payload: any) => cb(payload.cardId, payload.message, payload.appendNewline)
+      ipcRenderer.on('mcp:inject', handler)
+      return () => { ipcRenderer.removeListener('mcp:inject', handler) }
     },
     inject: (cardId: string, message: string) => ipcRenderer.invoke('terminal:write', cardId, message + '\r')
   },
@@ -217,8 +224,9 @@ contextBridge.exposeInMainWorld('electron', {
     removeTileDir: (workspacePath: string, tileId: string) => ipcRenderer.invoke('collab:removeTileDir', workspacePath, tileId),
     pruneOrphanedTileDirs: (workspacePath: string, tileIds: string[]) => ipcRenderer.invoke('collab:pruneOrphanedTileDirs', workspacePath, tileIds),
     onStateChanged: (callback: (data: { workspacePath: string, tileId: string, state: any }) => void) => {
-      ipcRenderer.on('collab:stateChanged', (_, data) => callback(data))
-      return () => ipcRenderer.removeAllListeners('collab:stateChanged')
+      const handler = (_: any, data: { workspacePath: string, tileId: string, state: any }) => callback(data)
+      ipcRenderer.on('collab:stateChanged', handler)
+      return () => { ipcRenderer.removeListener('collab:stateChanged', handler) }
     },
   },
 
