@@ -54,6 +54,33 @@ type DragState =
 const GRID = 20 // default, overridden by settings at runtime
 const snap = (v: number, grid = GRID) => Math.round(v / grid) * grid
 
+function findFirstLeafId(node: PanelNode): string | null {
+  if (node.type === 'leaf') return node.id
+  for (const child of node.children) {
+    const found = findFirstLeafId(child)
+    if (found) return found
+  }
+  return null
+}
+
+function sanitizePanelLayout(root: PanelNode | null | undefined, tileIds: string[]): { layout: PanelNode | null; fallbackActivePanelId: string | null } {
+  if (!root) return { layout: null, fallbackActivePanelId: null }
+
+  const validTileIds = new Set(tileIds)
+  let next: PanelNode | null = root
+
+  for (const tileId of getAllTileIds(root)) {
+    if (!validTileIds.has(tileId)) {
+      next = next ? (removeTileFromTree(next, tileId) ?? createLeaf([])) : createLeaf([])
+    }
+  }
+
+  return {
+    layout: next,
+    fallbackActivePanelId: next ? findFirstLeafId(next) : null,
+  }
+}
+
 function extToType(filePath: string): TileState['type'] {
   const ext = filePath.split('.').pop()?.toLowerCase() ?? ''
   if (['ts', 'tsx', 'js', 'jsx', 'json', 'py', 'rs', 'go', 'cpp', 'c', 'java', 'css', 'html', 'sh', 'bash', 'yaml', 'yml', 'toml', 'xml'].includes(ext)) return 'code'
@@ -250,15 +277,19 @@ function App(): JSX.Element {
         const savedTiles = saved?.tiles ?? []
         void window.electron.collab.pruneOrphanedTileDirs(active.path, savedTiles.map(tile => tile.id))
         if (saved) {
+          const sanitizedPanel = sanitizePanelLayout((saved.panelLayout as PanelNode | null) ?? null, savedTiles.map(tile => tile.id))
+          const nextActivePanelId = saved.activePanelId && sanitizedPanel.layout && findLeafById(sanitizedPanel.layout, saved.activePanelId)
+            ? saved.activePanelId
+            : sanitizedPanel.fallbackActivePanelId
           setTiles(savedTiles)
           setGroups(saved.groups ?? [])
           setViewport(saved.viewport
             ? { tx: saved.viewport.tx, ty: saved.viewport.ty, zoom: saved.viewport.zoom }
             : { tx: 0, ty: 0, zoom: 1 })
           setNextZIndex(saved.nextZIndex ?? 1)
-          savedLayoutRef.current = (saved.panelLayout as PanelNode | null) ?? null
-          setPanelLayout(saved.tabViewActive ? (saved.panelLayout as PanelNode | null) ?? null : null)
-          setActivePanelId(saved.activePanelId ?? null)
+          savedLayoutRef.current = sanitizedPanel.layout
+          setPanelLayout(saved.tabViewActive ? (sanitizedPanel.layout ?? createLeaf([])) : null)
+          setActivePanelId(saved.tabViewActive ? nextActivePanelId : null)
           setExpandedTileId(saved.expandedTileId ?? null)
         }
       }
@@ -952,13 +983,17 @@ function App(): JSX.Element {
       const savedTiles = saved?.tiles ?? []
       void window.electron.collab.pruneOrphanedTileDirs(ws.path, savedTiles.map(tile => tile.id))
       if (saved) {
+        const sanitizedPanel = sanitizePanelLayout((saved.panelLayout as PanelNode | null) ?? null, savedTiles.map(tile => tile.id))
+        const nextActivePanelId = saved.activePanelId && sanitizedPanel.layout && findLeafById(sanitizedPanel.layout, saved.activePanelId)
+          ? saved.activePanelId
+          : sanitizedPanel.fallbackActivePanelId
         setTiles(savedTiles)
         setGroups(saved.groups ?? [])
         setViewport(saved.viewport ? { tx: saved.viewport.tx, ty: saved.viewport.ty, zoom: saved.viewport.zoom } : { tx: 0, ty: 0, zoom: 1 })
         setNextZIndex(saved.nextZIndex ?? 1)
-        savedLayoutRef.current = (saved.panelLayout as PanelNode | null) ?? null
-        setPanelLayout(saved.tabViewActive ? (saved.panelLayout as PanelNode | null) ?? null : null)
-        setActivePanelId(saved.activePanelId ?? null)
+        savedLayoutRef.current = sanitizedPanel.layout
+        setPanelLayout(saved.tabViewActive ? (sanitizedPanel.layout ?? createLeaf([])) : null)
+        setActivePanelId(saved.tabViewActive ? nextActivePanelId : null)
         setExpandedTileId(saved.expandedTileId ?? null)
       } else {
         setTiles([])
