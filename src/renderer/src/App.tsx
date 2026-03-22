@@ -274,6 +274,46 @@ function App(): JSX.Element {
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const spaceHeld = useRef(false)
   const skipHistory = useRef(false)
+  const canvasGlowEnabled = settings.canvasGlowEnabled
+  const snapValue = React.useCallback((value: number) => (
+    settings.snapToGrid ? snap(value, settings.gridSize) : value
+  ), [settings.snapToGrid, settings.gridSize])
+
+  const hideCanvasGlow = React.useCallback(() => {
+    if (canvasGlowRafRef.current !== null) {
+      cancelAnimationFrame(canvasGlowRafRef.current)
+      canvasGlowRafRef.current = null
+    }
+    canvasGlowPointRef.current = null
+    if (dotGlowSmallRef.current) dotGlowSmallRef.current.style.opacity = '0'
+    if (dotGlowLargeRef.current) dotGlowLargeRef.current.style.opacity = '0'
+  }, [])
+
+  const updateCanvasGlow = React.useCallback((clientX: number, clientY: number) => {
+    if (!canvasGlowEnabled) return
+    canvasGlowPointRef.current = { clientX, clientY }
+    if (canvasGlowRafRef.current !== null) return
+    canvasGlowRafRef.current = requestAnimationFrame(() => {
+      canvasGlowRafRef.current = null
+      const rect = canvasRef.current?.getBoundingClientRect()
+      const point = canvasGlowPointRef.current
+      if (!rect || !point || !dotGlowSmallRef.current || !dotGlowLargeRef.current) return
+      const x = point.clientX - rect.left
+      const y = point.clientY - rect.top
+      const visible = x >= 0 && y >= 0 && x <= rect.width && y <= rect.height
+      if (!visible) {
+        hideCanvasGlow()
+        return
+      }
+      const mask = `radial-gradient(circle at ${x}px ${y}px, rgba(0,0,0,1) 0px, rgba(0,0,0,1) 130px, rgba(0,0,0,0) 260px)`
+      dotGlowSmallRef.current.style.opacity = '1'
+      dotGlowLargeRef.current.style.opacity = '1'
+      dotGlowSmallRef.current.style.maskImage = mask
+      dotGlowSmallRef.current.style.webkitMaskImage = mask
+      dotGlowLargeRef.current.style.maskImage = mask
+      dotGlowLargeRef.current.style.webkitMaskImage = mask
+    })
+  }, [canvasGlowEnabled, hideCanvasGlow])
 
   // ─── Load workspace + canvas state on mount ───────────────────────────────
   useEffect(() => {
@@ -1567,10 +1607,6 @@ function App(): JSX.Element {
 
   const fontTokens = React.useMemo(() => settings.fonts, [settings.fonts])
   const theme = React.useMemo(() => getThemeById(settings.themeId), [settings.themeId])
-  const canvasGlowEnabled = settings.canvasGlowEnabled
-  const snapValue = React.useCallback((value: number) => (
-    settings.snapToGrid ? snap(value, settings.gridSize) : value
-  ), [settings.snapToGrid, settings.gridSize])
   const translucentBackgroundOpacity = Math.max(0.05, Math.min(1, settings.translucentBackgroundOpacity ?? 1))
   const canvasBackground = withAlpha(settings.canvasBackground, translucentBackgroundOpacity)
   const canvasLayerBackground = theme.canvas.backgroundEffect
@@ -1584,41 +1620,6 @@ function App(): JSX.Element {
   const openSidebarToolbarPadding = sidebarWidth + 16
   const openSidebarPillLeft = sidebarWidth + 18
   const expandedLayoutLeft = sidebarWidth + 8
-
-  const hideCanvasGlow = React.useCallback(() => {
-    if (canvasGlowRafRef.current !== null) {
-      cancelAnimationFrame(canvasGlowRafRef.current)
-      canvasGlowRafRef.current = null
-    }
-    canvasGlowPointRef.current = null
-    if (dotGlowSmallRef.current) dotGlowSmallRef.current.style.opacity = '0'
-    if (dotGlowLargeRef.current) dotGlowLargeRef.current.style.opacity = '0'
-  }, [])
-
-  const updateCanvasGlow = React.useCallback((clientX: number, clientY: number) => {
-    if (!canvasGlowEnabled) return
-    canvasGlowPointRef.current = { clientX, clientY }
-    if (canvasGlowRafRef.current !== null) return
-    canvasGlowRafRef.current = requestAnimationFrame(() => {
-      canvasGlowRafRef.current = null
-      const rect = canvasRef.current?.getBoundingClientRect()
-      const point = canvasGlowPointRef.current
-      if (!rect || !point) return
-      const x = point.clientX - rect.left
-      const y = point.clientY - rect.top
-      const mask = `radial-gradient(circle 120px at ${x}px ${y}px, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0) 100%)`
-      if (dotGlowSmallRef.current) {
-        dotGlowSmallRef.current.style.maskImage = mask
-        dotGlowSmallRef.current.style.webkitMaskImage = mask
-        dotGlowSmallRef.current.style.opacity = '1'
-      }
-      if (dotGlowLargeRef.current) {
-        dotGlowLargeRef.current.style.maskImage = mask
-        dotGlowLargeRef.current.style.webkitMaskImage = mask
-        dotGlowLargeRef.current.style.opacity = '1'
-      }
-    })
-  }, [canvasGlowEnabled])
 
   useEffect(() => {
     if (!canvasGlowEnabled) hideCanvasGlow()
