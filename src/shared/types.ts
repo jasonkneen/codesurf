@@ -4,7 +4,63 @@ export interface Workspace {
   path: string
 }
 
-export type TileType = 'terminal' | 'note' | 'code' | 'image' | 'kanban' | 'browser' | 'chat' | 'file'
+export type BuiltinTileType = 'terminal' | 'note' | 'code' | 'image' | 'kanban' | 'browser' | 'chat' | 'file'
+export type TileType = BuiltinTileType | `ext:${string}`
+
+// ─── Extension System Types ─────────────────────────────────────────────────
+
+export interface ExtensionManifest {
+  id: string
+  name: string
+  version: string
+  description?: string
+  author?: string
+  tier: 'safe' | 'power'
+  contributes?: {
+    tiles?: ExtensionTileEntry[]
+    mcpTools?: ExtensionMCPToolContrib[]
+    contextMenu?: ExtensionContextMenuContrib[]
+    settings?: ExtensionSettingContrib[]
+  }
+  main?: string
+  permissions?: string[]
+  _path?: string
+  _enabled?: boolean
+  _adapter?: string
+}
+
+export interface ExtensionTileEntry {
+  type: string
+  label: string
+  icon?: string
+  entry: string
+  defaultSize?: { w: number; h: number }
+  minSize?: { w: number; h: number }
+}
+
+export interface ExtensionTileContrib extends ExtensionTileEntry {
+  extId: string
+}
+
+export interface ExtensionMCPToolContrib {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+export interface ExtensionContextMenuContrib {
+  label: string
+  action: string
+  tileType?: string
+  extId?: string
+}
+
+export interface ExtensionSettingContrib {
+  key: string
+  label: string
+  type: 'string' | 'number' | 'boolean'
+  default?: unknown
+}
 
 // ─── Font Token System ──────────────────────────────────────────────────────
 // VS Code-style granular font settings. Every token has family, size, lineHeight,
@@ -183,14 +239,16 @@ export interface AppSettings {
   terminalFontFamily: string
   // Appearance (legacy — prefer fonts.sans.size)
   uiFontSize: number
+  /** @deprecated — translucency is always enabled at the Electron level now */
   translucentBackground: boolean
+  /** Canvas background opacity: 1 = fully opaque, lower = more see-through vibrancy */
   translucentBackgroundOpacity: number
   // Sidebar
   sidebarDefaultSort: 'name' | 'type' | 'ext'
   sidebarIgnored: string[]
   // Behaviour
   autoSaveIntervalMs: number
-  defaultTileSizes: Record<TileType, { w: number; h: number }>
+  defaultTileSizes: Record<BuiltinTileType, { w: number; h: number }> & Record<string, { w: number; h: number }>
 }
 
 export const DEFAULT_SETTINGS: AppSettings = {
@@ -208,8 +266,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   terminalFontSize: 13,
   terminalFontFamily: MONO_STACK,
   uiFontSize: 12,
-  translucentBackground: false,
-  translucentBackgroundOpacity: 0.74,
+  translucentBackground: true,
+  translucentBackgroundOpacity: 1,
   sidebarDefaultSort: 'name',
   sidebarIgnored: ['.git', 'node_modules', '.next', 'dist', 'dist-electron', '.DS_Store', '__pycache__', '.cache', 'out'],
   autoSaveIntervalMs: 500,

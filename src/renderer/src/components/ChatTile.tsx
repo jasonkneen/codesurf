@@ -1,12 +1,13 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react'
 import type { AppSettings } from '../../../shared/types'
-import { basename, getDroppedPaths, isImagePath, toFileUrl } from '../utils/dnd'
+import { basename, getDroppedPaths, isImagePath } from '../utils/dnd'
 import {
   Paperclip, ShieldCheck, Mic, Activity, ChevronDown,
   Check, ArrowUp, Square, MessageSquare, Bot,
-  Brain, ChevronRight, Wrench, Clock, DollarSign,
+  Brain, ChevronRight, Clock, DollarSign,
   Trash2
 } from 'lucide-react'
+import { useMCPServers, type MCPServerEntry } from '../hooks/useMCPServers'
 
 // --- Custom provider SVG icons (matching Paseo) ----------------------------------
 
@@ -22,6 +23,20 @@ function CodexIcon({ size = 12, color = 'currentColor' }: { size?: number; color
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" fill={color} fillRule="evenodd">
       <path d="M21.55 10.004a5.416 5.416 0 00-.478-4.501c-1.217-2.09-3.662-3.166-6.05-2.66A5.59 5.59 0 0010.831 1C8.39.995 6.224 2.546 5.473 4.838A5.553 5.553 0 001.76 7.496a5.487 5.487 0 00.691 6.5 5.416 5.416 0 00.477 4.502c1.217 2.09 3.662 3.165 6.05 2.66A5.586 5.586 0 0013.168 23c2.443.006 4.61-1.546 5.361-3.84a5.553 5.553 0 003.715-2.66 5.488 5.488 0 00-.693-6.497v.001zm-8.381 11.558a4.199 4.199 0 01-2.675-.954c.034-.018.093-.05.132-.074l4.44-2.53a.71.71 0 00.364-.623v-6.176l1.877 1.069c.02.01.033.029.036.05v5.115c-.003 2.274-1.87 4.118-4.174 4.123zM4.192 17.78a4.059 4.059 0 01-.498-2.763c.032.02.09.055.131.078l4.44 2.53c.225.13.504.13.73 0l5.42-3.088v2.138a.068.068 0 01-.027.057L9.9 19.288c-1.999 1.136-4.552.46-5.707-1.51h-.001zM3.023 8.216A4.15 4.15 0 015.198 6.41l-.002.151v5.06a.711.711 0 00.364.624l5.42 3.087-1.876 1.07a.067.067 0 01-.063.005l-4.489-2.559c-1.995-1.14-2.679-3.658-1.53-5.63h.001zm15.417 3.54l-5.42-3.088L14.896 7.6a.067.067 0 01.063-.006l4.489 2.557c1.998 1.14 2.683 3.662 1.529 5.633a4.163 4.163 0 01-2.174 1.807V12.38a.71.71 0 00-.363-.623zm1.867-2.773a6.04 6.04 0 00-.132-.078l-4.44-2.53a.731.731 0 00-.729 0l-5.42 3.088V7.325a.068.068 0 01.027-.057L14.1 4.713c2-1.137 4.555-.46 5.707 1.513.487.833.664 1.809.499 2.757h.001zm-11.741 3.81l-1.877-1.068a.065.065 0 01-.036-.051V6.559c.001-2.277 1.873-4.122 4.181-4.12.976 0 1.92.338 2.671.954-.034.018-.092.05-.131.073l-4.44 2.53a.71.71 0 00-.365.623l-.003 6.173v.002zm1.02-2.168L12 9.25l2.414 1.375v2.75L12 14.75l-2.415-1.375v-2.75z" />
+    </svg>
+  )
+}
+
+// --- MCP Logo (official connected-nodes mark) ------------------------------------
+function MCPIcon({ size = 14, color = 'currentColor' }: { size?: number; color?: string }): JSX.Element {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={color} strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="6" cy="6" r="2.5" />
+      <circle cx="18" cy="6" r="2.5" />
+      <circle cx="12" cy="18" r="2.5" />
+      <line x1="7.5" y1="8" x2="11" y2="16" />
+      <line x1="16.5" y1="8" x2="13" y2="16" />
+      <line x1="8.5" y1="6" x2="15.5" y2="6" />
     </svg>
   )
 }
@@ -273,6 +288,8 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const [provider, setProvider] = useState<Provider>('claude')
   const [model, setModel] = useState(DEFAULT_MODELS.claude[0].id)
   const [mcpEnabled, setMcpEnabled] = useState(true)
+  const mcpServers = useMCPServers()
+  const [disabledServers, setDisabledServers] = useState<Set<string>>(new Set())
   const [mode, setMode] = useState(PROVIDER_MODES.claude[0].id)
   const [thinking, setThinking] = useState('adaptive')
   const [agentMode, setAgentMode] = useState(false)
@@ -390,22 +407,45 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     opencode: opencodeModels,
   }
 
-  // Close dropdowns on outside click
+  // Close dropdowns on outside click or Escape
+  const anyMenuOpen = showModelMenu || showProviderMenu || showMcpMenu || showModeMenu || showThinkingMenu
+  const menuRefs = [modelMenuRef, providerMenuRef, mcpMenuRef, modeMenuRef, thinkingMenuRef]
+
   useEffect(() => {
-    const handler = (e: MouseEvent) => {
-      if (modelMenuRef.current && !modelMenuRef.current.contains(e.target as Node)) setShowModelMenu(false)
-      if (providerMenuRef.current && !providerMenuRef.current.contains(e.target as Node)) setShowProviderMenu(false)
-      if (mcpMenuRef.current && !mcpMenuRef.current.contains(e.target as Node)) setShowMcpMenu(false)
-      if (modeMenuRef.current && !modeMenuRef.current.contains(e.target as Node)) setShowModeMenu(false)
-      if (thinkingMenuRef.current && !thinkingMenuRef.current.contains(e.target as Node)) setShowThinkingMenu(false)
-      if (acRef.current && !acRef.current.contains(e.target as Node) && e.target !== textareaRef.current) {
+    const handleClick = (e: MouseEvent) => {
+      const target = e.target as Node
+      // If click is inside any menu button/dropdown, let toggleMenu handle it
+      const insideAnyMenu = menuRefs.some(ref => ref.current?.contains(target))
+      if (insideAnyMenu) return
+      // Click is outside all menus — close everything
+      setShowModelMenu(false)
+      setShowProviderMenu(false)
+      setShowMcpMenu(false)
+      setShowModeMenu(false)
+      setShowThinkingMenu(false)
+      if (acRef.current && !acRef.current.contains(target) && target !== textareaRef.current) {
         setAcType(null)
         setAcQuery('')
       }
     }
-    document.addEventListener('mousedown', handler)
-    return () => document.removeEventListener('mousedown', handler)
-  }, [])
+    const handleKey = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && anyMenuOpen) {
+        e.stopPropagation()
+        e.preventDefault()
+        setShowModelMenu(false)
+        setShowProviderMenu(false)
+        setShowMcpMenu(false)
+        setShowModeMenu(false)
+        setShowThinkingMenu(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClick)
+    document.addEventListener('keydown', handleKey, true)
+    return () => {
+      document.removeEventListener('mousedown', handleClick)
+      document.removeEventListener('keydown', handleKey, true)
+    }
+  }, [anyMenuOpen])
 
   const currentModel = providerModels[provider]?.find(m => m.id === model) ?? providerModels[provider]?.[0] ?? { id: '', label: 'No model' }
 
@@ -417,9 +457,12 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     setShowProviderMenu(false)
   }, [providerModels])
 
-  const closeAllMenus = useCallback(() => {
-    setShowModelMenu(false); setShowProviderMenu(false); setShowMcpMenu(false)
-    setShowModeMenu(false); setShowThinkingMenu(false)
+  const toggleMenu = useCallback((which: 'model' | 'provider' | 'mcp' | 'mode' | 'thinking') => {
+    setShowModelMenu(prev => which === 'model' ? !prev : false)
+    setShowProviderMenu(prev => which === 'provider' ? !prev : false)
+    setShowMcpMenu(prev => which === 'mcp' ? !prev : false)
+    setShowModeMenu(prev => which === 'mode' ? !prev : false)
+    setShowThinkingMenu(prev => which === 'thinking' ? !prev : false)
   }, [])
 
   // Voice dictation via Web Speech API (Chromium in Electron)
@@ -1127,7 +1170,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
                     icon={<ShieldCheck size={14} />}
                     tooltip={`Permissions: ${currentMode.label}`}
                     color={currentMode.color}
-                    onClick={() => { closeAllMenus(); setShowModeMenu(p => !p) }}
+                    onClick={() => toggleMenu('mode')}
                   />
                   {showModeMenu && (
                     <Dropdown>
@@ -1154,8 +1197,8 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
               <ToolbarBtn
                 icon={<ThinkingIcon level={thinking} />}
                 tooltip={`Thinking: ${THINKING_OPTIONS.find(t => t.id === thinking)?.label ?? 'Adaptive'}`}
-                color={thinking === 'none' ? '#666' : thinking === 'max' || thinking === 'high' ? '#c084fc' : '#9090c0'}
-                onClick={() => { closeAllMenus(); setShowThinkingMenu(p => !p) }}
+                color={thinking === 'none' ? undefined : '#e0e0e0'}
+                onClick={() => toggleMenu('thinking')}
               />
               {showThinkingMenu && (
                 <Dropdown>
@@ -1180,7 +1223,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
               prefix={PROVIDER_ICON[provider]}
               label={PROVIDER_LABELS[provider]}
               active={showProviderMenu}
-              onClick={() => { closeAllMenus(); setShowProviderMenu(p => !p) }}
+              onClick={() => toggleMenu('provider')}
             />
             {showProviderMenu && (
               <Dropdown>
@@ -1203,7 +1246,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
               prefix={PROVIDER_ICON[provider]}
               label={currentModel.label}
               active={showModelMenu}
-              onClick={() => { closeAllMenus(); setShowModelMenu(p => !p) }}
+              onClick={() => toggleMenu('model')}
             />
             {showModelMenu && (
               <Dropdown>
@@ -1225,22 +1268,54 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
           <ToolbarBtn
             icon={<Bot size={14} />}
             tooltip={agentMode ? 'Agent mode (on)' : 'Agent mode (off)'}
-            color={agentMode ? '#58a6ff' : undefined}
+            color={agentMode ? '#e0e0e0' : undefined}
             onClick={() => setAgentMode(p => !p)}
           />
 
-          {/* MCP — tools icon, popup menu */}
+          {/* MCP — server list with toggles */}
           <div ref={mcpMenuRef} style={{ position: 'relative' }}>
             <ToolbarBtn
-              icon={<Wrench size={14} />}
+              icon={<MCPIcon size={14} />}
               tooltip={`MCP Tools: ${mcpEnabled ? 'On' : 'Off'}`}
-              color={mcpEnabled ? '#3fb950' : undefined}
-              onClick={() => { closeAllMenus(); setShowMcpMenu(p => !p) }}
+              color={mcpEnabled ? '#e0e0e0' : undefined}
+              onClick={() => toggleMenu('mcp')}
             />
             {showMcpMenu && (
               <Dropdown>
-                <DropdownItem icon={<Wrench size={11} />} label="MCP Enabled" active={mcpEnabled} onClick={() => { setMcpEnabled(true); setShowMcpMenu(false) }} />
-                <DropdownItem icon={<Wrench size={11} />} label="MCP Disabled" active={!mcpEnabled} onClick={() => { setMcpEnabled(false); setShowMcpMenu(false) }} />
+                {/* Master toggle */}
+                <DropdownItem
+                  icon={<MCPIcon size={11} />}
+                  label="MCP Tools"
+                  active={mcpEnabled}
+                  onClick={() => setMcpEnabled(v => !v)}
+                />
+                {mcpEnabled && mcpServers.length > 0 && (
+                  <>
+                    <div style={{ height: 1, background: '#2a2a2a', margin: '4px 0' }} />
+                    {mcpServers.map(s => {
+                      const enabled = !disabledServers.has(s.name)
+                      return (
+                        <DropdownItem
+                          key={s.name}
+                          label={s.name}
+                          sublabel={s.url ? 'http' : 'stdio'}
+                          active={enabled}
+                          onClick={() => setDisabledServers(prev => {
+                            const next = new Set(prev)
+                            if (enabled) next.add(s.name)
+                            else next.delete(s.name)
+                            return next
+                          })}
+                        />
+                      )
+                    })}
+                  </>
+                )}
+                {mcpEnabled && mcpServers.length === 0 && (
+                  <div style={{ padding: '6px 10px', fontSize: 11, color: '#555', fontStyle: 'italic' }}>
+                    No MCP servers configured
+                  </div>
+                )}
               </Dropdown>
             )}
           </div>
@@ -1325,37 +1400,39 @@ function ThinkingBlockView({ thinking }: { thinking: ThinkingBlock }): JSX.Eleme
 
   return (
     <div style={{ overflow: 'hidden', width: '100%' }}>
-      {/* Compact inline badge — Paseo ExpandableBadge style */}
+      {/* Compact inline badge */}
       <button
         onClick={() => hasContent && setExpanded(e => !e)}
         style={{
           display: 'inline-flex', alignItems: 'center', gap: 6,
-          padding: '4px 10px 4px 8px',
-          background: expanded ? '#1a1a2e' : 'transparent',
-          border: 'none',
+          padding: '5px 10px 5px 8px',
+          background: expanded ? 'rgba(74,158,255,0.08)' : 'transparent',
+          border: expanded ? '1px solid rgba(74,158,255,0.15)' : '1px solid transparent',
+          borderBottom: expanded ? '1px solid transparent' : '1px solid transparent',
           cursor: hasContent ? 'pointer' : 'default',
-          color: isActive ? '#9090c0' : '#6a6a90',
-          fontSize: 12, fontFamily: fonts.sans,
+          color: isActive ? '#8ab4f8' : '#6a7a90',
+          fontSize: 12, fontFamily: fonts.sans, fontWeight: 500,
           borderRadius: expanded ? '8px 8px 0 0' : 8,
           lineHeight: 1,
+          backdropFilter: expanded ? 'blur(8px)' : 'none',
         }}
       >
-        <Brain size={11} style={{ opacity: isActive ? 0.7 : 0.4, flexShrink: 0 }} />
+        <Brain size={11} style={{ opacity: isActive ? 0.8 : 0.4, flexShrink: 0 }} />
         {isActive ? (
-          <ShimmerText baseColor="#7a7a9e" style={{ fontSize: 12, fontWeight: 500 }}>
+          <ShimmerText baseColor="#8ab4f8" style={{ fontSize: 12, fontWeight: 500 }}>
             Thinking
           </ShimmerText>
         ) : (
-          <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 500 }}>Thinking</span>
+          <span style={{ opacity: 0.6, fontSize: 12, fontWeight: 500 }}>Thought</span>
         )}
         {isActive && !hasContent && (
-          <WorkingDots color="#7a7a9e" size={3} />
+          <WorkingDots color="#8ab4f8" size={3} />
         )}
         {hasContent && (
           <ChevronRight size={10} style={{
             transform: expanded ? 'rotate(90deg)' : 'none',
             transition: 'transform 0.15s',
-            opacity: 0.3, flexShrink: 0,
+            opacity: 0.4, flexShrink: 0,
           }} />
         )}
       </button>
@@ -1363,19 +1440,23 @@ function ThinkingBlockView({ thinking }: { thinking: ThinkingBlock }): JSX.Eleme
       {/* Expanded thinking content */}
       {expanded && hasContent && (
         <div style={{
-          padding: '6px 10px 8px 26px',
-          fontSize: 11, lineHeight: 1.5, color: '#7a7a9e',
+          padding: '8px 12px 10px 12px',
+          fontSize: 12, lineHeight: 1.6, color: '#8ab4f8',
           whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-          fontFamily: fonts.mono, maxHeight: 200, overflowY: 'auto',
-          background: '#1a1a2e',
+          fontFamily: fonts.sans, maxHeight: 200, overflowY: 'auto',
+          background: 'rgba(74,158,255,0.06)',
+          border: '1px solid rgba(74,158,255,0.15)',
+          borderTop: 'none',
           borderRadius: '0 0 8px 8px',
+          backdropFilter: 'blur(8px)',
+          opacity: 0.85,
         }}>
           {thinking.content}
           {isActive && (
             <span style={{
               display: 'inline-block', width: 5, height: 12,
               marginLeft: 2, verticalAlign: 'text-bottom',
-              background: '#8b8bbd', borderRadius: 1,
+              background: '#8ab4f8', borderRadius: 1,
               animation: 'chat-pulse 1s ease-in-out infinite',
             }} />
           )}
@@ -1519,7 +1600,7 @@ function ToolbarBtn({ icon, tooltip, color, onClick }: {
         background: h ? '#1e1e1e' : 'none',
         border: 'none', cursor: 'pointer',
         padding: '4px 6px', borderRadius: 6,
-        color: color ?? (h ? '#ccc' : '#555'),
+        color: color ?? (h ? '#ddd' : '#999'),
         transition: 'color 0.1s, background 0.1s',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
       }}
@@ -1545,16 +1626,18 @@ function ToolbarPill({ prefix, label, color, active, onClick }: {
         border: 'none',
         borderRadius: 6, padding: '3px 8px', cursor: 'pointer',
         fontSize: 11, fontFamily: fonts.sans,
-        color: color ?? (h ? '#ccc' : '#888'),
+        color: color ?? (h ? '#eee' : '#ccc'),
         transition: 'color 0.1s, background 0.1s',
         whiteSpace: 'nowrap',
+        maxWidth: 180,
+        overflow: 'hidden',
       }}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
     >
-      {prefix && <span style={{ display: 'flex', opacity: 0.6 }}>{prefix}</span>}
-      <span>{label}</span>
-      <ChevronDown size={10} style={{ marginLeft: 1, opacity: 0.4 }} />
+      {prefix && <span style={{ display: 'flex', opacity: 0.8 }}>{prefix}</span>}
+      <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>{label}</span>
+      <ChevronDown size={10} style={{ marginLeft: 1, opacity: 0.4, flexShrink: 0 }} />
     </button>
   )
 }

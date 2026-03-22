@@ -85,6 +85,15 @@ contextBridge.exposeInMainWorld('electron', {
     detect: () => ipcRenderer.invoke('agents:detect')
   },
 
+  // Agent binary paths (startup detection + confirmation)
+  agentPaths: {
+    get: () => ipcRenderer.invoke('agentPaths:get'),
+    detect: () => ipcRenderer.invoke('agentPaths:detect'),
+    set: (agentId: string, path: string | null) => ipcRenderer.invoke('agentPaths:set', agentId, path),
+    needsSetup: () => ipcRenderer.invoke('agentPaths:needsSetup'),
+    confirmAll: () => ipcRenderer.invoke('agentPaths:confirmAll'),
+  },
+
   // Chat — send messages to LLM providers (Claude, Codex, OpenCode)
   chat: {
     send: (req: { cardId: string; provider: string; model: string; messages: { role: string; content: string }[] }) =>
@@ -228,6 +237,19 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.on('collab:stateChanged', handler)
       return () => { ipcRenderer.removeListener('collab:stateChanged', handler) }
     },
+  },
+
+  // Extensions
+  extensions: {
+    list: () => ipcRenderer.invoke('ext:list'),
+    listTiles: () => ipcRenderer.invoke('ext:list-tiles'),
+    tileEntry: (extId: string, tileType: string) => ipcRenderer.invoke('ext:tile-entry', extId, tileType),
+    getBridgeScript: (tileId: string, extId: string) => ipcRenderer.invoke('ext:get-bridge-script', tileId, extId),
+    enable: (extId: string) => ipcRenderer.invoke('ext:enable', extId),
+    disable: (extId: string) => ipcRenderer.invoke('ext:disable', extId),
+    getSettings: (extId: string) => ipcRenderer.invoke('ext:settings-get', extId),
+    setSettings: (extId: string, settings: Record<string, unknown>) => ipcRenderer.invoke('ext:settings-set', extId, settings),
+    contextMenuItems: () => ipcRenderer.invoke('ext:context-menu-items'),
   },
 
   // Event bus

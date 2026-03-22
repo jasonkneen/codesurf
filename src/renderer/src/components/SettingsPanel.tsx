@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef } from 'react'
 import type { AppSettings, FontConfig, FontSettings } from '../../../shared/types'
 import { DEFAULT_SETTINGS, DEFAULT_FONTS, withDefaultSettings } from '../../../shared/types'
-import { Settings, Type, Monitor, Terminal, FolderOpen, Layout, Sliders, Network, Plus, Trash2, ChevronDown, ChevronRight, FileJson, AlertTriangle, Check, Copy, RotateCcw, FormInput, Code2 } from 'lucide-react'
+import { Settings, Type, Monitor, Terminal, FolderOpen, Sliders, Network, Plus, Trash2, ChevronDown, ChevronRight, FileJson, AlertTriangle, Check, Copy, RotateCcw, FormInput, Code2 } from 'lucide-react'
 import { useAppFonts } from '../FontContext'
 
 interface Workspace {
@@ -16,14 +16,13 @@ interface Props {
   workspaces?: Workspace[]
 }
 
-type Section = 'general' | 'canvas' | 'terminal' | 'sidebar' | 'tiles' | 'behaviour' | 'mcp'
+type Section = 'general' | 'canvas' | 'terminal' | 'sidebar' | 'behaviour' | 'mcp'
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode; description: string }[] = [
   { id: 'general',   label: 'General',   icon: <Type size={15} />,      description: 'Display settings — fonts, weights, sizes, line heights, and raw JSON' },
   { id: 'canvas',    label: 'Canvas',    icon: <Monitor size={15} />,   description: 'Background, grid and snap settings' },
   { id: 'terminal',  label: 'Terminal',  icon: <Terminal size={15} />,  description: 'Font size and family for terminal tiles' },
   { id: 'sidebar',   label: 'Sidebar',   icon: <FolderOpen size={15} />,description: 'File tree sort and ignored folders' },
-  { id: 'tiles',     label: 'Tiles',     icon: <Layout size={15} />,    description: 'Default sizes for each tile type' },
   { id: 'behaviour', label: 'Behaviour', icon: <Sliders size={15} />,   description: 'Auto-save interval and UI font size' },
   { id: 'mcp',       label: 'MCP',       icon: <Network size={15} />,   description: 'Model Context Protocol server connections' },
 ]
@@ -378,9 +377,7 @@ export function SettingsPanel({ onClose, onSettingsChange, workspaces = [] }: Pr
       const next = { ...prev, [key]: value }
       window.electron.settings?.set(next).then((saved: AppSettings) => {
         if (saved) onSettingsChange(saved)
-        if (key === 'translucentBackground' && prev.translucentBackground !== value) {
-          window.electron.app?.relaunch?.()
-        }
+
       })
       return next
     })
@@ -391,9 +388,7 @@ export function SettingsPanel({ onClose, onSettingsChange, workspaces = [] }: Pr
       const next = withDefaultSettings({ ...prev, ...patch })
       window.electron.settings?.set(next).then((saved: AppSettings) => {
         if (saved) onSettingsChange(saved)
-        if (patch.translucentBackground !== undefined && prev.translucentBackground !== patch.translucentBackground) {
-          window.electron.app?.relaunch?.()
-        }
+
       })
       return next
     })
@@ -427,10 +422,7 @@ export function SettingsPanel({ onClose, onSettingsChange, workspaces = [] }: Pr
             <SettingRow label="Background colour" description="Canvas background color">
               <ColorSwatch value={settings.canvasBackground} onChange={v => update('canvasBackground', v)} />
             </SettingRow>
-            <SettingRow label="Translucent canvas background" description="Use macOS vibrancy behind the canvas while leaving sidebar and tiles opaque">
-              <Toggle value={settings.translucentBackground} onChange={v => update('translucentBackground', v)} />
-            </SettingRow>
-            <SettingRow label="Translucency level" description="Adjust how much of the background shows through when translucency is enabled">
+            <SettingRow label="Canvas translucency" description="Slide left for see-through vibrancy, all the way right for fully opaque">
               <RangeInput value={settings.translucentBackgroundOpacity} min={0.05} max={1} step={0.01} onChange={v => update('translucentBackgroundOpacity', Number(v.toFixed(2)))} />
             </SettingRow>
             <SectionLabel label="Grid" />
@@ -487,23 +479,7 @@ export function SettingsPanel({ onClose, onSettingsChange, workspaces = [] }: Pr
             </SettingRow>
           </>
         )
-      case 'tiles':
-        return (
-          <>
-            <SectionLabel label="Default tile sizes" />
-            {(['terminal', 'code', 'note', 'image', 'kanban', 'browser'] as const).map(type => (
-              <SettingRow key={type} label={type.charAt(0).toUpperCase() + type.slice(1)} description="Default width × height">
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <NumInput value={settings.defaultTileSizes[type].w} min={200} max={2000}
-                    onChange={v => update('defaultTileSizes', { ...settings.defaultTileSizes, [type]: { ...settings.defaultTileSizes[type], w: v } })} />
-                  <span style={{ color: '#444', fontSize: 12 }}>×</span>
-                  <NumInput value={settings.defaultTileSizes[type].h} min={100} max={2000}
-                    onChange={v => update('defaultTileSizes', { ...settings.defaultTileSizes, [type]: { ...settings.defaultTileSizes[type], h: v } })} />
-                </div>
-              </SettingRow>
-            ))}
-          </>
-        )
+
       case 'behaviour':
         return (
           <>

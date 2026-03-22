@@ -2,7 +2,7 @@ import { app, BrowserWindow, shell, ipcMain, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { autoUpdater } from 'electron-updater'
-import { initWorkspaces, readSettingsSync, registerWorkspaceIPC } from './ipc/workspace'
+import { initWorkspaces, registerWorkspaceIPC } from './ipc/workspace'
 import { registerFsIPC } from './ipc/fs'
 import { registerCanvasIPC } from './ipc/canvas'
 import { registerTerminalIPC } from './ipc/terminal'
@@ -15,6 +15,9 @@ import { registerChatIPC } from './ipc/chat'
 import { registerActivityIPC } from './ipc/activity'
 import { registerCollabIPC, stopAllCollabWatchers } from './ipc/collab'
 import { flushAll as flushActivityStore } from './activity-store'
+import { detectAllAgents, registerAgentPathsIPC } from './agent-paths'
+import { ExtensionRegistry } from './extensions/registry'
+import { registerExtensionIPC } from './ipc/extensions'
 import { applyWindowAppearance, getWindowAppearanceOptions } from './windowAppearance'
 import { migrateLegacyStorage } from './migration'
 import { APP_ID, APP_NAME, CONTEX_HOME } from './paths'
@@ -22,6 +25,7 @@ import { APP_ID, APP_NAME, CONTEX_HOME } from './paths'
 
 // Per-window display titles (webContents.id → label set by renderer via workspace name)
 const windowTitles = new Map<number, string>()
+let extensionRegistry: ExtensionRegistry | null = null
 
 function getLiveWindows(): BrowserWindow[] {
   return BrowserWindow.getAllWindows().filter(w => !w.isDestroyed() && !w.webContents.isDestroyed())
@@ -44,7 +48,6 @@ function broadcastWindowList(): void {
 }
 
 function createWindow(): BrowserWindow {
-  const settings = readSettingsSync()
   const win = new BrowserWindow({
     width: 1400,
     height: 900,
@@ -54,7 +57,7 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     titleBarStyle: 'hiddenInset',
     trafficLightPosition: { x: 16, y: 18 },
-    ...getWindowAppearanceOptions(settings),
+    ...getWindowAppearanceOptions(),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -67,7 +70,7 @@ function createWindow(): BrowserWindow {
 
   win.on('ready-to-show', () => {
     if (win.isDestroyed() || win.webContents.isDestroyed()) return
-    applyWindowAppearance(win, settings)
+    applyWindowAppearance(win)
     win.setTitle('') // hide native title text; our pill tabs show workspace name
     win.show()
     broadcastWindowList()
@@ -118,6 +121,15 @@ app.whenReady().then(async () => {
   registerChatIPC()
   registerActivityIPC()
   registerCollabIPC()
+  registerAgentPathsIPC()
+
+  // Load extensions (global + workspace)
+  extensionRegistry = new ExtensionRegistry()
+  await extensionRegistry.scan()
+  registerExtensionIPC(extensionRegistry)
+
+  // Detect agent binaries (claude, codex, opencode) — uses real shell PATH
+  detectAllAgents().catch(err => console.error('[AgentPaths] Detection failed:', err))
   // registerBrowserTileIPC() — removed, renderer uses <webview> tag directly
 
   // Start local MCP server for agent→kanban callbacks
@@ -461,6 +473,7 @@ app.whenReady().then(async () => {
 app.on('before-quit', () => {
   flushActivityStore()
   stopAllCollabWatchers()
+  extensionRegistry?.deactivateAll()
 })
 
 app.on('window-all-closed', () => {

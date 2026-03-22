@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: transparent;
+    color: #e0ddd4;
+    padding: 0;
+    overflow: hidden;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  .toolbar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 12px;
+    background: #1e1e22;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+  }
+  .toolbar input {
+    flex: 1;
+    padding: 5px 10px;
+    background: #2a2a30;
+    border: 1px solid #3a3a40;
+    border-radius: 4px;
+    color: #e0ddd4;
+    font-size: 12px;
+    font-family: "SF Mono", monospace;
+    outline: none;
+  }
+  .toolbar input:focus { border-color: #5d8aa8; }
+  .toolbar input::placeholder { color: #555; }
+  .content {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px 24px;
+  }
+  /* Markdown styles */
+  .content h1 { font-size: 24px; font-weight: 600; margin: 0 0 16px; color: #f0ede4; }
+  .content h2 { font-size: 20px; font-weight: 600; margin: 24px 0 12px; color: #e8e5dc; border-bottom: 1px solid #333; padding-bottom: 6px; }
+  .content h3 { font-size: 16px; font-weight: 600; margin: 20px 0 8px; color: #e0ddd4; }
+  .content p { margin: 0 0 12px; line-height: 1.6; }
+  .content ul, .content ol { margin: 0 0 12px; padding-left: 24px; }
+  .content li { margin: 4px 0; line-height: 1.5; }
+  .content code {
+    background: #2a2a30;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: "SF Mono", "Fira Code", monospace;
+    font-size: 0.9em;
+  }
+  .content pre {
+    background: #1a1a20;
+    padding: 14px 16px;
+    border-radius: 6px;
+    overflow-x: auto;
+    margin: 0 0 16px;
+    border: 1px solid #2a2a30;
+  }
+  .content pre code { background: none; padding: 0; }
+  .content blockquote {
+    border-left: 3px solid #5d8aa8;
+    margin: 0 0 16px;
+    padding: 8px 16px;
+    color: #aaa;
+    background: #1a1a22;
+    border-radius: 0 4px 4px 0;
+  }
+  .content a { color: #5d8aa8; text-decoration: none; }
+  .content a:hover { text-decoration: underline; }
+  .content hr { border: none; border-top: 1px solid #333; margin: 24px 0; }
+  .content table { border-collapse: collapse; margin: 0 0 16px; width: 100%; }
+  .content th, .content td { padding: 8px 12px; border: 1px solid #333; text-align: left; }
+  .content th { background: #2a2a30; font-weight: 600; }
+  .empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #555;
+    font-size: 13px;
+    text-align: center;
+  }
+  .empty div { max-width: 240px; }
+</style>
+</head>
+<body>
+
+<div class="toolbar">
+  <input id="pathInput" type="text" placeholder="Enter path to .md file…" />
+</div>
+
+<div id="content" class="content">
+  <div class="empty">
+    <div>
+      <div style="font-size: 24px; margin-bottom: 12px;">📝</div>
+      Enter a markdown file path above,<br>
+      or drop a file onto this tile.
+    </div>
+  </div>
+</div>
+
+<script>
+  const pathInput = document.getElementById('pathInput')
+  const contentEl = document.getElementById('content')
+  let currentPath = null
+  let debounce = null
+
+  // Configure marked
+  if (window.marked) {
+    marked.setOptions({
+      breaks: true,
+      gfm: true,
+    })
+  }
+
+  function renderMarkdown(md) {
+    if (!md || !md.trim()) {
+      contentEl.innerHTML = '<div class="empty"><div>File is empty.</div></div>'
+      return
+    }
+    contentEl.innerHTML = marked.parse(md)
+  }
+
+  function loadFile(path) {
+    currentPath = path
+    pathInput.value = path
+    // Save state
+    if (window.contex) {
+      window.contex.tile.setState({ filePath: path })
+    }
+    // TODO: read file via IPC — for now show the path
+    renderMarkdown(`# ${path.split('/').pop()}\n\n*Watching ${path} for changes…*\n\n> File reading requires the workspace filesystem API.\n> Drop a .md file here or the extension will render bus events with markdown content.`)
+  }
+
+  // Handle path input
+  pathInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      const path = pathInput.value.trim()
+      if (path) loadFile(path)
+    }
+  })
+
+  // Listen for bus events with markdown content
+  function listen() {
+    if (!window.contex) return
+    window.contex.bus.subscribe('markdown', (event) => {
+      if (event?.payload?.content) {
+        renderMarkdown(event.payload.content)
+      }
+      if (event?.payload?.filePath) {
+        loadFile(event.payload.filePath)
+      }
+    })
+  }
+
+  // Restore state
+  function init() {
+    if (!window.contex) return
+    window.contex.tile.getState().then(state => {
+      if (state?.filePath) loadFile(state.filePath)
+      if (state?.content) renderMarkdown(state.content)
+    })
+    listen()
+  }
+
+  if (window.contex) {
+    init()
+  } else {
+    window.addEventListener('message', function handler(e) {
+      if (e.data?.type === 'contex-bridge-ready') {
+        window.removeEventListener('message', handler)
+        setTimeout(init, 100)
+      }
+    })
+  }
+</script>
+</body>
+</html>

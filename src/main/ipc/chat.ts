@@ -11,6 +11,7 @@ import { query, type Query, type Options } from '@anthropic-ai/claude-agent-sdk'
 import { spawn, ChildProcess, execFileSync } from 'child_process'
 import * as net from 'net'
 import { getMCPPort } from '../mcp-server'
+import { getAgentPath, getShellEnvPath } from '../agent-paths'
 // Lazy-loaded: @opencode-ai/sdk only exports ESM, Electron main is CJS.
 // externalizeDepsPlugin converts dynamic import() to require() which can't
 // resolve ESM-only exports — wrap in try/catch so the app still starts.
@@ -79,8 +80,16 @@ function findAvailablePort(): Promise<number> {
 }
 
 function resolveOpenCodeBinary(): string | null {
+  // Use startup-detected path first
+  const detected = getAgentPath('opencode')
+  if (detected) return detected
+  // Fallback to which
   try {
-    return execFileSync('which', ['opencode'], { encoding: 'utf-8' }).trim() || null
+    const shellPath = getShellEnvPath()
+    return execFileSync('which', ['opencode'], {
+      encoding: 'utf-8',
+      env: { ...process.env, ...(shellPath && { PATH: shellPath }) },
+    }).trim() || null
   } catch {
     return null
   }
@@ -283,6 +292,9 @@ function chatClaude(req: ChatRequest): void {
     log('MCP server attached at port', mcpPort)
   }
 
+  // Resolve claude binary from startup detection
+  const claudePath = getAgentPath('claude')
+
   const options: Options = {
     model: req.model,
     abortController,
@@ -293,6 +305,8 @@ function chatClaude(req: ChatRequest): void {
     ...(Object.keys(mcpServers).length > 0 && { mcpServers }),
     // Auto-allow all contex MCP tools so agents don't need manual approval
     allowedTools: mcpToolNames.map(t => `mcp__contex__${t}`),
+    // Use detected system binary, not the SDK's bundled cli.js
+    ...(claudePath && { pathToClaudeCodeExecutable: claudePath }),
   }
 
   // Resume existing session for multi-turn
@@ -417,9 +431,11 @@ function chatCodex(req: ChatRequest): void {
 
   // Map mode to codex --approval-mode flag
   const codexMode = req.mode ?? 'auto'
-  const proc = spawn('codex', ['exec', '--model', req.model, '--approval-mode', codexMode, lastUserMsg.content], {
+  const codexBin = getAgentPath('codex') || 'codex'
+  const shellPath = getShellEnvPath()
+  const proc = spawn(codexBin, ['exec', '--model', req.model, '--approval-mode', codexMode, lastUserMsg.content], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env },
+    env: { ...process.env, ...(shellPath && { PATH: shellPath }) },
   })
 
   activeProcesses.set(req.cardId, proc)

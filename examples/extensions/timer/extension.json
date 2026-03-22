@@ -1,0 +1,27 @@
+{
+  "id": "timer",
+  "name": "Timer",
+  "version": "1.0.0",
+  "description": "A simple countdown timer that persists state and announces completion via the event bus.",
+  "author": "contex",
+  "tier": "safe",
+  "contributes": {
+    "tiles": [
+      {
+        "type": "timer",
+        "label": "Timer",
+        "icon": "⏱",
+        "entry": "dist/index.html",
+        "defaultSize": { "w": 320, "h": 260 },
+        "minSize": { "w": 220, "h": 200 }
+      }
+    ],
+    "contextMenu": [
+      {
+        "label": "⏱ New Timer",
+        "action": "createTile",
+        "tileType": "ext:timer"
+      }
+    ]
+  }
+}

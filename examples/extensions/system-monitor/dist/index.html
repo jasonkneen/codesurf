@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: transparent;
+    color: #e0ddd4;
+    padding: 16px;
+    font-size: 12px;
+    overflow-y: auto;
+    height: 100vh;
+  }
+  .section { margin-bottom: 16px; }
+  .label {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 1.5px;
+    color: #666;
+    margin-bottom: 6px;
+  }
+  .meter {
+    height: 8px;
+    background: #2a2a30;
+    border-radius: 4px;
+    overflow: hidden;
+    margin-bottom: 4px;
+  }
+  .meter-fill {
+    height: 100%;
+    border-radius: 4px;
+    transition: width 0.5s ease;
+  }
+  .meter-fill.cpu { background: linear-gradient(90deg, #5d8aa8, #e87070); }
+  .meter-fill.mem { background: linear-gradient(90deg, #70c870, #e8c870); }
+  .value {
+    font-variant-numeric: tabular-nums;
+    color: #bbb;
+    font-size: 11px;
+  }
+  .cores {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(30px, 1fr));
+    gap: 3px;
+    margin-top: 6px;
+  }
+  .core {
+    height: 20px;
+    border-radius: 3px;
+    position: relative;
+    overflow: hidden;
+    background: #2a2a30;
+  }
+  .core-fill {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    transition: height 0.5s ease;
+    border-radius: 3px;
+  }
+  .info-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 4px 0;
+    border-bottom: 1px solid #2a2a30;
+  }
+  .info-row .k { color: #666; }
+  .info-row .v { color: #bbb; font-variant-numeric: tabular-nums; }
+  .waiting {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: #555;
+  }
+</style>
+</head>
+<body>
+
+<div id="waiting" class="waiting">Waiting for system data…</div>
+
+<div id="dashboard" style="display: none;">
+  <div class="section">
+    <div class="label">CPU</div>
+    <div class="meter"><div id="cpuFill" class="meter-fill cpu" style="width: 0%"></div></div>
+    <div class="value"><span id="cpuVal">0</span>%</div>
+    <div id="cores" class="cores"></div>
+  </div>
+
+  <div class="section">
+    <div class="label">Memory</div>
+    <div class="meter"><div id="memFill" class="meter-fill mem" style="width: 0%"></div></div>
+    <div class="value"><span id="memVal">0</span>% — <span id="memDetail">0 / 0 GB</span></div>
+  </div>
+
+  <div class="section">
+    <div class="label">System</div>
+    <div id="sysInfo"></div>
+  </div>
+</div>
+
+<script>
+  const cpuFill = document.getElementById('cpuFill')
+  const cpuVal = document.getElementById('cpuVal')
+  const memFill = document.getElementById('memFill')
+  const memVal = document.getElementById('memVal')
+  const memDetail = document.getElementById('memDetail')
+  const coresEl = document.getElementById('cores')
+  const sysInfo = document.getElementById('sysInfo')
+  const waiting = document.getElementById('waiting')
+  const dashboard = document.getElementById('dashboard')
+
+  function cpuColor(pct) {
+    if (pct < 40) return '#5d8aa8'
+    if (pct < 70) return '#e8c870'
+    return '#e87070'
+  }
+
+  function update(stats) {
+    waiting.style.display = 'none'
+    dashboard.style.display = 'block'
+
+    cpuFill.style.width = stats.cpuAvg + '%'
+    cpuVal.textContent = stats.cpuAvg
+
+    memFill.style.width = stats.memPercent + '%'
+    memVal.textContent = stats.memPercent
+    memDetail.textContent = stats.memUsedGB + ' / ' + stats.memTotalGB + ' GB'
+
+    // Per-core bars
+    if (stats.cpuCores) {
+      if (coresEl.children.length !== stats.cpuCores.length) {
+        coresEl.innerHTML = stats.cpuCores.map(() => '<div class="core"><div class="core-fill"></div></div>').join('')
+      }
+      stats.cpuCores.forEach((pct, i) => {
+        const fill = coresEl.children[i]?.querySelector('.core-fill')
+        if (fill) {
+          fill.style.height = pct + '%'
+          fill.style.background = cpuColor(pct)
+        }
+      })
+    }
+
+    // System info
+    function fmtUptime(s) {
+      const h = Math.floor(s / 3600)
+      const m = Math.floor((s % 3600) / 60)
+      return h + 'h ' + m + 'm'
+    }
+    const rows = [
+      ['Hostname', stats.hostname],
+      ['Platform', stats.platform + ' / ' + stats.arch],
+      ['Uptime', fmtUptime(stats.uptime)],
+      ['Load Avg', (stats.loadAvg || []).join(', ')],
+    ]
+    sysInfo.innerHTML = rows.map(([k, v]) =>
+      '<div class="info-row"><span class="k">' + k + '</span><span class="v">' + v + '</span></div>'
+    ).join('')
+  }
+
+  // Listen for sysmon events from the power extension
+  function listen() {
+    if (!window.contex) return
+    window.contex.bus.subscribe('sysmon', (event) => {
+      if (event?.payload) update(event.payload)
+    })
+  }
+
+  if (window.contex) {
+    listen()
+  } else {
+    window.addEventListener('message', function handler(e) {
+      if (e.data?.type === 'contex-bridge-ready') {
+        window.removeEventListener('message', handler)
+        setTimeout(listen, 100)
+      }
+    })
+  }
+</script>
+</body>
+</html>

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, sans-serif;
+    background: transparent;
+    color: #e0ddd4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 20px;
+    user-select: none;
+  }
+  .phase {
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: #888;
+    margin-bottom: 8px;
+  }
+  .phase.work { color: #e87070; }
+  .phase.break { color: #70c870; }
+  .phase.longBreak { color: #7090e8; }
+  .display {
+    font-size: 52px;
+    font-weight: 200;
+    font-variant-numeric: tabular-nums;
+    margin-bottom: 6px;
+  }
+  .cycles {
+    font-size: 11px;
+    color: #666;
+    margin-bottom: 20px;
+  }
+  .cycles span { color: #e87070; }
+  .controls { display: flex; gap: 8px; }
+  button {
+    padding: 7px 18px;
+    border: 1px solid #444;
+    background: #2a2a30;
+    color: #ccc;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  button:hover { background: #3a3a40; color: #fff; }
+  button.primary { background: #e87070; border-color: #e87070; color: #fff; }
+  button.primary:hover { background: #f08080; }
+  button.primary.break { background: #50a850; border-color: #50a850; }
+  .ring-wrap {
+    position: relative;
+    width: 160px;
+    height: 160px;
+    margin-bottom: 16px;
+  }
+  .ring-wrap canvas { position: absolute; top: 0; left: 0; }
+  .ring-center {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<div class="ring-wrap">
+  <canvas id="ring" width="160" height="160"></canvas>
+  <div class="ring-center">
+    <div id="phase" class="phase">idle</div>
+    <div id="display" class="display">00:00</div>
+  </div>
+</div>
+
+<div id="cycles" class="cycles">🍅 <span>0</span> completed</div>
+
+<div class="controls">
+  <button id="mainBtn" class="primary" onclick="mainAction()">Start</button>
+  <button onclick="send('skip')">Skip</button>
+  <button onclick="send('reset')">Reset</button>
+</div>
+
+<script>
+  let phase = 'idle'
+  let remaining = 0
+  let running = false
+  let cycle = 0
+  let total = 0
+  let totalSec = 25 * 60
+
+  const phaseEl = document.getElementById('phase')
+  const displayEl = document.getElementById('display')
+  const cyclesEl = document.getElementById('cycles')
+  const mainBtn = document.getElementById('mainBtn')
+  const canvas = document.getElementById('ring')
+  const ctx2d = canvas.getContext('2d')
+
+  function fmt(s) {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0')
+  }
+
+  function drawRing(progress) {
+    const w = canvas.width, h = canvas.height
+    const cx = w / 2, cy = h / 2, r = 68, lw = 4
+    ctx2d.clearRect(0, 0, w, h)
+    // Background ring
+    ctx2d.beginPath()
+    ctx2d.arc(cx, cy, r, 0, Math.PI * 2)
+    ctx2d.strokeStyle = '#2a2a30'
+    ctx2d.lineWidth = lw
+    ctx2d.stroke()
+    // Progress ring
+    if (progress > 0) {
+      const color = phase === 'work' ? '#e87070' : phase === 'longBreak' ? '#7090e8' : '#70c870'
+      const start = -Math.PI / 2
+      const end = start + Math.PI * 2 * progress
+      ctx2d.beginPath()
+      ctx2d.arc(cx, cy, r, start, end)
+      ctx2d.strokeStyle = color
+      ctx2d.lineWidth = lw
+      ctx2d.lineCap = 'round'
+      ctx2d.stroke()
+    }
+  }
+
+  function render() {
+    phaseEl.textContent = phase === 'longBreak' ? 'long break' : phase
+    phaseEl.className = 'phase ' + phase
+    displayEl.textContent = fmt(remaining)
+    cyclesEl.innerHTML = `🍅 <span>${total}</span> completed`
+    mainBtn.textContent = running ? 'Pause' : 'Start'
+    mainBtn.className = running ? 'primary' : 'primary'
+    if (phase === 'break' || phase === 'longBreak') mainBtn.classList.add('break')
+    const progress = totalSec > 0 ? 1 - (remaining / totalSec) : 0
+    drawRing(progress)
+  }
+
+  function send(action) {
+    if (window.contex) {
+      window.contex.bus.publish('pomodoro-cmd', 'data', { action })
+    }
+  }
+
+  function mainAction() {
+    send(running ? 'pause' : 'start')
+    running = !running
+    render()
+  }
+
+  // Listen for state updates from the power extension
+  function listenForUpdates() {
+    if (!window.contex) return
+    window.contex.bus.subscribe('pomodoro', (event) => {
+      if (event?.payload) {
+        const p = event.payload
+        if (p.phase) phase = p.phase
+        if (p.remaining !== undefined) remaining = p.remaining
+        if (p.cycle !== undefined) cycle = p.cycle
+        if (p.totalCompleted !== undefined) total = p.totalCompleted
+        running = p.action !== 'pause' && phase !== 'idle'
+        // Update total seconds for ring progress
+        if (phase === 'work') totalSec = 25 * 60
+        else if (phase === 'break') totalSec = 5 * 60
+        else if (phase === 'longBreak') totalSec = 15 * 60
+        render()
+      }
+    })
+  }
+
+  // Init
+  if (window.contex) {
+    listenForUpdates()
+  } else {
+    window.addEventListener('message', function handler(e) {
+      if (e.data?.type === 'contex-bridge-ready') {
+        window.removeEventListener('message', handler)
+        setTimeout(listenForUpdates, 100)
+      }
+    })
+  }
+
+  render()
+</script>
+</body>
+</html>

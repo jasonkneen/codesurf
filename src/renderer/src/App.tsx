@@ -1,8 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, Suspense } from 'react'
 import { Ungroup, Grid2x2X, Scissors, ClipboardPaste } from 'lucide-react'
-import type { TileState, GroupState, CanvasState, Workspace, AppSettings } from '../../shared/types'
+import type { TileState, GroupState, CanvasState, Workspace, AppSettings, TileType } from '../../shared/types'
 import { withDefaultSettings, DEFAULT_SETTINGS } from '../../shared/types'
 import type { MenuItem } from './components/ContextMenu'
+import { useExtensions } from './hooks/useExtensions'
 import { FontProvider, FontTokenProvider, SANS_DEFAULT, MONO_DEFAULT } from './FontContext'
 import type { PanelNode } from './components/PanelLayout'
 import { createLeaf, removeTileFromTree, addTabToLeaf, getAllTileIds, splitLeaf, closeOthersInLeaf, closeToRightInLeaf, findLeafById } from './components/PanelLayout'
@@ -40,7 +41,9 @@ const LazyCodeTile = React.lazy(() => import('./components/CodeTile').then(m => 
 const LazyNoteTile = React.lazy(() => import('./components/NoteTile').then(m => ({ default: m.NoteTile })))
 const LazyChatTile = React.lazy(() => import('./components/ChatTile').then(m => ({ default: m.ChatTile })))
 const LazyFileTile = React.lazy(() => import('./components/FileTile').then(m => ({ default: m.FileTile })))
+const LazyExtensionTile = React.lazy(() => import('./components/ExtensionTile').then(m => ({ default: m.ExtensionTile })))
 const LazyClusoWidgetMount = React.lazy(() => import('./components/ClusoWidgetMount').then(m => ({ default: m.ClusoWidgetMount })))
+const LazyAgentSetup = React.lazy(() => import('./components/AgentSetup').then(m => ({ default: m.AgentSetup })))
 
 type DragState =
   | { type: null }
@@ -131,12 +134,15 @@ function getMinTileWidth(tileOrType: TileState | TileState['type']): number {
   const type = typeof tileOrType === 'string' ? tileOrType : tileOrType.type
   if (type === 'chat') return 450
   if (type === 'file') return 200
+  if (type.startsWith('ext:')) return 150
   return 200
 }
 
 function getMinTileHeight(tileOrType: TileState | TileState['type']): number {
   const type = typeof tileOrType === 'string' ? tileOrType : tileOrType.type
-  return type === 'file' ? 200 : 150
+  if (type === 'file') return 200
+  if (type.startsWith('ext:')) return 100
+  return 150
 }
 
 function App(): JSX.Element {
@@ -171,6 +177,8 @@ function App(): JSX.Element {
   const [sidebarSelectedPath, setSidebarSelectedPath] = useState<string | null>(null)
   const [canvasArrangeMode, setCanvasArrangeMode] = useState<'grid' | 'column' | 'row' | null>(null)
   const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([])
+  const [showAgentSetup, setShowAgentSetup] = useState(false)
+  const { extensionTiles } = useExtensions()
 
   useEffect(() => { panelLayoutRef.current = panelLayout }, [panelLayout])
   useEffect(() => { activePanelIdRef.current = activePanelId }, [activePanelId])
@@ -300,6 +308,17 @@ function App(): JSX.Element {
       }
     }
     init()
+
+    // Check if agent setup is needed (first run or paths not confirmed)
+    // Force with: CONTEX_SHOW_SETUP=1 npm run dev
+    const forceSetup = import.meta.env.VITE_SHOW_SETUP === '1'
+    if (forceSetup) {
+      setShowAgentSetup(true)
+    } else {
+      window.electron?.agentPaths?.needsSetup?.().then((needs: boolean) => {
+        if (needs) setShowAgentSetup(true)
+      }).catch(() => {})
+    }
   }, [])
 
   // ─── Escape to collapse expanded tile ────────────────────────────────────
@@ -631,6 +650,16 @@ function App(): JSX.Element {
       { label: 'New Browser',  action: () => addTile('browser',  undefined, world) },
       { label: 'New Board',    action: () => addTile('kanban',   undefined, world) },
     ]
+    // Extension tile types
+    if (extensionTiles.length > 0) {
+      items.push({ label: '', action: () => {}, divider: true })
+      for (const ext of extensionTiles) {
+        items.push({
+          label: `${ext.icon ?? '🧩'} ${ext.label}`,
+          action: () => addTile(ext.type as TileType, undefined, world),
+        })
+      }
+    }
     if (clipboard.current.length > 0) {
       items.push({ label: '', action: () => {}, divider: true })
       items.push({ label: 'Paste', action: () => pasteTilesRef.current(world) })
@@ -1377,38 +1406,49 @@ function App(): JSX.Element {
   const handleArrange = useCallback((updated: TileState[]) => {
     const getArrangeWidth = (tile: TileState) => tile.width + ((tile.type === 'terminal' || tile.type === 'chat') ? 272 : 0)
 
-    // Merge positions back — preserve zIndex / other fields from current state
+    // Merge positions + sizes back — preserve zIndex / other fields from current state
     setTiles(prev => {
-      const posIndex: Record<string, { x: number; y: number }> = {}
-      for (const t of updated) posIndex[t.id] = { x: t.x, y: t.y }
+      const updateIndex: Record<string, { x: number; y: number; width?: number; height?: number }> = {}
+      for (const t of updated) updateIndex[t.id] = { x: t.x, y: t.y, width: t.width, height: t.height }
       const merged = prev.map(t => {
-        const pos = posIndex[t.id]
-        return pos ? { ...t, ...pos } : t
+        const upd = updateIndex[t.id]
+        if (!upd) return t
+        return {
+          ...t,
+          x: upd.x,
+          y: upd.y,
+          ...(upd.width != null ? { width: upd.width } : {}),
+          ...(upd.height != null ? { height: upd.height } : {}),
+        }
       })
       saveCanvas(merged, viewport, nextZIndex)
 
-      // Zoom to fit all arranged tiles with a 10% zoom-out from fit level
+      // Zoom to fit — compensate for sidebar width if open
       const rect = canvasRef.current?.getBoundingClientRect()
       if (rect && merged.length > 0) {
+        const sidebarOffset = sidebarCollapsed ? 0 : sidebarWidth + 8
+        const availableWidth = rect.width - sidebarOffset
         const minX = Math.min(...merged.map(t => t.x))
         const minY = Math.min(...merged.map(t => t.y))
         const maxX = Math.max(...merged.map(t => t.x + getArrangeWidth(t)))
         const maxY = Math.max(...merged.map(t => t.y + t.height))
         const PAD = 60
         const fitZoom = Math.min(
-          rect.width  / (maxX - minX + PAD * 2),
-          rect.height / (maxY - minY + PAD * 2),
+          availableWidth / (maxX - minX + PAD * 2),
+          rect.height   / (maxY - minY + PAD * 2),
           2
         )
         const newZoom = fitZoom * 0.9
-        const tx = rect.width  / 2 - ((minX + maxX) / 2) * newZoom
+        // Center within the available area (shifted right by sidebar)
+        const centerX = sidebarOffset + availableWidth / 2
+        const tx = centerX - ((minX + maxX) / 2) * newZoom
         const ty = rect.height / 2 - ((minY + maxY) / 2) * newZoom
         setViewport({ tx, ty, zoom: newZoom })
       }
 
       return merged
     })
-  }, [viewport, nextZIndex, saveCanvas])
+  }, [viewport, nextZIndex, saveCanvas, sidebarCollapsed, sidebarWidth])
 
   // ─── Render tile body ─────────────────────────────────────────────────────
   const renderTileBody = (tile: TileState): React.ReactNode => {
@@ -1468,6 +1508,17 @@ function App(): JSX.Element {
           />
         )
       default:
+        if (tile.type.startsWith('ext:')) {
+          return (
+            <LazyExtensionTile
+              tileId={tile.id}
+              extType={tile.type}
+              width={tile.width}
+              height={tile.height}
+              workspaceId={workspace?.id ?? ''}
+            />
+          )
+        }
         return null
     }
   }
@@ -1498,13 +1549,12 @@ function App(): JSX.Element {
   }, [sidebarResizing])
 
   const fontTokens = React.useMemo(() => settings.fonts, [settings.fonts])
-  const translucentBackground = settings.translucentBackground
   const shellBackground = 'transparent'
   const sidebarBackground = 'transparent'
   const pillBackground = '#252525'
   const toolbarBackground = 'transparent'
-  const translucentBackgroundOpacity = Math.max(0.05, Math.min(1, settings.translucentBackgroundOpacity ?? 0.74))
-  const canvasBackground = translucentBackground ? withAlpha(settings.canvasBackground, translucentBackgroundOpacity) : settings.canvasBackground
+  const translucentBackgroundOpacity = Math.max(0.05, Math.min(1, settings.translucentBackgroundOpacity ?? 1))
+  const canvasBackground = withAlpha(settings.canvasBackground, translucentBackgroundOpacity)
   const openSidebarToolbarPadding = sidebarWidth + 16
   const openSidebarPillLeft = sidebarWidth + 18
   const expandedLayoutLeft = sidebarWidth + 8
@@ -1746,16 +1796,19 @@ function App(): JSX.Element {
             if (!rect) return
             const x = e.clientX - rect.left
             const y = e.clientY - rect.top
-            const mask = `radial-gradient(circle 120px at ${x}px ${y}px, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0) 100%)`
+            // Scale glow radius and intensity with zoom — smaller/dimmer when zoomed out
+            const glowRadius = Math.round(120 * Math.min(1, Math.max(0.3, viewport.zoom)))
+            const glowOpacity = Math.min(1, Math.max(0.15, viewport.zoom))
+            const mask = `radial-gradient(circle ${glowRadius}px at ${x}px ${y}px, rgba(0,0,0,1) 0%, rgba(0,0,0,0.6) 30%, rgba(0,0,0,0) 100%)`
             if (dotGlowSmallRef.current) {
               dotGlowSmallRef.current.style.maskImage = mask
               dotGlowSmallRef.current.style.webkitMaskImage = mask
-              dotGlowSmallRef.current.style.opacity = '1'
+              dotGlowSmallRef.current.style.opacity = String(glowOpacity)
             }
             if (dotGlowLargeRef.current) {
               dotGlowLargeRef.current.style.maskImage = mask
               dotGlowLargeRef.current.style.webkitMaskImage = mask
-              dotGlowLargeRef.current.style.opacity = '1'
+              dotGlowLargeRef.current.style.opacity = String(glowOpacity)
             }
           }}
           onMouseLeave={() => {
@@ -1807,48 +1860,62 @@ function App(): JSX.Element {
             pointerEvents: panelLayout ? 'none' : 'auto',
           }}>
           {/* Dot grid - small */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(circle, ${settings.gridColorSmall} 1px, transparent 1px)`,
-              backgroundSize: `${settings.gridSpacingSmall * viewport.zoom}px ${settings.gridSpacingSmall * viewport.zoom}px`,
-              backgroundPosition: `${viewport.tx % (settings.gridSpacingSmall * viewport.zoom)}px ${viewport.ty % (settings.gridSpacingSmall * viewport.zoom)}px`
-            }}
-          />
-          {/* Dot grid - large */}
-          <div
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(circle, ${settings.gridColorLarge} 2px, transparent 2px)`,
-              backgroundSize: `${settings.gridSpacingLarge * viewport.zoom}px ${settings.gridSpacingLarge * viewport.zoom}px`,
-              backgroundPosition: `${viewport.tx % (settings.gridSpacingLarge * viewport.zoom)}px ${viewport.ty % (settings.gridSpacingLarge * viewport.zoom)}px`
-            }}
-          />
+          {(() => {
+            // Scale dot radius with zoom — thinner when zoomed out, normal at 1x
+            const z = viewport.zoom
+            const dotSmall = Math.max(0.4, Math.min(1, z)) // 0.4px–1px
+            const dotLarge = Math.max(0.6, Math.min(2, z * 2)) // 0.6px–2px
+            const dotSmallGlow = dotSmall
+            const dotLargeGlow = dotLarge
+            const glowAlphaSmall = Math.min(0.7, Math.max(0.2, z * 0.7))
+            const glowAlphaLarge = Math.min(0.8, Math.max(0.25, z * 0.8))
+            return (
+              <>
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    backgroundImage: `radial-gradient(circle, ${settings.gridColorSmall} ${dotSmall}px, transparent ${dotSmall}px)`,
+                    backgroundSize: `${settings.gridSpacingSmall * z}px ${settings.gridSpacingSmall * z}px`,
+                    backgroundPosition: `${viewport.tx % (settings.gridSpacingSmall * z)}px ${viewport.ty % (settings.gridSpacingSmall * z)}px`
+                  }}
+                />
+                {/* Dot grid - large */}
+                <div
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    backgroundImage: `radial-gradient(circle, ${settings.gridColorLarge} ${dotLarge}px, transparent ${dotLarge}px)`,
+                    backgroundSize: `${settings.gridSpacingLarge * z}px ${settings.gridSpacingLarge * z}px`,
+                    backgroundPosition: `${viewport.tx % (settings.gridSpacingLarge * z)}px ${viewport.ty % (settings.gridSpacingLarge * z)}px`
+                  }}
+                />
 
-          {/* Dot grid glow - small (cursor proximity light) */}
-          <div
-            ref={dotGlowSmallRef}
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.7) 1px, transparent 1px)`,
-              backgroundSize: `${settings.gridSpacingSmall * viewport.zoom}px ${settings.gridSpacingSmall * viewport.zoom}px`,
-              backgroundPosition: `${viewport.tx % (settings.gridSpacingSmall * viewport.zoom)}px ${viewport.ty % (settings.gridSpacingSmall * viewport.zoom)}px`,
-              opacity: 0,
-              transition: 'opacity 0.3s ease-out',
-            }}
-          />
-          {/* Dot grid glow - large (cursor proximity light) */}
-          <div
-            ref={dotGlowLargeRef}
-            className="absolute inset-0 pointer-events-none"
-            style={{
-              backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.8) 2px, transparent 2px)`,
-              backgroundSize: `${settings.gridSpacingLarge * viewport.zoom}px ${settings.gridSpacingLarge * viewport.zoom}px`,
-              backgroundPosition: `${viewport.tx % (settings.gridSpacingLarge * viewport.zoom)}px ${viewport.ty % (settings.gridSpacingLarge * viewport.zoom)}px`,
-              opacity: 0,
-              transition: 'opacity 0.3s ease-out',
-            }}
-          />
+                {/* Dot grid glow - small (cursor proximity light) */}
+                <div
+                  ref={dotGlowSmallRef}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    backgroundImage: `radial-gradient(circle, rgba(255,255,255,${glowAlphaSmall}) ${dotSmallGlow}px, transparent ${dotSmallGlow}px)`,
+                    backgroundSize: `${settings.gridSpacingSmall * z}px ${settings.gridSpacingSmall * z}px`,
+                    backgroundPosition: `${viewport.tx % (settings.gridSpacingSmall * z)}px ${viewport.ty % (settings.gridSpacingSmall * z)}px`,
+                    opacity: 0,
+                    transition: 'opacity 0.3s ease-out',
+                  }}
+                />
+                {/* Dot grid glow - large (cursor proximity light) */}
+                <div
+                  ref={dotGlowLargeRef}
+                  className="absolute inset-0 pointer-events-none"
+                  style={{
+                    backgroundImage: `radial-gradient(circle, rgba(255,255,255,${glowAlphaLarge}) ${dotLargeGlow}px, transparent ${dotLargeGlow}px)`,
+                    backgroundSize: `${settings.gridSpacingLarge * z}px ${settings.gridSpacingLarge * z}px`,
+                    backgroundPosition: `${viewport.tx % (settings.gridSpacingLarge * z)}px ${viewport.ty % (settings.gridSpacingLarge * z)}px`,
+                    opacity: 0,
+                    transition: 'opacity 0.3s ease-out',
+                  }}
+                />
+              </>
+            )
+          })()}
 
           {/* World container */}
           <div
@@ -2286,6 +2353,11 @@ function App(): JSX.Element {
       <Suspense fallback={null}>
         <LazyClusoWidgetMount />
       </Suspense>
+      {showAgentSetup && (
+        <Suspense fallback={null}>
+          <LazyAgentSetup onComplete={() => setShowAgentSetup(false)} />
+        </Suspense>
+      )}
     </div>
     </FontProvider>
     </FontTokenProvider>

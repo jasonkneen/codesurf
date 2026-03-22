@@ -63,11 +63,22 @@ const DRAWER_WIDTH = 260
 const DRAWER_TYPES = new Set(['terminal', 'chat'])
 
 const TYPE_LABELS: Record<string, string> = {
-  terminal: 'Terminal', note: 'Note', code: 'Code', image: 'Image', kanban: 'Board', browser: 'Browser', chat: 'Chat'
+  terminal: 'Terminal', note: 'Note', code: 'Code', image: 'Image', kanban: 'Board', browser: 'Browser', chat: 'Chat',
+}
+
+// Extension type labels are resolved dynamically — see getTypeLabel()
+function getTypeLabel(type: string): string {
+  if (TYPE_LABELS[type]) return TYPE_LABELS[type]
+  if (type.startsWith('ext:')) {
+    // Show the part after 'ext:' with first letter capitalized
+    const name = type.slice(4)
+    return name.charAt(0).toUpperCase() + name.slice(1)
+  }
+  return type
 }
 
 export function fileLabel(tile: TileState): string {
-  if (!tile.filePath) return TYPE_LABELS[tile.type] ?? tile.type
+  if (!tile.filePath) return getTypeLabel(tile.type)
   return tile.filePath.replace(/\\/g, '/').split('/').pop() || tile.filePath
 }
 

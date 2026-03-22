@@ -1,0 +1,36 @@
+{
+  "id": "system-monitor",
+  "name": "System Monitor",
+  "version": "1.0.0",
+  "description": "Live CPU and memory usage dashboard. Power tier — uses Node.js os module to gather system stats and publishes them to the event bus.",
+  "author": "contex",
+  "tier": "power",
+  "main": "main.js",
+  "contributes": {
+    "tiles": [
+      {
+        "type": "sysmon",
+        "label": "System Monitor",
+        "icon": "📊",
+        "entry": "dist/index.html",
+        "defaultSize": { "w": 420, "h": 320 },
+        "minSize": { "w": 300, "h": 240 }
+      }
+    ],
+    "mcpTools": [
+      {
+        "name": "system_stats",
+        "description": "Get current system CPU and memory usage statistics.",
+        "inputSchema": { "type": "object", "properties": {} }
+      }
+    ],
+    "contextMenu": [
+      {
+        "label": "📊 System Monitor",
+        "action": "createTile",
+        "tileType": "ext:sysmon"
+      }
+    ]
+  },
+  "permissions": ["os:read"]
+}

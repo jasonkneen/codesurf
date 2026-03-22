@@ -1,0 +1,35 @@
+{
+  "id": "pomodoro",
+  "name": "Pomodoro Timer",
+  "version": "1.0.0",
+  "description": "Pomodoro technique timer with work/break cycles. Includes MCP tools for agents to check status and control the timer.",
+  "author": "contex",
+  "tier": "power",
+  "main": "main.js",
+  "contributes": {
+    "tiles": [
+      {
+        "type": "pomodoro",
+        "label": "Pomodoro",
+        "icon": "🍅",
+        "entry": "dist/index.html",
+        "defaultSize": { "w": 340, "h": 300 },
+        "minSize": { "w": 260, "h": 240 }
+      }
+    ],
+    "contextMenu": [
+      {
+        "label": "🍅 New Pomodoro",
+        "action": "createTile",
+        "tileType": "ext:pomodoro"
+      }
+    ],
+    "settings": [
+      { "key": "workMinutes", "label": "Work Duration (min)", "type": "number", "default": 25 },
+      { "key": "breakMinutes", "label": "Break Duration (min)", "type": "number", "default": 5 },
+      { "key": "longBreakMinutes", "label": "Long Break (min)", "type": "number", "default": 15 },
+      { "key": "cyclesBeforeLong", "label": "Cycles Before Long Break", "type": "number", "default": 4 }
+    ]
+  },
+  "permissions": []
+}

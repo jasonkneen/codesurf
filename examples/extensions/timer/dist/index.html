@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", sans-serif;
+    background: transparent;
+    color: #e0ddd4;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    padding: 20px;
+    user-select: none;
+  }
+  .display {
+    font-size: 48px;
+    font-weight: 200;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+    margin-bottom: 24px;
+    color: #e8e5dc;
+    text-shadow: 0 0 20px rgba(93, 138, 168, 0.3);
+  }
+  .controls {
+    display: flex;
+    gap: 10px;
+  }
+  button {
+    padding: 8px 20px;
+    border: 1px solid #444;
+    background: #2a2a30;
+    color: #ccc;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  button:hover { background: #3a3a40; border-color: #5d8aa8; color: #fff; }
+  button.active { background: #5d8aa8; border-color: #5d8aa8; color: #fff; }
+  button.reset { border-color: #664; }
+  button.reset:hover { background: #443; border-color: #886; }
+  .presets {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .presets button {
+    padding: 4px 12px;
+    font-size: 11px;
+    background: #252530;
+    border-color: #3a3a40;
+  }
+  .presets button:hover { background: #2a3a4a; }
+  .done { animation: pulse 1s infinite; }
+  @keyframes pulse {
+    0%, 100% { color: #e8e5dc; }
+    50% { color: #5d8aa8; }
+  }
+</style>
+</head>
+<body>
+
+<div class="presets">
+  <button onclick="setTimer(60)">1m</button>
+  <button onclick="setTimer(300)">5m</button>
+  <button onclick="setTimer(600)">10m</button>
+  <button onclick="setTimer(1500)">25m</button>
+  <button onclick="setTimer(3600)">1h</button>
+</div>
+
+<div id="display" class="display">00:00</div>
+
+<div class="controls">
+  <button id="startBtn" onclick="toggleTimer()">Start</button>
+  <button class="reset" onclick="resetTimer()">Reset</button>
+</div>
+
+<script>
+  let seconds = 0
+  let remaining = 0
+  let running = false
+  let interval = null
+  let done = false
+
+  const display = document.getElementById('display')
+  const startBtn = document.getElementById('startBtn')
+
+  function fmt(s) {
+    const m = Math.floor(s / 60)
+    const sec = s % 60
+    return String(m).padStart(2, '0') + ':' + String(sec).padStart(2, '0')
+  }
+
+  function render() {
+    display.textContent = fmt(remaining)
+    display.className = done ? 'display done' : 'display'
+    startBtn.textContent = running ? 'Pause' : 'Start'
+    startBtn.className = running ? 'active' : ''
+  }
+
+  function setTimer(s) {
+    seconds = s
+    remaining = s
+    running = false
+    done = false
+    if (interval) clearInterval(interval)
+    interval = null
+    render()
+    save()
+  }
+
+  function toggleTimer() {
+    if (done) { resetTimer(); return }
+    if (remaining <= 0) return
+    running = !running
+    if (running) {
+      interval = setInterval(tick, 1000)
+    } else {
+      clearInterval(interval)
+      interval = null
+    }
+    render()
+    save()
+  }
+
+  function tick() {
+    remaining--
+    if (remaining <= 0) {
+      remaining = 0
+      running = false
+      done = true
+      clearInterval(interval)
+      interval = null
+      // Announce completion via bus
+      if (window.contex) {
+        window.contex.bus.publish('timer', 'notification', {
+          message: 'Timer complete!',
+          duration: seconds,
+        })
+      }
+    }
+    render()
+    save()
+  }
+
+  function resetTimer() {
+    remaining = seconds
+    running = false
+    done = false
+    if (interval) clearInterval(interval)
+    interval = null
+    render()
+    save()
+  }
+
+  function save() {
+    if (window.contex) {
+      window.contex.tile.setState({ seconds, remaining, running, done })
+    }
+  }
+
+  // Restore state
+  if (window.contex) {
+    window.contex.tile.getState().then(state => {
+      if (state && state.seconds) {
+        seconds = state.seconds
+        remaining = state.remaining ?? state.seconds
+        done = state.done ?? false
+        if (state.running && remaining > 0) {
+          running = true
+          interval = setInterval(tick, 1000)
+        }
+        render()
+      }
+    })
+  } else {
+    // No bridge yet — wait for it
+    window.addEventListener('message', function handler(e) {
+      if (e.data?.type === 'contex-bridge-ready') {
+        window.removeEventListener('message', handler)
+        setTimeout(() => {
+          if (window.contex) {
+            window.contex.tile.getState().then(state => {
+              if (state && state.seconds) {
+                seconds = state.seconds
+                remaining = state.remaining ?? state.seconds
+                render()
+              }
+            })
+          }
+        }, 100)
+      }
+    })
+  }
+
+  render()
+</script>
+</body>
+</html>

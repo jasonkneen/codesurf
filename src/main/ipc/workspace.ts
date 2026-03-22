@@ -138,7 +138,7 @@ export function registerWorkspaceIPC(): void {
     config.settings = withDefaultSettings(settings)
     await writeConfig(config)
     for (const win of BrowserWindow.getAllWindows()) {
-      applyWindowAppearance(win, config.settings)
+      applyWindowAppearance(win)
     }
     return config.settings
   })
@@ -164,7 +164,7 @@ export function registerWorkspaceIPC(): void {
       })
       const config = await readConfig()
       for (const win of BrowserWindow.getAllWindows()) {
-        applyWindowAppearance(win, config.settings)
+        applyWindowAppearance(win)
       }
       return { ok: true, settings: config.settings }
     } catch (err) {

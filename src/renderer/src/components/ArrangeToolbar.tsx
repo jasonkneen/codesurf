@@ -2,7 +2,7 @@ import React, { useState } from 'react'
 import { Settings } from 'lucide-react'
 import type { TileState, GroupState } from '../../../shared/types'
 
-const GAP = 40
+const GAP = 50
 const GROUP_PAD = 20
 const SLIDEOUT_RESERVE_WIDTH = 272
 
@@ -33,37 +33,38 @@ interface Props {
 function arrangeGrid(items: ArrangeItem[]): ArrangeItem[] {
   if (items.length === 0) return items
 
-  const sorted = [...items].sort((a, b) => (b.height * b.width) - (a.height * a.width))
   const originX = Math.min(...items.map(t => t.x))
   const originY = Math.min(...items.map(t => t.y))
-  const totalArea = items.reduce((sum, t) => sum + (t.width * t.height), 0)
-  const targetRowWidth = Math.max(
-    Math.max(...items.map(t => t.width)),
-    Math.round(Math.sqrt(totalArea) * 1.35)
-  )
 
-  let cursorX = originX
-  let cursorY = originY
-  let rowHeight = 0
+  // Uniform cell size — all tiles get the same dimensions
+  const cellW = Math.max(...items.map(t => t.width))
+  const cellH = Math.max(...items.map(t => t.height))
+
+  // Optimal columns: try to make a square-ish grid
+  const cols = Math.max(1, Math.round(Math.sqrt(items.length)))
+
+  // Sort by original position: top-to-bottom, left-to-right
+  const sorted = [...items].sort((a, b) => {
+    const rowA = Math.round(a.y / 100)
+    const rowB = Math.round(b.y / 100)
+    if (rowA !== rowB) return rowA - rowB
+    return a.x - b.x
+  })
 
   const placed = new Map<string, ArrangeItem>()
 
-  for (const item of sorted) {
-    const nextWidth = cursorX === originX ? item.width : (cursorX - originX) + GAP + item.width
-    if (nextWidth > targetRowWidth && cursorX !== originX) {
-      cursorX = originX
-      cursorY += rowHeight + GAP
-      rowHeight = 0
-    }
-
+  for (let i = 0; i < sorted.length; i++) {
+    const col = i % cols
+    const row = Math.floor(i / cols)
+    const item = sorted[i]
+    // Place at exact grid position — all same size, perfectly aligned
     placed.set(item.id, {
       ...item,
-      x: cursorX,
-      y: cursorY,
+      x: originX + col * (cellW + GAP),
+      y: originY + row * (cellH + GAP),
+      width: cellW,
+      height: cellH,
     })
-
-    cursorX += item.width + GAP
-    rowHeight = Math.max(rowHeight, item.height)
   }
 
   return items.map(item => placed.get(item.id) ?? item)
@@ -177,19 +178,34 @@ function applyArrangement(tiles: TileState[], groups: GroupState[], mode: Mode):
       : arrangeRow(items)
 
   const originalById = new Map(items.map(item => [item.id, item]))
-  const deltaByTileId = new Map<string, { dx: number; dy: number }>()
+  const updateByTileId = new Map<string, { dx: number; dy: number; width?: number; height?: number }>()
 
   for (const item of arranged) {
     const original = originalById.get(item.id)
     if (!original) continue
     const dx = item.x - original.x
     const dy = item.y - original.y
-    for (const tileId of original.tileIds) deltaByTileId.set(tileId, { dx, dy })
+    // For single-tile items, propagate size changes (grid normalizes sizes)
+    const sizeChanged = item.width !== original.width || item.height !== original.height
+    for (const tileId of original.tileIds) {
+      updateByTileId.set(tileId, {
+        dx, dy,
+        ...(sizeChanged && original.kind === 'tile' ? { width: item.width, height: item.height } : {}),
+      })
+    }
   }
 
   return tiles.map(tile => {
-    const delta = deltaByTileId.get(tile.id)
-    return delta ? { ...tile, x: tile.x + delta.dx, y: tile.y + delta.dy } : tile
+    const update = updateByTileId.get(tile.id)
+    if (!update) return tile
+    const reserve = tile.type === 'terminal' || tile.type === 'chat' ? SLIDEOUT_RESERVE_WIDTH : 0
+    return {
+      ...tile,
+      x: tile.x + update.dx,
+      y: tile.y + update.dy,
+      ...(update.width != null ? { width: update.width - reserve } : {}),
+      ...(update.height != null ? { height: update.height } : {}),
+    }
   })
 }
 
