@@ -30,6 +30,7 @@ const Icon = ({ glyph, size = 15 }: { glyph: string; size?: number }): JSX.Eleme
 
 const LazyTileChrome = React.lazy(() => import('./components/TileChrome').then(m => ({ default: m.TileChrome })))
 const LazySidebar = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })))
+const LazySidebarFooter = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.SidebarFooter })))
 const LazyContextMenu = React.lazy(() => import('./components/ContextMenu').then(m => ({ default: m.ContextMenu })))
 const LazyImageTile = React.lazy(() => import('./components/ImageTile').then(m => ({ default: m.ImageTile })))
 const LazyBrowserTile = React.lazy(() => import('./components/BrowserTile').then(m => ({ default: m.BrowserTile })))
@@ -1566,6 +1567,11 @@ function App(): JSX.Element {
   const theme = React.useMemo(() => getThemeById(settings.themeId), [settings.themeId])
   const translucentBackgroundOpacity = Math.max(0.05, Math.min(1, settings.translucentBackgroundOpacity ?? 1))
   const canvasBackground = withAlpha(settings.canvasBackground, translucentBackgroundOpacity)
+  const sidebarPanelTop = 36
+  const sidebarFooterBottom = 0
+  const sidebarFooterLeft = 20
+  const sidebarFooterHeight = 45
+  const sidebarPanelBottomOffset = sidebarFooterBottom + sidebarFooterHeight - 1
   const openSidebarToolbarPadding = sidebarWidth + 16
   const openSidebarPillLeft = sidebarWidth + 18
   const expandedLayoutLeft = sidebarWidth + 8
@@ -1578,10 +1584,9 @@ function App(): JSX.Element {
       {/* Sidebar inset panel — floats over the canvas */}
       <div style={{
         position: 'absolute',
-        top: 0,
+        top: sidebarPanelTop,
         left: 0,
-        bottom: 0,
-        marginTop: 36,
+        bottom: sidebarPanelBottomOffset,
         padding: '8px 0 8px 8px',
         flexShrink: 0,
         display: 'flex',
@@ -1671,10 +1676,30 @@ function App(): JSX.Element {
                 onWidthChange={setSidebarWidth}
                 onResizeStateChange={setSidebarResizing}
                 onToggleCollapse={() => setSidebarCollapsed(p => !p)}
+                showFooter={false}
               />
             </Suspense>
           </div>
         </div>
+      </div>
+
+      <div style={{
+        position: 'absolute',
+        left: sidebarFooterLeft,
+        bottom: sidebarFooterBottom,
+        zIndex: 105,
+        pointerEvents: 'auto',
+      }}>
+        <Suspense fallback={null}>
+          <LazySidebarFooter
+            onNewTerminal={() => addTile('terminal')}
+            onNewKanban={() => addTile('kanban')}
+            onNewBrowser={() => addTile('browser')}
+            onNewChat={() => addTile('chat')}
+            extensionTiles={extensionTiles}
+            onAddExtensionTile={(type) => addTile(type as TileType)}
+          />
+        </Suspense>
       </div>
 
       {/* Main area — toolbar overlays top, canvas fills entire window */}

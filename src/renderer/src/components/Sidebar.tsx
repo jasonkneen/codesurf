@@ -64,6 +64,7 @@ interface Props {
   onWidthChange: (width: number) => void
   onResizeStateChange?: (resizing: boolean) => void
   onToggleCollapse: () => void
+  showFooter?: boolean
 }
 
 interface CtxState { x: number; y: number; entry: FsEntry }
@@ -691,10 +692,153 @@ function FlatEntry({
   )
 }
 
+type SidebarFooterProps = Pick<Props,
+  'onNewTerminal' | 'onNewKanban' | 'onNewBrowser' | 'onNewChat' | 'extensionTiles' | 'onAddExtensionTile'
+>
+
+export function SidebarFooter({
+  onNewTerminal,
+  onNewKanban,
+  onNewBrowser,
+  onNewChat,
+  extensionTiles,
+  onAddExtensionTile,
+}: SidebarFooterProps): JSX.Element {
+  const theme = useTheme()
+  const [showExtMenu, setShowExtMenu] = useState(false)
+  const extMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const onDoc = (e: MouseEvent) => {
+      const target = e.target as Node
+      if (extMenuRef.current && !extMenuRef.current.contains(target)) setShowExtMenu(false)
+    }
+    document.addEventListener('mousedown', onDoc)
+    return () => document.removeEventListener('mousedown', onDoc)
+  }, [])
+
+  return (
+    <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+        <div
+          title="Beta build"
+          style={{
+            height: 17,
+            padding: '0 9px',
+            borderRadius: 999,
+            border: '1px solid rgba(255,255,255,0.72)',
+            color: 'rgba(255,255,255,0.9)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            fontSize: 10,
+            fontWeight: 500,
+            letterSpacing: 0.3,
+            textTransform: 'uppercase',
+            fontFamily: 'inherit',
+            flexShrink: 0,
+          }}
+        >
+          Beta
+        </div>
+        <span
+          title={`Version ${__VERSION__}`}
+          style={{
+            fontSize: 11,
+            fontWeight: 500,
+            color: 'rgba(255,255,255,0.42)',
+            fontFamily: 'inherit',
+            letterSpacing: 0.2,
+            whiteSpace: 'nowrap',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+          }}
+        >
+          v{__VERSION__}
+        </span>
+      </div>
+
+      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, flexShrink: 0 }}>
+        {([
+          { label: 'New Terminal', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /><path d="M7 11h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: onNewTerminal },
+          { label: 'Agent Board', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /></svg>, action: onNewKanban },
+          { label: 'Browser', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M1 5h12" stroke="currentColor" strokeWidth="1.2" /><circle cx="3" cy="3.5" r="0.5" fill="currentColor" /><circle cx="5" cy="3.5" r="0.5" fill="currentColor" /></svg>, action: onNewBrowser },
+          { label: 'Chat', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h10a1 1 0 011 1v6a1 1 0 01-1 1H5l-3 2.5V10H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>, action: onNewChat },
+        ] as { label: string; icon: React.ReactNode; action: () => void }[]).map(btn => (
+          <button
+            key={btn.label}
+            title={btn.label}
+            style={{
+              width: 28, height: 28, borderRadius: 6,
+              border: `1px solid ${theme.border.default}`, background: 'transparent',
+              color: theme.text.muted, cursor: 'pointer',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.background = theme.surface.panelMuted; e.currentTarget.style.color = theme.text.primary }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.text.muted }}
+            onClick={btn.action}
+          >
+            {btn.icon}
+          </button>
+        ))}
+
+        {extensionTiles && extensionTiles.length > 0 && (
+          <div style={{ position: 'relative' }} ref={extMenuRef}>
+            <button
+              title="Extensions"
+              style={{
+                width: 28, height: 28, borderRadius: 6,
+                border: `1px solid ${theme.border.default}`, background: showExtMenu ? theme.surface.panelMuted : 'transparent',
+                color: showExtMenu ? theme.text.primary : theme.text.muted, cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+              }}
+              onMouseEnter={e => { e.currentTarget.style.background = theme.surface.panelMuted; e.currentTarget.style.color = theme.text.primary }}
+              onMouseLeave={e => { if (!showExtMenu) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.text.muted } }}
+              onClick={() => setShowExtMenu(p => !p)}
+            >
+              <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                <path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z"
+                  stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+                <path d="M8 7.5h2a.5.5 0 01.5.5v1.5H10a1 1 0 00-1 1v0a1 1 0 001 1h.5V13a.5.5 0 01-.5.5H8V13a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H4.5A.5.5 0 014 13v-1.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H4V8a.5.5 0 01.5-.5H8z"
+                  stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" opacity="0.5" />
+              </svg>
+            </button>
+            {showExtMenu && (
+              <div style={{
+                position: 'absolute', bottom: 32, right: 0, minWidth: 160,
+                background: theme.surface.panelElevated, border: `1px solid ${theme.border.default}`, borderRadius: 8,
+                padding: 4, boxShadow: theme.shadow.panel, zIndex: 1000,
+              }}>
+                {extensionTiles.map(ext => (
+                  <button
+                    key={ext.type}
+                    onClick={() => { onAddExtensionTile?.(ext.type); setShowExtMenu(false) }}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      width: '100%', padding: '6px 10px', borderRadius: 6,
+                      border: 'none', background: 'transparent',
+                      color: theme.text.secondary, fontSize: 12, cursor: 'pointer',
+                      textAlign: 'left',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.background = theme.surface.panelMuted; e.currentTarget.style.color = theme.text.primary }}
+                    onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.text.secondary }}
+                  >
+                    <span>{ext.label}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 export function Sidebar({
   workspace, workspaces, onSwitchWorkspace, onNewWorkspace, onOpenFolder, onOpenFile, selectedPath, onSelectPath, onNewTerminal, onNewKanban, onNewBrowser, onNewChat,
   extensionTiles, onAddExtensionTile,
-  collapsed, width, onWidthChange, onResizeStateChange, onToggleCollapse: _onToggleCollapse
+  collapsed, width, onWidthChange, onResizeStateChange, onToggleCollapse: _onToggleCollapse, showFooter = true
 }: Props): JSX.Element {
   const fonts = useAppFonts()
   const theme = useTheme()
@@ -716,8 +860,6 @@ export function Sidebar({
   const [loadingTree, setLoadingTree] = useState(false)
   const [showFileMenu, setShowFileMenu] = useState(false)
   const fileMenuRef = useRef<HTMLDivElement>(null)
-  const [showExtMenu, setShowExtMenu] = useState(false)
-  const extMenuRef = useRef<HTMLDivElement>(null)
   const expandedPathsRef = useRef(expandedPaths)
   expandedPathsRef.current = expandedPaths
   const resizing = useRef(false)
@@ -1242,121 +1384,16 @@ export function Sidebar({
         )}
       </div>
 
-      <div style={{ borderTop: `1px solid ${theme.border.default}`, padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-          <div
-            title="Beta build"
-            style={{
-              height: 17,
-              padding: '0 9px',
-              borderRadius: 999,
-              border: '1px solid rgba(255,255,255,0.72)',
-              color: 'rgba(255,255,255,0.9)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              fontSize: 10,
-              fontWeight: 500,
-              letterSpacing: 0.3,
-              textTransform: 'uppercase',
-              fontFamily: 'inherit',
-              flexShrink: 0,
-            }}
-          >
-            Beta
-          </div>
-          <span
-            title={`Version ${__VERSION__}`}
-            style={{
-              fontSize: 11,
-              fontWeight: 500,
-              color: 'rgba(255,255,255,0.42)',
-              fontFamily: 'inherit',
-              letterSpacing: 0.2,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-              textOverflow: 'ellipsis',
-            }}
-          >
-            v{__VERSION__}
-          </span>
-        </div>
-
-        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 4, flexShrink: 0 }}>
-          {([
-            { label: 'New Terminal', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 3l4 4-4 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /><path d="M7 11h5" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" /></svg>, action: onNewTerminal },
-            { label: 'Agent Board', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="8" y="1" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="1" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /><rect x="8" y="8" width="5" height="5" rx="1" stroke="currentColor" strokeWidth="1.2" /></svg>, action: onNewKanban },
-            { label: 'Browser', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><rect x="1" y="2" width="12" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.2" /><path d="M1 5h12" stroke="currentColor" strokeWidth="1.2" /><circle cx="3" cy="3.5" r="0.5" fill="currentColor" /><circle cx="5" cy="3.5" r="0.5" fill="currentColor" /></svg>, action: onNewBrowser },
-            { label: 'Chat', icon: <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2h10a1 1 0 011 1v6a1 1 0 01-1 1H5l-3 2.5V10H2a1 1 0 01-1-1V3a1 1 0 011-1z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" /></svg>, action: onNewChat },
-          ] as { label: string; icon: React.ReactNode; action: () => void }[]).map(btn => (
-            <button
-              key={btn.label}
-              title={btn.label}
-              style={{
-                width: 28, height: 28, borderRadius: 6,
-                border: `1px solid ${theme.border.default}`, background: 'transparent',
-                color: theme.text.muted, cursor: 'pointer',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}
-              onMouseEnter={e => { e.currentTarget.style.background = theme.surface.panelMuted; e.currentTarget.style.color = theme.text.primary }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.text.muted }}
-              onClick={btn.action}
-            >
-              {btn.icon}
-            </button>
-          ))}
-
-          {/* Extensions dropdown */}
-          {extensionTiles && extensionTiles.length > 0 && (
-            <div style={{ position: 'relative' }} ref={extMenuRef}>
-              <button
-                title="Extensions"
-                style={{
-                  width: 28, height: 28, borderRadius: 6,
-                  border: `1px solid ${theme.border.default}`, background: showExtMenu ? theme.surface.panelMuted : 'transparent',
-                  color: showExtMenu ? theme.text.primary : theme.text.muted, cursor: 'pointer',
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.background = theme.surface.panelMuted; e.currentTarget.style.color = theme.text.primary }}
-                onMouseLeave={e => { if (!showExtMenu) { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.text.muted } }}
-                onClick={() => setShowExtMenu(p => !p)}
-              >
-                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-                  <path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z"
-                    stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
-                  <path d="M8 7.5h2a.5.5 0 01.5.5v1.5H10a1 1 0 00-1 1v0a1 1 0 001 1h.5V13a.5.5 0 01-.5.5H8V13a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H4.5A.5.5 0 014 13v-1.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H4V8a.5.5 0 01.5-.5H8z"
-                    stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" opacity="0.5" />
-                </svg>
-              </button>
-              {showExtMenu && (
-                <div style={{
-                  position: 'absolute', bottom: 32, right: 0, minWidth: 160,
-                  background: theme.surface.panelElevated, border: `1px solid ${theme.border.default}`, borderRadius: 8,
-                  padding: 4, boxShadow: theme.shadow.panel, zIndex: 1000,
-                }}>
-                  {extensionTiles.map(ext => (
-                    <button
-                      key={ext.type}
-                      onClick={() => { onAddExtensionTile?.(ext.type); setShowExtMenu(false) }}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 8,
-                        width: '100%', padding: '6px 10px', borderRadius: 6,
-                        border: 'none', background: 'transparent',
-                        color: theme.text.secondary, fontSize: 12, cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={e => { e.currentTarget.style.background = theme.surface.panelMuted; e.currentTarget.style.color = theme.text.primary }}
-                      onMouseLeave={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = theme.text.secondary }}
-                    >
-                      <span>{ext.label}</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-        </div>
-      </div>
+      {showFooter && (
+        <SidebarFooter
+          onNewTerminal={onNewTerminal}
+          onNewKanban={onNewKanban}
+          onNewBrowser={onNewBrowser}
+          onNewChat={onNewChat}
+          extensionTiles={extensionTiles}
+          onAddExtensionTile={onAddExtensionTile}
+        />
+      )}
 
       <div
         style={{ position: 'absolute', right: 0, top: 0, bottom: 0, width: 3, cursor: 'col-resize' }}
