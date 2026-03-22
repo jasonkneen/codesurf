@@ -54,6 +54,13 @@ function getZone(x: number, y: number, panelId: string): DockZone {
   return 'center'
 }
 
+function setWebviewsInteractionBlocked(blocked: boolean): void {
+  if (typeof document === 'undefined') return
+  document.querySelectorAll('webview').forEach(el => {
+    ;(el as HTMLElement).style.pointerEvents = blocked ? 'none' : 'auto'
+  })
+}
+
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
 let panelCounter = 0
@@ -210,6 +217,9 @@ function ResizeHandle({ direction, onResize, onInteractionChange }: { direction:
   const onMouseDown = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
     dragging.current = true
+    // Native Electron webviews can steal the drag stream as soon as the cursor
+    // crosses into them, so block them synchronously before the first mousemove.
+    setWebviewsInteractionBlocked(true)
     onInteractionChange?.(true)
     lastPos.current = direction === 'horizontal' ? e.clientX : e.clientY
     const onMove = (ev: MouseEvent) => {
@@ -220,6 +230,7 @@ function ResizeHandle({ direction, onResize, onInteractionChange }: { direction:
     }
     const onUp = () => {
       dragging.current = false
+      setWebviewsInteractionBlocked(false)
       onInteractionChange?.(false)
       document.removeEventListener('mousemove', onMove)
       document.removeEventListener('mouseup', onUp)
@@ -566,6 +577,10 @@ export function PanelLayout({ root, getTileLabel, renderTile, onLayoutChange, on
   const [panelInteractionActive, setPanelInteractionActive] = useState(false)
   const handleDockRef = useRef<(tileId: string, fromPanelId: string, targetPanelId: string, zone: DockZone) => void>(() => {})
 
+  useEffect(() => {
+    return () => setWebviewsInteractionBlocked(false)
+  }, [])
+
   const handleActivate = useCallback((panelId: string, tileId: string) => {
     onActivePanelChange(panelId)
     onLayoutChange(setActiveTab(root, panelId, tileId))
@@ -595,6 +610,9 @@ export function PanelLayout({ root, getTileLabel, renderTile, onLayoutChange, on
       const dy = ev.clientY - startY
       if (!dragging && Math.sqrt(dx * dx + dy * dy) > 5) {
         dragging = true
+        // Keep this synchronous. If we wait for React state/props to flow into
+        // BrowserTile, Chromium can already have captured the pointer stream.
+        setWebviewsInteractionBlocked(true)
         setPanelInteractionActive(true)
         document.body.style.cursor = 'grabbing'
         document.body.style.userSelect = 'none'
@@ -618,6 +636,7 @@ export function PanelLayout({ root, getTileLabel, renderTile, onLayoutChange, on
       document.body.style.userSelect = ''
       setGhost(null)
       setDragTarget(null)
+      setWebviewsInteractionBlocked(false)
       setPanelInteractionActive(false)
 
       if (!dragging) return

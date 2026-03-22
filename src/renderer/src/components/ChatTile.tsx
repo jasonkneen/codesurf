@@ -117,6 +117,10 @@ const FONT_SANS = "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Rob
 const FONT_MONO = "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace"
 const FONT_SIZE_DEFAULT = 13
 const MONO_SIZE_DEFAULT = 13
+const CHAT_MESSAGE_MAX_WIDTH = 840
+const CHAT_COMPOSER_MAX_WIDTH = 800
+const CHAT_COMPOSER_MIN_HEIGHT = 105
+const CHAT_COMPOSER_TEXTAREA_MIN_HEIGHT = 56
 const TOOLBAR_ICON_SIZE = 16
 const TOOLBAR_PILL_ICON_SIZE = 14
 const TOOLBAR_TEXT_SIZE = 13
@@ -647,7 +651,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     const ta = textareaRef.current
     if (!ta) return
     ta.style.height = 'auto'
-    ta.style.height = `${Math.min(ta.scrollHeight, 134)}px`
+    ta.style.height = `${Math.max(CHAT_COMPOSER_TEXTAREA_MIN_HEIGHT, Math.min(ta.scrollHeight, 134))}px`
   }, [])
 
   const addAttachments = useCallback((paths: string[]) => {
@@ -919,103 +923,118 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
         ref={messagesRef}
         style={{
           flex: 1, overflowY: 'auto', padding: '12px 14px',
-          display: 'flex', flexDirection: 'column', gap: 10, minHeight: 0,
+          minHeight: 0,
         }}
       >
-        {messages.length === 0 && (
-          <div style={{
-            flex: 1, display: 'flex', flexDirection: 'column',
-            alignItems: 'center', justifyContent: 'center', gap: 8,
-            color: theme.chat.subtle, fontSize: 12,
-          }}>
-            <MessageSquare size={24} color={theme.chat.subtle} strokeWidth={1.5} style={{ opacity: 0.4 }} />
-            <span>Start a conversation</span>
-          </div>
-        )}
+        <div style={{
+          width: '100%',
+          maxWidth: CHAT_MESSAGE_MAX_WIDTH,
+          margin: '0 auto',
+          display: 'flex',
+          flexDirection: 'column',
+          gap: 10,
+          minHeight: '100%',
+        }}>
+          {messages.length === 0 && (
+            <div style={{
+              flex: 1, display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 8,
+              color: theme.chat.subtle, fontSize: 12,
+            }}>
+              <MessageSquare size={24} color={theme.chat.subtle} strokeWidth={1.5} style={{ opacity: 0.4 }} />
+              <span>Start a conversation</span>
+            </div>
+          )}
 
-        {messages.map(msg => (
-          <div key={msg.id} style={{
-            display: 'flex', flexDirection: 'column',
-            alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
-            maxWidth: '88%',
-            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
-            gap: 6,
-          }}>
-            {/* Thinking block — show immediately when streaming starts */}
-            {(msg.thinking || (msg.isStreaming && !msg.content)) && (
-              <ThinkingBlockView thinking={msg.thinking ?? { content: '', done: false }} />
-            )}
+          {messages.map(msg => (
+            <div key={msg.id} style={{
+              display: 'flex', flexDirection: 'column',
+              alignItems: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              maxWidth: '88%',
+              alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+              gap: 6,
+            }}>
+              {/* Thinking block — show immediately when streaming starts */}
+              {(msg.thinking || (msg.isStreaming && !msg.content)) && (
+                <ThinkingBlockView thinking={msg.thinking ?? { content: '', done: false }} />
+              )}
 
-            {/* Tool call blocks */}
-            {msg.toolBlocks?.map(tb => (
-              <ToolBlockView key={tb.id} block={tb} />
-            ))}
+              {/* Tool call blocks */}
+              {msg.toolBlocks?.map(tb => (
+                <ToolBlockView key={tb.id} block={tb} />
+              ))}
 
-            {/* Main text bubble — only show when we have content (Thinking block handles the empty streaming state) */}
-            {msg.content && (
-              <div style={{
-                background: msg.role === 'user' ? theme.chat.userBubble : theme.chat.assistantBubble,
-                border: msg.role === 'user' ? `1px solid ${theme.chat.userBubbleBorder}` : `1px solid ${theme.chat.assistantBubbleBorder}`,
-                borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                padding: '8px 12px',
-                fontSize, lineHeight: 1.55,
-                whiteSpace: 'pre-wrap', wordBreak: 'break-word',
-                color: theme.chat.text, position: 'relative',
-              }}>
-                {msg.content}
-                {msg.isStreaming && msg.content.length > 0 && (
-                  <span style={{
-                    display: 'inline-block', width: 6, height: 14,
-                    marginLeft: 2, verticalAlign: 'text-bottom',
-                    background: `linear-gradient(90deg, ${theme.accent.hover} 0%, ${theme.accent.base} 50%, ${theme.accent.hover} 100%)`,
-                    backgroundSize: '200% 100%',
-                    animation: 'chat-shimmer 1.2s ease-in-out infinite',
-                    borderRadius: 1,
-                  }} />
-                )}
-                {msg.isStreaming && msg.content.length === 0 && !msg.toolBlocks?.length && (
-                  <WorkingDots />
-                )}
-              </div>
-            )}
+              {/* Main text bubble — only show when we have content (Thinking block handles the empty streaming state) */}
+              {msg.content && (
+                <div style={{
+                  background: msg.role === 'user' ? theme.chat.userBubble : theme.chat.assistantBubble,
+                  border: msg.role === 'user' ? `1px solid ${theme.chat.userBubbleBorder}` : `1px solid ${theme.chat.assistantBubbleBorder}`,
+                  borderRadius: msg.role === 'user' ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                  padding: '8px 12px',
+                  fontSize, lineHeight: 1.55,
+                  whiteSpace: 'pre-wrap', wordBreak: 'break-word',
+                  color: theme.chat.text, position: 'relative',
+                }}>
+                  {msg.content}
+                  {msg.isStreaming && msg.content.length > 0 && (
+                    <span style={{
+                      display: 'inline-block', width: 6, height: 14,
+                      marginLeft: 2, verticalAlign: 'text-bottom',
+                      background: `linear-gradient(90deg, ${theme.accent.hover} 0%, ${theme.accent.base} 50%, ${theme.accent.hover} 100%)`,
+                      backgroundSize: '200% 100%',
+                      animation: 'chat-shimmer 1.2s ease-in-out infinite',
+                      borderRadius: 1,
+                    }} />
+                  )}
+                  {msg.isStreaming && msg.content.length === 0 && !msg.toolBlocks?.length && (
+                    <WorkingDots />
+                  )}
+                </div>
+              )}
 
+              {/* Cost/turns footer */}
+              {!msg.isStreaming && msg.cost != null && (
+                <div style={{
+                  display: 'flex', alignItems: 'center', gap: 8,
+                  fontSize: monoSize - 3, color: theme.chat.muted, fontFamily: fontMono,
+                  padding: '0 4px',
+                }}>
+                  <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
+                    <DollarSign size={9} /> ${msg.cost.toFixed(4)}
+                  </span>
+                  {msg.turns != null && (
+                    <span>{msg.turns} turn{msg.turns !== 1 ? 's' : ''}</span>
+                  )}
+                </div>
+              )}
 
-            {/* Cost/turns footer */}
-            {!msg.isStreaming && msg.cost != null && (
-              <div style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                fontSize: monoSize - 3, color: theme.chat.muted, fontFamily: fontMono,
-                padding: '0 4px',
-              }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-                  <DollarSign size={9} /> ${msg.cost.toFixed(4)}
-                </span>
-                {msg.turns != null && (
-                  <span>{msg.turns} turn{msg.turns !== 1 ? 's' : ''}</span>
-                )}
-              </div>
-            )}
-
-            {/* Shimmer bar while streaming */}
-            {msg.isStreaming && (
-              <div style={{
-                height: 2, marginTop: 1, width: '60%', borderRadius: 1,
-                background: `linear-gradient(90deg, transparent 0%, ${theme.accent.soft} 30%, ${theme.accent.base}88 50%, ${theme.accent.soft} 70%, transparent 100%)`,
-                backgroundSize: '200% 100%',
-                animation: 'chat-shimmer 1.5s ease-in-out infinite',
-                alignSelf: 'flex-start',
-              }} />
-            )}
-          </div>
-        ))}
+              {/* Shimmer bar while streaming */}
+              {msg.isStreaming && (
+                <div style={{
+                  height: 2, marginTop: 1, width: '60%', borderRadius: 1,
+                  background: `linear-gradient(90deg, transparent 0%, ${theme.accent.soft} 30%, ${theme.accent.base}88 50%, ${theme.accent.soft} 70%, transparent 100%)`,
+                  backgroundSize: '200% 100%',
+                  animation: 'chat-shimmer 1.5s ease-in-out infinite',
+                  alignSelf: 'flex-start',
+                }} />
+              )}
+            </div>
+          ))}
+        </div>
       </div>
 
       {/* Input bar */}
       <div style={{
-        flexShrink: 0, margin: '0 10px 10px 10px',
+        flexShrink: 0,
+        width: 'calc(100% - 20px)',
+        maxWidth: CHAT_COMPOSER_MAX_WIDTH,
+        margin: '0 auto 10px auto',
+        minHeight: CHAT_COMPOSER_MIN_HEIGHT,
         border: isDropTarget ? `1px solid ${theme.accent.base}` : `1px solid ${composerBorder}`, borderRadius: 14,
         background: isDropTarget ? theme.surface.accentSoft : composerBackground,
         position: 'relative',
+        display: 'flex',
+        flexDirection: 'column',
         boxShadow: isDropTarget ? `0 0 0 1px ${theme.border.accent}, 0 0 22px ${theme.accent.soft}` : 'none',
         transition: 'border-color 120ms ease, background 120ms ease, box-shadow 120ms ease',
       }}>
@@ -1156,12 +1175,12 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
           placeholder={isDictating ? 'Listening...' : 'Message the agent, or use /commands and /skills'}
           rows={1}
           style={{
-            width: '100%', boxSizing: 'border-box',
+            width: '100%', boxSizing: 'border-box', flex: 1,
             background: 'transparent', color: theme.chat.text,
             border: 'none', padding: '12px 14px 6px 14px',
             fontSize, fontFamily: fontSans, lineHeight: 1.5,
             resize: 'none', outline: 'none', overflow: 'hidden',
-            minHeight: 32, opacity: 1,
+            minHeight: CHAT_COMPOSER_TEXTAREA_MIN_HEIGHT, opacity: 1,
           }}
         />
 
