@@ -3330,7 +3330,7 @@ function App(): JSX.Element {
   const activeBrandWordmarkScale = activeBrandWordmark[0]
     ? Math.min(1, (32 / activeBrandWordmark[0].length) * (
       brandWordmarkIndex === 0 ? 1 : brandWordmarkIndex === 1 ? 1.44 : 1.2
-    ))
+    )) * 0.62
     : 1
   const translucentBackgroundOpacity = Math.max(0.05, Math.min(1, settings.translucentBackgroundOpacity ?? 1))
   const canvasBackground = withAlpha(settings.canvasBackground, translucentBackgroundOpacity)
@@ -3474,8 +3474,8 @@ function App(): JSX.Element {
         <div
           style={{
             position: 'absolute',
-            left: 12,
-            top: 10,
+            left: 20,
+            top: 7,
             zIndex: 120,
             width: 'max-content',
             height: 28,
@@ -3528,7 +3528,7 @@ function App(): JSX.Element {
               ? '0 1px 8px rgba(0, 0, 0, 0.35)'
               : '0 1px 3px rgba(255, 255, 255, 0.7)',
             textAlign: 'left',
-            transform: `translateY(4px) scale(${activeBrandWordmarkScale})`,
+            transform: `translateY(10px) scale(${activeBrandWordmarkScale})`,
             transformOrigin: 'top left',
           }}>
             {activeBrandWordmark.map((text, index) => (
@@ -3559,6 +3559,11 @@ function App(): JSX.Element {
       }}>
         <Suspense fallback={null}>
           <LazySidebarFooter
+            key={[
+              settings.extensionsDisabled ? 'disabled' : 'enabled',
+              ...(settings.hiddenFromSidebarExtIds ?? []).slice().sort(),
+              ...extensionTiles.map(ext => `${ext.extId}:${ext.type}`).sort(),
+            ].join('|')}
             onNewTerminal={() => addTile('terminal')}
             onNewKanban={() => addTile('kanban')}
             onNewBrowser={() => addTile('browser')}

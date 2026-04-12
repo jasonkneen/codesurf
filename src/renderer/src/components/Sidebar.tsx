@@ -308,6 +308,10 @@ export function SidebarFooter({
     return () => document.removeEventListener('mousedown', onDoc)
   }, [])
 
+  useEffect(() => {
+    setShowExtMenu(false)
+  }, [extensionTiles])
+
   return (
     <div style={{ padding: '11px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>

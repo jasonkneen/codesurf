@@ -80,6 +80,12 @@ type ExtensionListEntry = {
   dirPath?: string | null
 }
 
+const EXTENSIONS_CHANGED_EVENT = 'codesurf:extensions-changed'
+
+function notifyExtensionsChanged(): void {
+  window.dispatchEvent(new CustomEvent(EXTENSIONS_CHANGED_EVENT))
+}
+
 // ─── Extension settings panel ─────────────────────────────────────────────────
 function ExtSettingsPanel({ extId, tileType }: { extId: string; tileType: string }): React.JSX.Element {
   const [src, setSrc] = useState<string | null>(null)
@@ -564,6 +570,7 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
       }
       const list = await window.electron.extensions.list()
       setExtensionsList(list as ExtensionListEntry[])
+      notifyExtensionsChanged()
     } catch (e) {
       setExtensionsError(e instanceof Error ? e.message : String(e))
     }
@@ -682,6 +689,15 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
     settingsRef.current = next
     setSettings(next)
     persistSettings(next)
+
+    if (
+      patch.extensionsDisabled !== undefined
+      || patch.hiddenFromSidebarExtIds !== undefined
+      || patch.settingsPanelExtIds !== undefined
+      || patch.pinnedExtensionIds !== undefined
+    ) {
+      notifyExtensionsChanged()
+    }
   }, [persistSettings])
 
   const applyThemePreset = useCallback((themeId: string) => {

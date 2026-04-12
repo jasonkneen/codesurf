@@ -17,7 +17,7 @@
   ],
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "dev": "electron-vite dev -- --js-flags=\"--expose-gc --max-old-space-size=8192\"",
+    "dev": "electron-vite dev -- --js-flags=\"--expose-gc --max-old-space-size=${CODESURF_MAX_OLD_SPACE_SIZE_MB:-8192}\"",
     "build:main": "EV_BUILD_TARGET=main electron-vite build",
     "build:preload": "EV_BUILD_TARGET=preload electron-vite build",
     "build:renderer": "EV_BUILD_TARGET=renderer electron-vite build",
