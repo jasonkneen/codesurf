@@ -7,7 +7,7 @@ import type { AppSettings } from '../../../shared/types'
 import { basename, getDroppedPaths, isImagePath } from '../utils/dnd'
 import {
   ShieldCheck, ChevronDown,
-  Check, ArrowUp, Square, MessageSquare, Bot,
+  Check, ArrowUp, ArrowDown, Square, MessageSquare, Bot,
   Brain, ChevronRight, Clock, DollarSign,
   FileText, Paperclip, Trash2, Wrench
 } from 'lucide-react'
@@ -209,6 +209,7 @@ const CHAT_COMPOSER_MAX_WIDTH = 800
 const CHAT_COMPOSER_MIN_WIDTH = 400
 const CHAT_COMPOSER_MIN_HEIGHT = 105
 const CHAT_COMPOSER_TEXTAREA_MIN_HEIGHT = 56
+const CHAT_AUTO_SCROLL_THRESHOLD = 48
 const TOOLBAR_ICON_SIZE = 16
 const TOOLBAR_PILL_ICON_SIZE = 14
 const TOOLBAR_TEXT_SIZE = 13
@@ -226,61 +227,74 @@ function truncateTextForMemory(text: string | undefined, limit: number, label: s
 }
 
 function trimToolBlockForMemory(block: ToolBlock, aggressive: boolean): ToolBlock {
-  return {
-    ...block,
-    input: truncateTextForMemory(
-      block.input,
-      aggressive ? CHAT_MEMORY_TOOL_INPUT_LIMIT_AGGRESSIVE : CHAT_MEMORY_TOOL_INPUT_LIMIT,
-      `tool input for ${block.name}`,
-    ),
-    summary: block.summary
-      ? truncateTextForMemory(
-        block.summary,
-        aggressive ? CHAT_MEMORY_TOOL_SUMMARY_LIMIT_AGGRESSIVE : CHAT_MEMORY_TOOL_SUMMARY_LIMIT,
-        `tool summary for ${block.name}`,
-      )
-      : block.summary,
-  }
+  const input = truncateTextForMemory(
+    block.input,
+    aggressive ? CHAT_MEMORY_TOOL_INPUT_LIMIT_AGGRESSIVE : CHAT_MEMORY_TOOL_INPUT_LIMIT,
+    `tool input for ${block.name}`,
+  )
+  const summary = block.summary
+    ? truncateTextForMemory(
+      block.summary,
+      aggressive ? CHAT_MEMORY_TOOL_SUMMARY_LIMIT_AGGRESSIVE : CHAT_MEMORY_TOOL_SUMMARY_LIMIT,
+      `tool summary for ${block.name}`,
+    )
+    : block.summary
+
+  if (input === block.input && summary === block.summary) return block
+  return { ...block, input, summary }
 }
 
 function compactMessageForMemory(message: ChatMessage, options: { aggressive: boolean; preserveRichLayout: boolean }): ChatMessage {
   const aggressive = options.aggressive && !message.isStreaming
-  const next: ChatMessage = {
-    ...message,
-    content: truncateTextForMemory(message.content, CHAT_MEMORY_SINGLE_MESSAGE_LIMIT, 'message content'),
-  }
+  const content = truncateTextForMemory(message.content, CHAT_MEMORY_SINGLE_MESSAGE_LIMIT, 'message content')
+  let next: ChatMessage = content === message.content ? message : { ...message, content }
 
   if (message.thinking?.content) {
-    next.thinking = {
-      ...message.thinking,
-      content: truncateTextForMemory(
-        message.thinking.content,
-        aggressive ? CHAT_MEMORY_THINKING_LIMIT_AGGRESSIVE : CHAT_MEMORY_THINKING_LIMIT,
-        'thinking text',
-      ),
+    const thinkingContent = truncateTextForMemory(
+      message.thinking.content,
+      aggressive ? CHAT_MEMORY_THINKING_LIMIT_AGGRESSIVE : CHAT_MEMORY_THINKING_LIMIT,
+      'thinking text',
+    )
+    if (thinkingContent !== message.thinking.content) {
+      next = next === message ? { ...message } : next
+      next.thinking = { ...message.thinking, content: thinkingContent }
     }
   }
 
   if (message.toolBlocks?.length) {
-    const trimmedBlocks = (aggressive ? message.toolBlocks.slice(-3) : message.toolBlocks)
-      .map(block => trimToolBlockForMemory(block, aggressive))
-    next.toolBlocks = trimmedBlocks.length > 0 ? trimmedBlocks : undefined
+    const sourceBlocks = aggressive && message.toolBlocks.length > 3
+      ? message.toolBlocks.slice(-3)
+      : message.toolBlocks
+    const trimmedBlocks = sourceBlocks.map(block => trimToolBlockForMemory(block, aggressive))
+    const blocksChanged = sourceBlocks.length !== message.toolBlocks.length
+      || trimmedBlocks.some((block, index) => block !== sourceBlocks[index])
+    if (blocksChanged) {
+      next = next === message ? { ...message } : next
+      next.toolBlocks = trimmedBlocks.length > 0 ? trimmedBlocks : undefined
+    }
   }
 
   if (message.contentBlocks?.length) {
     if (message.isStreaming || options.preserveRichLayout) {
-      next.contentBlocks = message.contentBlocks.map(block => {
+      const nextContentBlocks = message.contentBlocks.map(block => {
         if (block.type !== 'text') return block
+        const text = truncateTextForMemory(
+          block.text,
+          aggressive ? CHAT_MEMORY_CONTENT_BLOCK_LIMIT_AGGRESSIVE : CHAT_MEMORY_CONTENT_BLOCK_LIMIT,
+          'interleaved message content',
+        )
+        if (text === block.text) return block
         return {
           ...block,
-          text: truncateTextForMemory(
-            block.text,
-            aggressive ? CHAT_MEMORY_CONTENT_BLOCK_LIMIT_AGGRESSIVE : CHAT_MEMORY_CONTENT_BLOCK_LIMIT,
-            'interleaved message content',
-          ),
+          text,
         }
       })
+      if (nextContentBlocks.some((block, index) => block !== message.contentBlocks?.[index])) {
+        next = next === message ? { ...message } : next
+        next.contentBlocks = nextContentBlocks
+      }
     } else {
+      next = next === message ? { ...message } : next
       next.contentBlocks = undefined
     }
   }
@@ -300,7 +314,8 @@ function estimateMessageChars(message: ChatMessage): number {
 
 function normalizeMessagesForMemory(messages: ChatMessage[]): ChatMessage[] {
   const withoutNotice = messages.filter(message => !(message.role === 'system' && message.content.startsWith(CHAT_TRIM_NOTICE_PREFIX)))
-  const normalized = withoutNotice.map((message, index, arr) => compactMessageForMemory(message, {
+  const sourceMessages = withoutNotice.length === messages.length ? messages : withoutNotice
+  const normalized = sourceMessages.map((message, index, arr) => compactMessageForMemory(message, {
     aggressive: index < arr.length - CHAT_MEMORY_PRESERVE_RICH_MESSAGE_COUNT,
     preserveRichLayout: index >= arr.length - CHAT_MEMORY_PRESERVE_RICH_MESSAGE_COUNT,
   }))
@@ -312,7 +327,12 @@ function normalizeMessagesForMemory(messages: ChatMessage[]): ChatMessage[] {
     start += 1
   }
 
-  if (start === 0) return messages === normalized ? messages : normalized
+  if (start === 0) {
+    if (sourceMessages.length === messages.length && normalized.every((message, index) => message === messages[index])) {
+      return messages
+    }
+    return normalized
+  }
 
   const notice: ChatMessage = {
     id: `msg-memory-guard-${normalized[start]?.timestamp ?? Date.now()}`,
@@ -724,6 +744,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const [modelFilter, setModelFilter] = useState('')
   const [attachments, setAttachments] = useState<PendingAttachment[]>(() => initialRuntimeStateRef.current?.attachments ?? [])
   const [isDropTarget, setIsDropTarget] = useState(false)
+  const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const setMessagesSafe = useCallback((updater: React.SetStateAction<ChatMessage[]>) => {
     setMessages(prev => normalizeMessagesForMemory(typeof updater === 'function'
       ? (updater as (prev: ChatMessage[]) => ChatMessage[])(prev)
@@ -745,6 +766,8 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const [acIndex, setAcIndex] = useState(0)
 
   const messagesRef = useRef<HTMLDivElement>(null)
+  const stickToBottomRef = useRef(true)
+  const showScrollToLatestRef = useRef(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const acRef = useRef<HTMLDivElement>(null)
   const modelMenuRef = useRef<HTMLDivElement>(null)
@@ -1090,11 +1113,43 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     setIsDictating(true)
   }, [isDictating])
 
-  // Auto-scroll (no scrollIntoView -- causes canvas shift)
-  useEffect(() => {
+  const isNearLatest = useCallback((el: HTMLDivElement) => {
+    return el.scrollHeight - el.scrollTop - el.clientHeight <= CHAT_AUTO_SCROLL_THRESHOLD
+  }, [])
+
+  const syncScrollToLatestVisibility = useCallback((next: boolean) => {
+    if (showScrollToLatestRef.current === next) return
+    showScrollToLatestRef.current = next
+    setShowScrollToLatest(next)
+  }, [])
+
+  const scrollToLatest = useCallback((behavior: ScrollBehavior = 'smooth') => {
     const el = messagesRef.current
-    if (el) el.scrollTop = el.scrollHeight
-  }, [messages])
+    if (!el) return
+    stickToBottomRef.current = true
+    syncScrollToLatestVisibility(false)
+    el.scrollTo({ top: el.scrollHeight, behavior })
+  }, [syncScrollToLatestVisibility])
+
+  const handleMessagesScroll = useCallback(() => {
+    const el = messagesRef.current
+    if (!el) return
+    const atLatest = isNearLatest(el)
+    stickToBottomRef.current = atLatest
+    syncScrollToLatestVisibility(!atLatest)
+  }, [isNearLatest, syncScrollToLatestVisibility])
+
+  // Auto-scroll only while the user is already following the latest messages.
+  useLayoutEffect(() => {
+    const el = messagesRef.current
+    if (!el) return
+    if (!stickToBottomRef.current) {
+      syncScrollToLatestVisibility(true)
+      return
+    }
+    el.scrollTop = el.scrollHeight
+    syncScrollToLatestVisibility(false)
+  }, [messages, syncScrollToLatestVisibility])
 
   // Stream listener -- handles all rich event types from Claude Agent SDK
   useEffect(() => {
@@ -1361,6 +1416,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     setAcQuery('')
     setAttachments([])
     setIsStreaming(true)
+    stickToBottomRef.current = true
 
     if (textareaRef.current) textareaRef.current.style.height = 'auto'
     focusComposer()
@@ -1572,6 +1628,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       {/* Messages */}
       <div
         ref={messagesRef}
+        onScroll={handleMessagesScroll}
         style={{
           flex: 1, overflowY: 'auto', padding: '12px 14px',
           minHeight: 0,
@@ -1750,6 +1807,34 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
           ))}
         </div>
       </div>
+
+      {showScrollToLatest && (
+        <button
+          onClick={() => scrollToLatest()}
+          title="Jump to latest"
+          style={{
+            position: 'absolute',
+            right: 20,
+            bottom: 124,
+            zIndex: 5,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 6,
+            padding: '7px 10px',
+            borderRadius: 999,
+            border: `1px solid ${theme.chat.divider}`,
+            background: theme.surface.panelElevated,
+            color: theme.text.secondary,
+            cursor: 'pointer',
+            boxShadow: theme.shadow.panel,
+            fontSize: 12,
+            fontFamily: fontSans,
+          }}
+        >
+          <ArrowDown size={13} />
+          <span>Latest</span>
+        </button>
+      )}
 
       {/* Input bar */}
       <div style={{
