@@ -4,7 +4,7 @@ export interface Workspace {
   path: string
 }
 
-export type BuiltinTileType = 'terminal' | 'note' | 'code' | 'image' | 'kanban' | 'browser' | 'chat' | 'file' | 'files' | 'customisation'
+export type BuiltinTileType = 'terminal' | 'note' | 'code' | 'image' | 'media' | 'kanban' | 'browser' | 'chat' | 'file' | 'files' | 'customisation'
 
 // ─── Customisation Data Types ──────────────────────────────────────────────
 
@@ -330,6 +330,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
     code:     { w: 680, h: 500 },
     note:     { w: 500, h: 400 },
     image:    { w: 440, h: 360 },
+    media:    { w: 640, h: 360 },
     kanban:   { w: 900, h: 560 },
     browser:  { w: 1000, h: 700 },
     chat:     { w: 420, h: 600 },

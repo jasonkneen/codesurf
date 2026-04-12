@@ -421,8 +421,8 @@ export function Sidebar({
   const [renamingTileId, setRenamingTileId] = useState<string | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [sessions, setSessions] = useState<SessionEntry[]>([])
-  const [showCronSessions, setShowCronSessions] = useState(true)
-  const [showSubagentSessions, setShowSubagentSessions] = useState(true)
+  const [showCronSessions, setShowCronSessions] = useState(false)
+  const [showSubagentSessions, setShowSubagentSessions] = useState(false)
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [visibleSessionCount, setVisibleSessionCount] = useState(SESSION_PAGE_SIZE)
@@ -436,18 +436,28 @@ export function Sidebar({
 
   // Load sessions for current workspace
   useEffect(() => {
-    if (!workspace) return
+    if (!workspace) {
+      setSessions([])
+      return
+    }
     let cancelled = false
-    const load = () => {
-      window.electron.canvas.listSessions(workspace.id).then(s => {
+    const load = (forceRefresh = false) => {
+      window.electron.canvas.listSessions(workspace.id, forceRefresh).then(s => {
         if (!cancelled) setSessions(s)
       }).catch(() => {})
     }
     load()
-    // Refresh sessions periodically
-    const interval = setInterval(load, 10000)
-    return () => { cancelled = true; clearInterval(interval) }
-  }, [workspace?.id, tiles])
+    const unsubscribe = window.electron.canvas.onSessionsChanged(({ workspaceId }) => {
+      if (workspaceId === workspace.id) load()
+    })
+    const onFocus = () => load(true)
+    window.addEventListener('focus', onFocus)
+    return () => {
+      cancelled = true
+      unsubscribe()
+      window.removeEventListener('focus', onFocus)
+    }
+  }, [workspace?.id])
 
   const BORDER_RADIUS_CYCLE = [8, 0, 16, 24]
   const cycleBorderRadius = useCallback((tile: TileState) => {
@@ -809,12 +819,13 @@ export function Sidebar({
           extra={(
             <>
               <button
-                title={showCronSessions ? 'Hide cron jobs' : 'Show cron jobs'}
+                title={showCronSessions ? 'Hide cron sessions' : 'Show cron sessions'}
+                aria-label={showCronSessions ? 'Hide cron sessions' : 'Show cron sessions'}
                 onClick={() => setShowCronSessions(value => !value)}
                 style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 6,
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
                   border: 'none',
                   background: showCronSessions ? theme.surface.hover : 'transparent',
                   color: showCronSessions ? theme.text.secondary : theme.text.disabled,
@@ -822,21 +833,22 @@ export function Sidebar({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: showCronSessions ? 1 : 0.6,
+                  opacity: showCronSessions ? 1 : 0.65,
                 }}
               >
-                <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
                   <circle cx="7" cy="7" r="4.5" stroke="currentColor" strokeWidth="1.2" />
                   <path d="M7 4.4v2.9l1.8 1.2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
               </button>
               <button
-                title={showSubagentSessions ? 'Hide subagents' : 'Show subagents'}
+                title={showSubagentSessions ? 'Hide subagent sessions' : 'Show subagent sessions'}
+                aria-label={showSubagentSessions ? 'Hide subagent sessions' : 'Show subagent sessions'}
                 onClick={() => setShowSubagentSessions(value => !value)}
                 style={{
-                  width: 22,
-                  height: 22,
-                  borderRadius: 6,
+                  width: 26,
+                  height: 26,
+                  borderRadius: 7,
                   border: 'none',
                   background: showSubagentSessions ? theme.surface.hover : 'transparent',
                   color: showSubagentSessions ? theme.text.secondary : theme.text.disabled,
@@ -844,10 +856,10 @@ export function Sidebar({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  opacity: showSubagentSessions ? 1 : 0.6,
+                  opacity: showSubagentSessions ? 1 : 0.65,
                 }}
               >
-                <svg width="12" height="12" viewBox="0 0 14 14" fill="none">
+                <svg width="15" height="15" viewBox="0 0 14 14" fill="none">
                   <path d="M4 3.2h6M4 10.8h6" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" />
                   <path d="M4.8 3.2v2.1c0 .9.7 1.6 1.6 1.6h1.2c.9 0 1.6.7 1.6 1.6v2.3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
@@ -926,24 +938,25 @@ export function Sidebar({
                   />
                 ))}
                 {hasMoreSessions && (
-                  <button
-                    onClick={() => setVisibleSessionCount(count => count + SESSION_PAGE_SIZE)}
-                    style={{
-                      margin: '6px 12px 0',
-                      width: 'calc(100% - 24px)',
-                      padding: '7px 10px',
-                      borderRadius: 8,
-                      border: `1px solid ${theme.border.default}`,
-                      background: theme.surface.panelMuted,
-                      color: theme.text.secondary,
-                      cursor: 'pointer',
-                      fontSize: fonts.secondarySize,
-                      fontFamily: 'inherit',
-                      textAlign: 'center',
-                    }}
-                  >
-                    Load more sessions ({visibleSessions.length - displayedSessions.length} remaining)
-                  </button>
+                  <div style={{ padding: '6px 12px 0', textAlign: 'center' }}>
+                    <button
+                      onClick={() => setVisibleSessionCount(count => count + SESSION_PAGE_SIZE)}
+                      style={{
+                        padding: 0,
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text.disabled,
+                        cursor: 'pointer',
+                        fontSize: fonts.secondarySize,
+                        fontFamily: 'inherit',
+                        textAlign: 'center',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = theme.text.secondary }}
+                      onMouseLeave={e => { e.currentTarget.style.color = theme.text.disabled }}
+                    >
+                      More ({visibleSessions.length - displayedSessions.length})
+                    </button>
+                  </div>
                 )}
               </>
             )}

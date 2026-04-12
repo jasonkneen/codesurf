@@ -115,6 +115,48 @@ class EventBus {
     return count
   }
 
+  // Drop all history and read cursors for a channel. Returns count of bytes-ish freed (event count).
+  dropChannel(channel: string): number {
+    const ring = this.history.get(channel)
+    const freed = ring?.length ?? 0
+    this.history.delete(channel)
+    // prune matching read cursors
+    const prefix = `${channel}::`
+    for (const key of this.readCursors.keys()) {
+      if (key.startsWith(prefix)) this.readCursors.delete(key)
+    }
+    return freed
+  }
+
+  // Drop every channel whose name starts with `prefix`. Returns number of channels dropped.
+  dropChannelsMatching(prefix: string): number {
+    let dropped = 0
+    for (const channel of [...this.history.keys()]) {
+      if (channel.startsWith(prefix)) {
+        this.dropChannel(channel)
+        dropped++
+      }
+    }
+    // also drop subscriptions pinned to those channels (non-wildcard only)
+    for (const [id, sub] of this.subscriptions) {
+      if (!sub.isWildcard && sub.channel.startsWith(prefix)) {
+        this.subscriptions.delete(id)
+      }
+    }
+    return dropped
+  }
+
+  getStats(): { channels: number; events: number; subscriptions: number; readCursors: number } {
+    let events = 0
+    for (const ring of this.history.values()) events += ring.length
+    return {
+      channels: this.history.size,
+      events,
+      subscriptions: this.subscriptions.size,
+      readCursors: this.readCursors.size,
+    }
+  }
+
   // ── internal ──────────────────────────────────────────────────────────────
 
   private matches(sub: InternalSubscription, channel: string): boolean {

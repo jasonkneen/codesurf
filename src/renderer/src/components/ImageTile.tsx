@@ -13,7 +13,7 @@ export function ImageTile({ filePath }: Props): JSX.Element {
       overflow: 'hidden'
     }}>
       <img
-        src={`file://${filePath}`}
+        src={`contex-file://${encodeURI(filePath).replace(/#/g, '%23')}`}
         alt=""
         draggable={false}
         style={{

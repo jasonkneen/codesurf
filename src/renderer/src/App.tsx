@@ -12,8 +12,9 @@ import { ThemeProvider } from './ThemeContext'
 import { DEFAULT_THEME_ID, getThemeById, resolveEffectiveThemeId, registerCustomTheme, unregisterCustomTheme } from './theme'
 import type { PanelNode } from './components/PanelLayout'
 import { createLeaf, removeTileFromTree, addTabToLeaf, getAllTileIds, splitLeaf, closeOthersInLeaf, closeToRightInLeaf, findLeafById } from './components/PanelLayout'
-import { getDroppedPaths, toFileUrl } from './utils/dnd'
+import { getDroppedPaths, toFileUrl, isMediaFile } from './utils/dnd'
 import { disposeChatTileRuntimeState } from './components/chatTileRuntimeState'
+import { disposeMediaTile } from './components/MediaTile'
 
 const LazyPanelLayout = React.lazy(() => import('./components/PanelLayout').then(m => ({ default: m.PanelLayout })))
 
@@ -61,6 +62,7 @@ const LazySidebar = React.lazy(() => import('./components/Sidebar').then(m => ({
 const LazySidebarFooter = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.SidebarFooter })))
 const LazyContextMenu = React.lazy(() => import('./components/ContextMenu').then(m => ({ default: m.ContextMenu })))
 const LazyImageTile = React.lazy(() => import('./components/ImageTile').then(m => ({ default: m.ImageTile })))
+const LazyMediaTile = React.lazy(() => import('./components/MediaTile').then(m => ({ default: m.MediaTile })))
 const LazyBrowserTile = React.lazy(() => import('./components/BrowserTile').then(m => ({ default: m.BrowserTile })))
 const LazyKanbanTile = React.lazy(() => import('./components/KanbanTile').then(m => ({ default: m.KanbanTile })))
 const LazyMCPPanel = React.lazy(() => import('./components/MCPPanel').then(m => ({ default: m.MCPPanel })))
@@ -131,7 +133,8 @@ function extToType(filePath: string): TileState['type'] {
   if (CODE_EXTENSIONS.has(ext)) return 'code'
   if (NOTE_EXTENSIONS.has(ext)) return 'note'
   if (IMAGE_EXTENSIONS.has(ext)) return 'image'
-  if (VIDEO_EXTENSIONS.has(ext) || AUDIO_EXTENSIONS.has(ext) || BROWSER_DOCUMENT_EXTENSIONS.has(ext)) return 'browser'
+  if (VIDEO_EXTENSIONS.has(ext) || AUDIO_EXTENSIONS.has(ext)) return 'media'
+  if (BROWSER_DOCUMENT_EXTENSIONS.has(ext)) return 'browser'
   if (GENERIC_DOCUMENT_EXTENSIONS.has(ext)) return 'file'
   if (!filePath.includes('.')) return 'code'
   return 'file'
@@ -1343,6 +1346,13 @@ function App(): JSX.Element {
     }
     const position = findClearPosition(preferred.x, preferred.y, width, height, tilesRef.current, panelTileIdsRef.current, placementStep)
 
+    // Media files (image/video/audio/PDF) open chromeless by default — hides
+    // both the tile titlebar and the browser navbar so the content fills the
+    // block. User can right-click to restore controls. Caller can override.
+    const isMedia = !!filePath && isMediaFile(filePath)
+    const defaultHideTitlebar = isMedia ? true : undefined
+    const defaultHideNavbar = isMedia ? true : undefined
+
     const newTile: TileState = {
       id: `tile-${Date.now()}`,
       type,
@@ -1352,8 +1362,8 @@ function App(): JSX.Element {
       height,
       zIndex: nextZIndex,
       filePath,
-      hideTitlebar: initialOptions?.hideTitlebar,
-      hideNavbar: initialOptions?.hideNavbar,
+      hideTitlebar: initialOptions?.hideTitlebar ?? defaultHideTitlebar,
+      hideNavbar: initialOptions?.hideNavbar ?? defaultHideNavbar,
       launchBin: initialOptions?.launchBin,
       launchArgs: initialOptions?.launchArgs,
     }
@@ -1432,6 +1442,15 @@ function App(): JSX.Element {
     if (tile?.type === 'chat') {
       disposeChatTileRuntimeState(id)
     }
+    if (tile?.type === 'media') {
+      // Pause, clear src, detach the persistent <video>/<audio> node so
+      // codecs are released and playback stops immediately.
+      disposeMediaTile(id)
+    }
+    // System-level cleanup for every tile type: drops bus history pinned to
+    // tile:${id}*, clears peer state, and schedules a debounced GC on main
+    // and all renderers (requires --expose-gc, see package.json dev script).
+    void window.electron.system.cleanupTile(id)
     if (workspace?.id) {
       void Promise.allSettled([
         window.electron.canvas.deleteTileArtifacts(workspace.id, id),
@@ -1597,6 +1616,23 @@ function App(): JSX.Element {
       })
       items.push({ label: '', action: () => {}, divider: true })
     }
+    // Chrome toggle — media files open chromeless; this restores titlebar +
+    // browser navbar (for browser tiles). Toggling them together keeps the
+    // two states coherent.
+    const currentlyChromeless = !!tile.hideTitlebar || !!tile.hideNavbar
+    items.push({
+      label: currentlyChromeless ? 'Show Controls' : 'Hide Controls',
+      action: () => {
+        setTiles(prev => {
+          const updated = prev.map(t => t.id === tile.id
+            ? { ...t, hideTitlebar: !currentlyChromeless, hideNavbar: !currentlyChromeless }
+            : t)
+          saveCanvas(updated, viewport, nextZIndex)
+          return updated
+        })
+      }
+    })
+    items.push({ label: '', action: () => {}, divider: true })
     items.push({ label: 'Close', action: () => closeTile(tile.id), danger: true })
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
   }, [closeTile, groups, viewport, nextZIndex, saveCanvas])
@@ -2672,6 +2708,8 @@ function App(): JSX.Element {
         return <LazyNoteTile tileId={tile.id} filePath={tile.filePath} workspacePath={workspace?.path} />
       case 'image':
         return tile.filePath ? <LazyImageTile filePath={tile.filePath} /> : null
+      case 'media':
+        return tile.filePath ? <LazyMediaTile tileId={tile.id} filePath={tile.filePath} /> : null
       case 'file':
         return tile.filePath ? (
           <LazyFileTile

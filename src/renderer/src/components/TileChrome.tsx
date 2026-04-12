@@ -1387,6 +1387,40 @@ export function TileChrome({
           onDrop={e => { if (tile.type !== 'kanban') e.stopPropagation() }}
         >
           {forceExpanded ? null : children}
+
+          {/* Chromeless drag strip — when titlebar is hidden, this thin overlay
+              at the top provides a reliable drag + right-click target so the
+              tile is still movable and the context menu remains reachable. */}
+          {tile.hideTitlebar && (
+            <div
+              data-chromeless-drag=""
+              onMouseDown={e => { e.stopPropagation(); onTitlebarMouseDown(e) }}
+              onContextMenu={e => { e.preventDefault(); e.stopPropagation(); onContextMenu?.(e) }}
+              onDoubleClick={e => { e.stopPropagation(); toggle() }}
+              style={{
+                position: 'absolute',
+                top: 0, left: 0, right: 0,
+                height: 24,
+                cursor: 'grab',
+                zIndex: 5,
+                background: 'linear-gradient(to bottom, rgba(0,0,0,0.35), rgba(0,0,0,0))',
+                opacity: 0,
+                transition: 'opacity 120ms ease',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: 11,
+                letterSpacing: 1,
+                userSelect: 'none',
+                pointerEvents: 'auto',
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '1')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '0')}
+            >
+              ::::
+            </div>
+          )}
         </div>
 
         {(['n','s','e','w','ne','nw','se','sw'] as const).map(dir => (

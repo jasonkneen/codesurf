@@ -88,7 +88,7 @@ interface ElectronAPI {
     saveTileState(workspaceId: string, tileId: string, state: any): Promise<void>
     clearTileState(workspaceId: string, tileId: string): Promise<void>
     deleteTileArtifacts(workspaceId: string, tileId: string): Promise<void>
-    listSessions(workspaceId: string): Promise<Array<{
+    listSessions(workspaceId: string, forceRefresh?: boolean): Promise<Array<{
       id: string
       source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
       scope: 'workspace' | 'project' | 'user'
@@ -111,6 +111,7 @@ interface ElectronAPI {
       relatedGroupId?: string | null
       nestingLevel?: number
     }>>
+    onSessionsChanged(cb: (payload: { workspaceId: string }) => void): () => void
     getSessionState(workspaceId: string, sessionEntryId: string): Promise<any>
     deleteSession(workspaceId: string, sessionEntryId: string): Promise<{ ok: boolean; error?: string }>
   }
@@ -248,6 +249,20 @@ interface ElectronAPI {
     unreadCount(channel: string, subscriberId: string): Promise<number>
     markRead(channel: string, subscriberId: string): Promise<void>
     onEvent(callback: (event: import('../../shared/types').BusEvent) => void): () => void
+  }
+  getPathForFile(file: File): string
+  system: {
+    cleanupTile(tileId: string): Promise<{ ok: boolean; channelsDropped?: number }>
+    gc(): Promise<{ ok: boolean; exposed: boolean }>
+    memStats(): Promise<{
+      rss: number
+      heapTotal: number
+      heapUsed: number
+      external: number
+      arrayBuffers: number
+      bus: { channels: number; events: number; subscriptions: number; readCursors: number }
+    }>
+    onGcRequested(callback: () => void): () => void
   }
 }
 

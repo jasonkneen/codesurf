@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer } from 'electron'
+import { contextBridge, ipcRenderer, webUtils } from 'electron'
 import { homedir } from 'os'
 
 function channelMatches(pattern: string, channel: string): boolean {
@@ -89,7 +89,7 @@ contextBridge.exposeInMainWorld('electron', {
     saveTileState: (workspaceId: string, tileId: string, state: any) => ipcRenderer.invoke('canvas:saveTileState', workspaceId, tileId, state),
     clearTileState: (workspaceId: string, tileId: string) => ipcRenderer.invoke('canvas:clearTileState', workspaceId, tileId),
     deleteTileArtifacts: (workspaceId: string, tileId: string) => ipcRenderer.invoke('canvas:deleteTileArtifacts', workspaceId, tileId),
-    listSessions: (workspaceId: string) => ipcRenderer.invoke('canvas:listSessions', workspaceId) as Promise<Array<{
+    listSessions: (workspaceId: string, forceRefresh?: boolean) => ipcRenderer.invoke('canvas:listSessions', workspaceId, forceRefresh === true) as Promise<Array<{
       id: string
       source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
       scope: 'workspace' | 'project' | 'user'
@@ -112,6 +112,11 @@ contextBridge.exposeInMainWorld('electron', {
       relatedGroupId?: string | null
       nestingLevel?: number
     }>>,
+    onSessionsChanged: (cb: (payload: { workspaceId: string }) => void) => {
+      const handler = (_: unknown, payload: { workspaceId: string }) => cb(payload)
+      ipcRenderer.on('canvas:sessionsChanged', handler)
+      return () => ipcRenderer.removeListener('canvas:sessionsChanged', handler)
+    },
     getSessionState: (workspaceId: string, sessionEntryId: string) => ipcRenderer.invoke('canvas:getSessionState', workspaceId, sessionEntryId),
     deleteSession: (workspaceId: string, sessionEntryId: string) => ipcRenderer.invoke('canvas:deleteSession', workspaceId, sessionEntryId),
   },
@@ -419,6 +424,36 @@ contextBridge.exposeInMainWorld('electron', {
     }
   },
 
+  // System memory + lifecycle
+  system: {
+    cleanupTile: (tileId: string) => ipcRenderer.invoke('system:cleanupTile', tileId),
+    gc: () => ipcRenderer.invoke('system:gc'),
+    memStats: () => ipcRenderer.invoke('system:memStats'),
+    onGcRequested: (callback: () => void) => {
+      const handler = () => {
+        // window.gc exists when renderer is launched with --js-flags=--expose-gc
+        const w = window as unknown as { gc?: () => void }
+        if (typeof w.gc === 'function') {
+          try { w.gc() } catch { /* ignore */ }
+        }
+        callback()
+      }
+      ipcRenderer.on('system:gc-requested', handler)
+      return () => ipcRenderer.removeListener('system:gc-requested', handler)
+    },
+  },
+
   // OS utilities
   homedir: homedir(),
+
+  // File path extraction for drag/drop — replaces the old File.path field that
+  // Electron removed in v32. Must be called in the renderer (which is where the
+  // File object lives); preload-side webUtils is the sanctioned path.
+  getPathForFile: (file: File): string => {
+    try {
+      return webUtils.getPathForFile(file)
+    } catch {
+      return ''
+    }
+  },
 })

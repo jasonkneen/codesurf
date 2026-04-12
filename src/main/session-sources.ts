@@ -1,6 +1,7 @@
-import { promises as fs } from 'fs'
+import { createReadStream, promises as fs } from 'fs'
 import { homedir } from 'os'
 import { basename, extname, join } from 'path'
+import { createInterface } from 'readline'
 import Database from 'better-sqlite3'
 import { CONTEX_HOME } from './paths'
 
@@ -48,6 +49,8 @@ export interface AggregatedSessionEntry {
 
 const STANDARD_CODESURF_SUBDIRS = ['sessions', 'agents', 'skills', 'tools', 'plugins', 'extensions'] as const
 const EXTERNAL_SESSION_CACHE_MS = 30_000
+const MAX_SESSION_LISTING_JSON_BYTES = 2 * 1024 * 1024
+const MAX_SESSION_LISTING_TEXT_SAMPLE_BYTES = 16 * 1024
 const externalSessionCache = new Map<string, { at: number; entries: AggregatedSessionEntry[] }>()
 const GENERIC_OPENCLAW_LABELS = new Set(['openclaw studio', 'openclawstudio', 'openclaw-tui', 'vibeclaw', 'heartbeat'])
 
@@ -78,8 +81,12 @@ async function fileExists(path: string): Promise<boolean> {
   }
 }
 
-async function readJsonSafe(path: string): Promise<any | null> {
+async function readJsonSafe(path: string, options?: { maxBytes?: number }): Promise<any | null> {
   try {
+    if (options?.maxBytes != null) {
+      const stat = await fs.stat(path)
+      if (!stat.isFile() || stat.size > options.maxBytes) return null
+    }
     const raw = await fs.readFile(path, 'utf8')
     return JSON.parse(raw)
   } catch {
@@ -95,11 +102,46 @@ async function readTextSafe(path: string): Promise<string | null> {
   }
 }
 
+async function readTextPreviewSafe(path: string, maxBytes = MAX_SESSION_LISTING_TEXT_SAMPLE_BYTES): Promise<string | null> {
+  try {
+    const handle = await fs.open(path, 'r')
+    try {
+      const buffer = Buffer.alloc(maxBytes)
+      const { bytesRead } = await handle.read(buffer, 0, maxBytes, 0)
+      return buffer.toString('utf8', 0, bytesRead)
+    } finally {
+      await handle.close()
+    }
+  } catch {
+    return null
+  }
+}
+
 async function statSafe(path: string): Promise<import('fs').Stats | null> {
   try {
     return await fs.stat(path)
   } catch {
     return null
+  }
+}
+
+async function scanJsonlFile(
+  filePath: string,
+  onLine: (line: string, lineNumber: number) => void | Promise<void>,
+): Promise<void> {
+  const stream = createReadStream(filePath, { encoding: 'utf8' })
+  const lines = createInterface({ input: stream, crlfDelay: Infinity })
+  let lineNumber = 0
+
+  try {
+    for await (const line of lines) {
+      if (!line) continue
+      lineNumber += 1
+      await onLine(line, lineNumber)
+    }
+  } finally {
+    lines.close()
+    stream.destroy()
   }
 }
 
@@ -261,7 +303,7 @@ async function listCodeSurfSessionFiles(workspacePath: string | null): Promise<A
       const ext = extname(filePath).toLowerCase()
 
       if (ext === '.json') {
-        const parsed = await readJsonSafe(filePath)
+        const parsed = await readJsonSafe(filePath, { maxBytes: MAX_SESSION_LISTING_JSON_BYTES })
         if (parsed && typeof parsed === 'object') {
           if (Array.isArray(parsed.messages)) {
             messageCount = parsed.messages.length
@@ -277,7 +319,7 @@ async function listCodeSurfSessionFiles(workspacePath: string | null): Promise<A
           if (typeof parsed.title === 'string' && parsed.title.trim()) title = parsed.title.trim()
         }
       } else if (ext === '.md' || ext === '.txt') {
-        const raw = await readTextSafe(filePath)
+        const raw = await readTextPreviewSafe(filePath)
         lastMessage = truncate(raw)
         title = sessionTitleFromText(title, raw)
       }
@@ -326,20 +368,17 @@ async function listClaudeSessions(workspacePath: string | null): Promise<Aggrega
     let messageCount = 0
 
     try {
-      const raw = await fs.readFile(filePath, 'utf8')
-      const lines = raw.split(/\r?\n/).filter(Boolean)
-      messageCount = lines.length
-      for (const line of [...lines].reverse()) {
+      await scanJsonlFile(filePath, (line) => {
+        messageCount += 1
         try {
           const evt = JSON.parse(line)
           if (typeof evt?.content === 'string' && evt.content.trim()) {
             lastMessage = truncate(evt.content)
-            break
           }
         } catch {
           // ignore malformed line
         }
-      }
+      })
     } catch {
       // ignore unreadable transcript
     }
@@ -400,9 +439,7 @@ async function listCodexSessions(workspacePath: string | null): Promise<Aggregat
     let sessionId: string | null = basename(filePath, extname(filePath))
 
     try {
-      const raw = await fs.readFile(filePath, 'utf8')
-      const lines = raw.split(/\r?\n/).filter(Boolean)
-      for (const line of lines) {
+      await scanJsonlFile(filePath, (line) => {
         try {
           const evt = JSON.parse(line)
           if (!projectPath && typeof evt?.payload?.cwd === 'string') projectPath = evt.payload.cwd
@@ -418,7 +455,7 @@ async function listCodexSessions(workspacePath: string | null): Promise<Aggregat
         } catch {
           // ignore malformed line
         }
-      }
+      })
     } catch {
       // ignore unreadable file
     }
@@ -579,7 +616,7 @@ async function listOpenCodeSessions(workspacePath: string | null): Promise<Aggre
     .slice(0, 80)
 
   const entries = await Promise.all(recent.map(async ({ filePath, ts }) => {
-    const parsed = await readJsonSafe(filePath)
+    const parsed = await readJsonSafe(filePath, { maxBytes: MAX_SESSION_LISTING_JSON_BYTES })
     const projectPath = typeof parsed?.projectPath === 'string' ? parsed.projectPath : null
     const lastMessage = Array.isArray(parsed?.messages)
       ? truncate(parsed.messages.filter((m: any) => typeof m?.content === 'string' && m.role !== 'system').slice(-1)[0]?.content)
@@ -612,10 +649,13 @@ async function listOpenCodeSessions(workspacePath: string | null): Promise<Aggre
   return entries
 }
 
-export async function listExternalSessionEntries(workspacePath: string | null): Promise<AggregatedSessionEntry[]> {
+export async function listExternalSessionEntries(
+  workspacePath: string | null,
+  options?: { force?: boolean },
+): Promise<AggregatedSessionEntry[]> {
   const cacheKey = workspacePath ?? '__no_workspace__'
   const cached = externalSessionCache.get(cacheKey)
-  if (cached && (Date.now() - cached.at) < EXTERNAL_SESSION_CACHE_MS) {
+  if (!options?.force && cached && (Date.now() - cached.at) < EXTERNAL_SESSION_CACHE_MS) {
     return cached.entries
   }
 

@@ -16,6 +16,8 @@ import { registerChatIPC, warmOpenCodeModelsOnStartup } from './ipc/chat'
 import { registerActivityIPC } from './ipc/activity'
 import { registerCollabIPC, stopAllCollabWatchers } from './ipc/collab'
 import { registerTileContextIPC } from './ipc/tile-context'
+import { registerSystemIPC } from './ipc/system'
+import { registerFileProtocol } from './file-protocol'
 import { flushAll as flushActivityStore } from './activity-store'
 import { detectAllAgents, registerAgentPathsIPC } from './agent-paths'
 import { ExtensionRegistry } from './extensions/registry'
@@ -29,6 +31,10 @@ import { APP_ID, APP_NAME, CONTEX_HOME } from './paths'
 import { stopAllRelayServices } from './relay/service'
 import { readSettingsSync } from './ipc/workspace'
 // browserTile BrowserView IPC was removed — renderer uses <webview> tag directly
+
+// Expose global.gc() in renderer processes and give them a larger heap.
+// (Main process gets these flags via the electron CLI in package.json/dev script.)
+app.commandLine.appendSwitch('js-flags', '--expose-gc --max-old-space-size=8192')
 
 // Per-window display titles (webContents.id → label set by renderer via workspace name)
 const windowTitles = new Map<number, string>()
@@ -191,6 +197,8 @@ app.whenReady().then(async () => {
   registerActivityIPC()
   registerCollabIPC()
   registerTileContextIPC()
+  registerSystemIPC()
+  registerFileProtocol()
   registerAgentPathsIPC()
   registerChromeSyncIPC()
   registerLocalProxyIPC()

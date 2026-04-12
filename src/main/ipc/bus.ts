@@ -64,4 +64,16 @@ export function registerBusIPC(): void {
   ipcMain.handle('bus:markRead', (_, channel: string, subscriberId: string) => {
     bus.markRead(channel, subscriberId)
   })
+
+  ipcMain.handle('bus:dropChannel', (_, channel: string) => {
+    return bus.dropChannel(channel)
+  })
+
+  ipcMain.handle('bus:dropChannelsMatching', (_, prefix: string) => {
+    return bus.dropChannelsMatching(prefix)
+  })
+
+  ipcMain.handle('bus:stats', () => {
+    return bus.getStats()
+  })
 }

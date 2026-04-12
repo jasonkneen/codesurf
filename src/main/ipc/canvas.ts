@@ -1,4 +1,4 @@
-import { ipcMain } from 'electron'
+import { BrowserWindow, ipcMain } from 'electron'
 import { promises as fs } from 'fs'
 import { basename, dirname, join } from 'path'
 import type { TileState } from '../../shared/types'
@@ -73,6 +73,135 @@ function tileStatePath(storageId: string, tileId: string): string {
   assertSafeId(storageId)
   assertSafeId(tileId)
   return join(CONTEX_HOME, 'workspaces', storageId, '.contex', `tile-state-${tileId}.json`)
+}
+
+function tileSessionSummaryPath(storageId: string, tileId: string): string {
+  assertSafeId(storageId)
+  assertSafeId(tileId)
+  return join(CONTEX_HOME, 'workspaces', storageId, '.contex', `tile-session-${tileId}.json`)
+}
+
+interface TileSessionSummary {
+  version: 1
+  tileId: string
+  sessionId: string | null
+  provider: string
+  model: string
+  messageCount: number
+  lastMessage: string | null
+  title: string
+  updatedAt: number
+}
+
+const tileSessionSummaryCache = new Map<string, TileSessionSummary | null>()
+
+function truncateSessionText(text: string | null | undefined, length = 120): string | null {
+  if (!text) return null
+  const normalized = text.replace(/\s+/g, ' ').trim()
+  return normalized.length > length ? normalized.slice(0, length) : normalized
+}
+
+function sessionTitleFromText(text: string | null | undefined, provider: string): string {
+  const trimmed = text?.trim()
+  if (!trimmed) return `${provider} session`
+  return trimmed.split(/\r?\n/, 1)[0].slice(0, 80)
+}
+
+function extractTileSessionSummary(tileId: string, state: unknown): TileSessionSummary | null {
+  if (!state || typeof state !== 'object') return null
+  const record = state as Record<string, unknown>
+  const messages = Array.isArray(record.messages) ? record.messages : null
+  if (!messages || messages.length === 0) return null
+
+  let lastMessage: string | null = null
+  for (let i = messages.length - 1; i >= 0; i -= 1) {
+    const message = messages[i] as Record<string, unknown> | null | undefined
+    if (!message) continue
+    const text = truncateSessionText(typeof message.content === 'string' ? message.content : null)
+    if (text) {
+      lastMessage = text
+      break
+    }
+  }
+
+  const provider = typeof record.provider === 'string' && record.provider.trim()
+    ? record.provider
+    : 'claude'
+  const model = typeof record.model === 'string' ? record.model : ''
+  const sessionId = typeof record.sessionId === 'string' ? record.sessionId : null
+
+  return {
+    version: 1,
+    tileId,
+    sessionId,
+    provider,
+    model,
+    messageCount: messages.length,
+    lastMessage,
+    title: sessionTitleFromText(lastMessage, provider),
+    updatedAt: Date.now(),
+  }
+}
+
+function sameTileSessionSummary(a: TileSessionSummary | null, b: TileSessionSummary | null): boolean {
+  if (!a || !b) return a === b
+  return a.tileId === b.tileId
+    && a.sessionId === b.sessionId
+    && a.provider === b.provider
+    && a.model === b.model
+    && a.messageCount === b.messageCount
+    && a.lastMessage === b.lastMessage
+    && a.title === b.title
+}
+
+async function readTileSessionSummary(summaryPath: string): Promise<TileSessionSummary | null> {
+  if (tileSessionSummaryCache.has(summaryPath)) {
+    return tileSessionSummaryCache.get(summaryPath) ?? null
+  }
+
+  try {
+    const raw = await fs.readFile(summaryPath, 'utf8')
+    const parsed = JSON.parse(raw) as TileSessionSummary
+    tileSessionSummaryCache.set(summaryPath, parsed)
+    return parsed
+  } catch {
+    tileSessionSummaryCache.set(summaryPath, null)
+    return null
+  }
+}
+
+async function writeTileSessionSummary(storageId: string, tileId: string, state: unknown): Promise<{ changed: boolean; summary: TileSessionSummary | null }> {
+  const summaryPath = tileSessionSummaryPath(storageId, tileId)
+  const previous = await readTileSessionSummary(summaryPath)
+  const next = extractTileSessionSummary(tileId, state)
+
+  if (!next) {
+    const changed = previous !== null
+    await deleteFileIfExists(summaryPath)
+    tileSessionSummaryCache.set(summaryPath, null)
+    return { changed, summary: null }
+  }
+
+  if (sameTileSessionSummary(previous, next)) {
+    const stable = previous ?? next
+    tileSessionSummaryCache.set(summaryPath, stable)
+    return { changed: false, summary: stable }
+  }
+
+  const summaryToWrite: TileSessionSummary = {
+    ...next,
+    updatedAt: Date.now(),
+  }
+  await fs.writeFile(summaryPath, JSON.stringify(summaryToWrite, null, 2))
+  tileSessionSummaryCache.set(summaryPath, summaryToWrite)
+  return { changed: true, summary: summaryToWrite }
+}
+
+function broadcastSessionsChanged(workspaceId: string): void {
+  for (const win of BrowserWindow.getAllWindows()) {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) continue
+    win.webContents.send('canvas:sessionsChanged', { workspaceId })
+  }
 }
 
 async function deleteFileIfExists(path: string): Promise<void> {
@@ -179,16 +308,28 @@ export function registerCanvasIPC(): void {
     const path = tileStatePath(storageId, tileId)
     await fs.mkdir(join(CONTEX_HOME, 'workspaces', storageId, '.contex'), { recursive: true })
     await fs.writeFile(path, JSON.stringify(state, null, 2))
+
+    const { changed } = await writeTileSessionSummary(storageId, tileId, state)
+    if (changed && (!(state && typeof state === 'object') || (state as { isStreaming?: boolean }).isStreaming !== true)) {
+      broadcastSessionsChanged(workspaceId)
+    }
   })
 
   ipcMain.handle('canvas:clearTileState', async (_, workspaceId: string, tileId: string) => {
     const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
-    await Promise.all(storageIds.map(storageId => deleteFileIfExists(tileStatePath(storageId, tileId))))
+    await Promise.all(storageIds.flatMap(storageId => [
+      deleteFileIfExists(tileStatePath(storageId, tileId)),
+      deleteFileIfExists(tileSessionSummaryPath(storageId, tileId)),
+    ]))
+    for (const storageId of storageIds) {
+      tileSessionSummaryCache.delete(tileSessionSummaryPath(storageId, tileId))
+    }
+    broadcastSessionsChanged(workspaceId)
   })
 
   // List all chat sessions for a workspace by combining local CodeSurf tile sessions with
   // project/user .codesurf sessions and external provider session stores.
-  ipcMain.handle('canvas:listSessions', async (_, workspaceId: string) => {
+  ipcMain.handle('canvas:listSessions', async (_, workspaceId: string, forceRefresh = false) => {
     assertSafeId(workspaceId)
     const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
     const workspacePath = await getWorkspacePathById(workspaceId)
@@ -203,29 +344,40 @@ export function registerCanvasIPC(): void {
         for (const file of tileStateFiles) {
           try {
             const filePath = join(dotDir, file)
-            const raw = await fs.readFile(filePath, 'utf8')
-            const state = JSON.parse(raw)
-            if (!Array.isArray(state.messages) || state.messages.length === 0) continue
-            const stat = await fs.stat(filePath)
-            const lastMsg = state.messages[state.messages.length - 1]
+            const tileId = file.replace('tile-state-', '').replace('.json', '')
+            const summaryPath = tileSessionSummaryPath(storageId, tileId)
+            let summary = await readTileSessionSummary(summaryPath)
+
+            if (!summary) {
+              const raw = await fs.readFile(filePath, 'utf8')
+              const state = JSON.parse(raw)
+              const stat = await fs.stat(filePath)
+              summary = extractTileSessionSummary(tileId, state)
+              if (summary) {
+                summary.updatedAt = stat.mtimeMs
+                await fs.writeFile(summaryPath, JSON.stringify(summary, null, 2))
+                tileSessionSummaryCache.set(summaryPath, summary)
+              }
+            }
+
+            if (!summary) continue
+
             sessions.push({
               id: `codesurf-tile:${file}`,
               source: 'codesurf',
               scope: 'workspace',
-              tileId: file.replace('tile-state-', '').replace('.json', ''),
-              sessionId: state.sessionId ?? null,
-              provider: state.provider ?? 'claude',
-              model: state.model ?? '',
-              messageCount: state.messages.length,
-              lastMessage: typeof lastMsg?.content === 'string' ? lastMsg.content.slice(0, 120) : null,
-              updatedAt: stat.mtimeMs,
-              title: typeof lastMsg?.content === 'string' && lastMsg.content.trim()
-                ? lastMsg.content.slice(0, 80)
-                : `${state.provider ?? 'codesurf'} session`,
+              tileId,
+              sessionId: summary.sessionId,
+              provider: summary.provider,
+              model: summary.model,
+              messageCount: summary.messageCount,
+              lastMessage: summary.lastMessage,
+              updatedAt: summary.updatedAt,
+              title: summary.title,
               filePath,
               projectPath: workspacePath,
               sourceLabel: 'CodeSurf',
-              sourceDetail: state.provider ? `${state.provider}` : 'Workspace chat',
+              sourceDetail: summary.provider || 'Workspace chat',
               canOpenInChat: true,
               canOpenInApp: false,
               nestingLevel: 0,
@@ -239,7 +391,7 @@ export function registerCanvasIPC(): void {
       }
     }
 
-    sessions.push(...await listExternalSessionEntries(workspacePath))
+    sessions.push(...await listExternalSessionEntries(workspacePath, { force: forceRefresh }))
     sessions.sort((a, b) => b.updatedAt - a.updatedAt)
     return sessions
   })
@@ -275,7 +427,10 @@ export function registerCanvasIPC(): void {
         const filePath = tileStatePath(storageId, tileId)
         if (!(await pathExists(filePath))) continue
         await moveFileToDeleted(filePath)
+        await deleteFileIfExists(tileSessionSummaryPath(storageId, tileId))
+        tileSessionSummaryCache.delete(tileSessionSummaryPath(storageId, tileId))
       }
+      broadcastSessionsChanged(workspaceId)
       return { ok: true }
     }
 
@@ -309,6 +464,7 @@ export function registerCanvasIPC(): void {
     }
 
     invalidateExternalSessionCache(workspacePath)
+    broadcastSessionsChanged(workspaceId)
     return { ok: true }
   })
 
@@ -316,7 +472,12 @@ export function registerCanvasIPC(): void {
     const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
     await Promise.all(storageIds.flatMap(storageId => [
       deleteFileIfExists(tileStatePath(storageId, tileId)),
+      deleteFileIfExists(tileSessionSummaryPath(storageId, tileId)),
       deleteFileIfExists(kanbanStatePath(storageId, tileId)),
     ]))
+    for (const storageId of storageIds) {
+      tileSessionSummaryCache.delete(tileSessionSummaryPath(storageId, tileId))
+    }
+    broadcastSessionsChanged(workspaceId)
   })
 }

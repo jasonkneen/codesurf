@@ -11,9 +11,20 @@ export function getDroppedPaths(dataTransfer: DataTransfer | null): string[] {
     paths.push(path)
   }
 
+  // Electron 32+ removed the non-standard File.path field. Use the preload-exposed
+  // webUtils.getPathForFile() to recover the filesystem path of OS-dropped files.
+  const getPath = (window as unknown as { electron?: { getPathForFile?: (f: File) => string } }).electron?.getPathForFile
   for (const file of Array.from(dataTransfer.files ?? [])) {
-    const path = (file as File & { path?: string }).path
-    if (path) add(path)
+    // Fallback: old-style .path if it still exists (older Electron, or polyfill)
+    const legacyPath = (file as File & { path?: string }).path
+    if (legacyPath) {
+      add(legacyPath)
+      continue
+    }
+    if (getPath) {
+      const resolved = getPath(file)
+      if (resolved) add(resolved)
+    }
   }
 
   const uriList = dataTransfer.getData('text/uri-list')
@@ -55,6 +66,12 @@ export function basename(path: string): string {
 
 export function isImagePath(path: string): boolean {
   return /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif)$/i.test(path)
+}
+
+// Binary media files that should render chromeless by default — no tile titlebar,
+// no browser navbar. User can toggle controls back via right-click.
+export function isMediaFile(path: string): boolean {
+  return /\.(png|jpe?g|gif|webp|bmp|svg|avif|heic|heif|mp4|mov|m4v|webm|ogv|avi|mkv|mp3|wav|m4a|aac|ogg|flac|pdf)$/i.test(path)
 }
 
 export function toFileUrl(path: string): string {
