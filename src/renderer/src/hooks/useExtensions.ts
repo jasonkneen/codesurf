@@ -9,15 +9,27 @@ import type { ExtensionTileContrib } from '../../../shared/types'
 const el = (window as any).electron
 const EXTENSIONS_CHANGED_EVENT = 'codesurf:extensions-changed'
 
+type ExtensionEntrySummary = {
+  id: string
+  name: string
+}
+
 export function useExtensions(workspacePath?: string | null) {
   const [extensionTiles, setExtensionTiles] = useState<ExtensionTileContrib[]>([])
+  const [extensionEntries, setExtensionEntries] = useState<ExtensionEntrySummary[]>([])
 
   const load = useCallback(async (cancelledRef?: { current: boolean }) => {
     try {
       await el.extensions?.refresh?.(workspacePath ?? null)
-      const tiles = await el.extensions?.listTiles?.()
+      const [tiles, entries] = await Promise.all([
+        el.extensions?.listTiles?.(),
+        el.extensions?.list?.(),
+      ])
       if (!cancelledRef?.current && tiles) {
         setExtensionTiles(tiles)
+      }
+      if (!cancelledRef?.current && entries) {
+        setExtensionEntries(entries.map((entry: ExtensionEntrySummary) => ({ id: entry.id, name: entry.name })))
       }
     } catch (err) {
       console.warn('[useExtensions] Failed to load extension tiles:', err)
@@ -36,5 +48,5 @@ export function useExtensions(workspacePath?: string | null) {
     return () => window.removeEventListener(EXTENSIONS_CHANGED_EVENT, handleChanged)
   }, [load])
 
-  return { extensionTiles }
+  return { extensionTiles, extensionEntries }
 }

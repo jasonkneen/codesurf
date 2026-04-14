@@ -1,10 +1,13 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import { Pin } from 'lucide-react'
 import type { Workspace, TileState } from '../../../shared/types'
+import { getCurvierBlockRadius } from '../../../shared/types'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 
-interface ExtTileEntry { type: string; label: string; icon?: string }
+interface ExtTileEntry { extId: string; type: string; label: string; icon?: string }
+interface ExtensionEntrySummary { id: string; name: string }
 
 interface Props {
   workspace: Workspace | null
@@ -27,8 +30,10 @@ interface Props {
   onOpenSessionInChat: (session: SessionEntry) => void
   onOpenSessionInApp: (session: SessionEntry) => void
   extensionTiles?: ExtTileEntry[]
+  extensionEntries?: ExtensionEntrySummary[]
   onAddExtensionTile?: (type: string) => void
   pinnedExtensionIds?: string[]
+  onTogglePinnedExtension?: (extId: string) => void
   collapsed: boolean
   width: number
   onWidthChange: (width: number) => void
@@ -74,7 +79,7 @@ function SectionHeader({ label, collapsed, onToggle, extra }: { label: string; c
 
 // ─── Sidebar item ────────────────────────────────────────────────────────────
 
-function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, indent = 0, extra }: {
+function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, indent = 0, extra, extraAlwaysVisible = false }: {
   label: string
   icon?: React.ReactNode
   active?: boolean
@@ -83,6 +88,7 @@ function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, inden
   onContextMenu?: (e: React.MouseEvent) => void
   indent?: number
   extra?: React.ReactNode
+  extraAlwaysVisible?: boolean
 }): JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
@@ -111,7 +117,7 @@ function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, inden
       }}>
         {label}
       </span>
-      {extra && hovered && extra}
+      {extra && (hovered || extraAlwaysVisible) && extra}
     </div>
   )
 }
@@ -313,25 +319,7 @@ export function SidebarFooter({
   }, [extensionTiles])
 
   return (
-    <div style={{ padding: '11px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 2 }}>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 2, minWidth: 0 }}>
-        <div title="Alpha build" style={{
-          height: 17, padding: '0 9px', borderRadius: 5,
-          border: `1px solid ${theme.border.default}`, background: theme.surface.panelElevated,
-          color: footerIconColor,
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          fontSize: fonts.secondarySize - 1, fontWeight: 600, letterSpacing: 0.3, textTransform: 'uppercase', fontFamily: 'inherit', flexShrink: 0,
-        }}>
-          Alpha
-        </div>
-        <span title={`Version ${__VERSION__}`} style={{
-          fontSize: fonts.secondarySize, fontWeight: 500, color: footerIconColor,
-          fontFamily: 'inherit', letterSpacing: 0.2, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis',
-        }}>
-          v{__VERSION__}
-        </span>
-      </div>
-
+    <div style={{ padding: '11px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
       <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 2, flexShrink: 0 }}>
         {([
           { label: 'New Terminal', icon: TILE_ICONS.terminal, action: onNewTerminal },
@@ -409,7 +397,7 @@ export function Sidebar({
   workspace, workspaces, tiles, onSwitchWorkspace, onDeleteWorkspace, onNewWorkspace, onOpenFolder, onOpenFile, onFocusTile, onUpdateTile, onCloseTile,
   onNewTerminal, onNewKanban, onNewBrowser, onNewChat, onNewFiles, onOpenSettings,
   onOpenSessionInChat, onOpenSessionInApp,
-  extensionTiles, onAddExtensionTile, pinnedExtensionIds,
+  extensionTiles, extensionEntries, onAddExtensionTile, pinnedExtensionIds, onTogglePinnedExtension,
   collapsed, width, onWidthChange, minWidth = 270, maxWidth = 520, onResizeStateChange, onToggleCollapse: _onToggleCollapse, showFooter = true
 }: Props): JSX.Element {
   const fonts = useAppFonts()
@@ -463,11 +451,10 @@ export function Sidebar({
     }
   }, [workspace?.id])
 
-  const BORDER_RADIUS_CYCLE = [8, 0, 16, 24]
+  const BORDER_RADIUS_CYCLE = [12, 0, 24, 32]
   const cycleBorderRadius = useCallback((tile: TileState) => {
-    const current = tile.borderRadius ?? 8
-    const idx = BORDER_RADIUS_CYCLE.indexOf(current)
-    const next = BORDER_RADIUS_CYCLE[(idx + 1) % BORDER_RADIUS_CYCLE.length]
+    const current = getCurvierBlockRadius(tile.borderRadius)
+    const next = BORDER_RADIUS_CYCLE.find(value => value > current) ?? BORDER_RADIUS_CYCLE[0]
     onUpdateTile(tile.id, { borderRadius: next })
   }, [onUpdateTile])
 
@@ -481,7 +468,7 @@ export function Sidebar({
       items.push({ label: tile.hideNavbar ? 'Show Navbar' : 'Hide Navbar', action: () => onUpdateTile(tile.id, { hideNavbar: !tile.hideNavbar }) })
     }
     items.push(
-      { label: `Corner Radius: ${tile.borderRadius ?? 8}px`, action: () => cycleBorderRadius(tile) },
+      { label: `Corner Radius: ${getCurvierBlockRadius(tile.borderRadius)}px`, action: () => cycleBorderRadius(tile) },
       { label: '', action: () => {}, divider: true },
       { label: 'Close', action: () => onCloseTile(tile.id), danger: true },
     )
@@ -553,11 +540,32 @@ export function Sidebar({
     return groups
   }, [extensionInstances])
 
-  const extLabel = (type: string) => {
-    const entry = extensionTiles?.find(e => e.type === type)
-    if (entry) return entry.label
-    return type.replace('ext:', '').replace(/-/g, ' ').replace(/\b\w/g, c => c.toUpperCase())
-  }
+  const extensionNameById = useMemo(() => {
+    const entries = (extensionEntries ?? []).map(ext => [ext.id, ext.name] as const)
+    return new Map(entries)
+  }, [extensionEntries])
+
+  const pinnedExtensionIdSet = useMemo(() => new Set(pinnedExtensionIds ?? []), [pinnedExtensionIds])
+
+  const isPinnedExtensionEntry = useCallback((entry: ExtTileEntry) => {
+    return pinnedExtensionIdSet.has(entry.extId) || pinnedExtensionIdSet.has(entry.type)
+  }, [pinnedExtensionIdSet])
+
+  const groupedExtensions = useMemo(() => {
+    const groups = new Map<string, ExtTileEntry[]>()
+    for (const ext of extensionTiles ?? []) {
+      const existing = groups.get(ext.extId) ?? []
+      existing.push(ext)
+      groups.set(ext.extId, existing)
+    }
+    return [...groups.entries()]
+      .map(([extId, items]) => ({
+        extId,
+        name: extensionNameById.get(extId) ?? extId.replace(/[-_]+/g, ' ').replace(/\b\w/g, char => char.toUpperCase()),
+        items: items.slice().sort((a, b) => a.label.localeCompare(b.label)),
+      }))
+      .sort((a, b) => a.name.localeCompare(b.name))
+  }, [extensionTiles, extensionNameById])
 
   const visibleSessions = useMemo(() => {
     const filtered = sessions.filter(session => {
@@ -703,10 +711,7 @@ export function Sidebar({
 
         {/* ── PINNED EXTENSIONS ── */}
         {pinnedExtensionIds && pinnedExtensionIds.length > 0 && (() => {
-          const pinned = (extensionTiles ?? []).filter(e => {
-            const extId = e.type.replace(/^ext:/, '').split('-tile')[0]
-            return pinnedExtensionIds.some(pid => e.type.includes(pid) || extId === pid || pid === e.type)
-          })
+          const pinned = (extensionTiles ?? []).filter(isPinnedExtensionEntry)
           if (pinned.length === 0) return null
           return (
             <>
@@ -727,20 +732,16 @@ export function Sidebar({
           )
         })()}
 
-        {/* ── RESOURCES ── */}
-        <SectionHeader label="Resources" collapsed={!!sectionsCollapsed.resources} onToggle={() => toggleSection('resources')} />
-        {!sectionsCollapsed.resources && (
-          <div style={{ paddingBottom: 6 }}>
-            {RESOURCE_ITEMS.map(item => (
-              <SidebarItem
-                key={item.id}
-                label={item.label}
-                icon={item.icon}
-                onClick={() => onOpenSettings(item.id)}
-              />
-            ))}
-          </div>
-        )}
+        <div style={{ paddingBottom: 6 }}>
+          {RESOURCE_ITEMS.map(item => (
+            <SidebarItem
+              key={item.id}
+              label={item.label}
+              icon={item.icon}
+              onClick={() => onOpenSettings(item.id)}
+            />
+          ))}
+        </div>
 
         {/* ── BLOCKS ── */}
         <SectionHeader label="Blocks" collapsed={!!sectionsCollapsed.blocks} onToggle={() => toggleSection('blocks')} />
@@ -796,11 +797,11 @@ export function Sidebar({
                           </button>
                           {/* Cycle border radius */}
                           <button onClick={e => { e.stopPropagation(); cycleBorderRadius(tile) }}
-                            title={`Border radius: ${tile.borderRadius ?? 8}px`}
+                            title={`Border radius: ${getCurvierBlockRadius(tile.borderRadius)}px`}
                             style={{ width: 18, height: 18, borderRadius: 3, border: 'none', background: 'transparent', color: theme.text.disabled, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', opacity: 0 }}
                             className="sidebar-tile-action"
                           >
-                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx={Math.min((tile.borderRadius ?? 8) / 2, 6)} stroke="currentColor" strokeWidth="1.3" /></svg>
+                            <svg width="10" height="10" viewBox="0 0 14 14" fill="none"><rect x="1" y="1" width="12" height="12" rx={Math.min(getCurvierBlockRadius(tile.borderRadius) / 2, 6)} stroke="currentColor" strokeWidth="1.3" /></svg>
                           </button>
                         </div>
                       }
@@ -817,7 +818,7 @@ export function Sidebar({
 
         {/* ── SESSIONS ── */}
         <SectionHeader
-          label="Sessions"
+          label="Threads"
           collapsed={!!sectionsCollapsed.sessions}
           onToggle={() => toggleSection('sessions')}
           extra={(
@@ -974,34 +975,170 @@ export function Sidebar({
             {!sectionsCollapsed.extensions && (
               <div style={{ paddingBottom: 6 }}>
                 {/* Installed extensions with instances */}
-                {Object.entries(extGroups).map(([type, instances]) => (
-                  <React.Fragment key={type}>
-                    <SidebarItem
-                      label={extLabel(type)}
-                      icon={<svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /></svg>}
-                      onClick={() => onFocusTile(instances[0].id)}
-                    />
-                    {instances.length > 1 && instances.map(tile => (
-                      <SidebarItem
-                        key={tile.id}
-                        label={`Instance ${tile.id.split('-').pop()}`}
-                        muted
-                        indent={1}
-                        onClick={() => onFocusTile(tile.id)}
-                      />
-                    ))}
-                  </React.Fragment>
-                ))}
-                {/* Uninstantiated extensions */}
-                {extensionTiles?.filter(e => !extGroups[e.type])?.map(ext => (
-                  <SidebarItem
-                    key={ext.type}
-                    label={ext.label}
-                    muted
-                    icon={<svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /></svg>}
-                    onClick={() => onAddExtensionTile?.(ext.type)}
-                  />
-                ))}
+                {groupedExtensions.map(group => {
+                  const multiBlock = group.items.length > 1
+                  const groupPinned = pinnedExtensionIdSet.has(group.extId)
+                  if (!multiBlock) {
+                    const ext = group.items[0]
+                    const instances = extGroups[ext.type] ?? []
+                    const blockPinned = isPinnedExtensionEntry(ext)
+                    return (
+                      <React.Fragment key={ext.type}>
+                        <SidebarItem
+                          label={ext.label}
+                          muted={instances.length === 0}
+                          icon={<svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /></svg>}
+                          onClick={() => instances[0] ? onFocusTile(instances[0].id) : onAddExtensionTile?.(ext.type)}
+                          extra={(
+                            <button
+                              type="button"
+                              title={blockPinned ? 'Unpin from canvas menu' : 'Pin to canvas menu'}
+                              onClick={e => {
+                                e.stopPropagation()
+                                onTogglePinnedExtension?.(ext.type)
+                              }}
+                              style={{
+                                width: 20,
+                                height: 20,
+                                borderRadius: 5,
+                                border: 'none',
+                                background: blockPinned ? theme.surface.accentSoft : 'transparent',
+                                color: blockPinned ? theme.accent.base : theme.text.disabled,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                padding: 0,
+                                flexShrink: 0,
+                              }}
+                            >
+                              <Pin size={12} />
+                            </button>
+                          )}
+                          extraAlwaysVisible={blockPinned}
+                        />
+                        {instances.length > 1 && instances.map(tile => (
+                          <SidebarItem
+                            key={tile.id}
+                            label={`Instance ${tile.id.split('-').pop()}`}
+                            muted
+                            indent={1}
+                            onClick={() => onFocusTile(tile.id)}
+                          />
+                        ))}
+                      </React.Fragment>
+                    )
+                  }
+
+                  return (
+                    <React.Fragment key={group.extId}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: 7,
+                          padding: '6px 8px 4px 12px',
+                          margin: '0 6px',
+                        }}
+                      >
+                        <span style={{ color: theme.text.muted, flexShrink: 0, display: 'flex', alignItems: 'center' }}>
+                          <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /></svg>
+                        </span>
+                        <span style={{
+                          fontSize: fonts.secondarySize,
+                          fontWeight: 700,
+                          color: theme.text.muted,
+                          letterSpacing: 0.5,
+                          textTransform: 'uppercase',
+                          flex: 1,
+                          minWidth: 0,
+                        }}>
+                          {group.name}
+                        </span>
+                        <button
+                          type="button"
+                          title={groupPinned ? 'Unpin all blocks from canvas menu' : 'Pin all blocks to canvas menu'}
+                          onClick={() => onTogglePinnedExtension?.(group.extId)}
+                          style={{
+                            width: 20,
+                            height: 20,
+                            borderRadius: 5,
+                            border: 'none',
+                            background: groupPinned ? theme.surface.accentSoft : 'transparent',
+                            color: groupPinned ? theme.accent.base : theme.text.disabled,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: 0,
+                            flexShrink: 0,
+                          }}
+                        >
+                          <Pin size={12} />
+                        </button>
+                      </div>
+                      {group.items.map(ext => {
+                        const instances = extGroups[ext.type] ?? []
+                        const explicitBlockPinned = pinnedExtensionIdSet.has(ext.type)
+                        const blockPinned = groupPinned || explicitBlockPinned
+                        return (
+                          <React.Fragment key={ext.type}>
+                            <SidebarItem
+                              label={ext.label}
+                              muted={instances.length === 0}
+                              indent={1}
+                              icon={<svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M6 1.5h2a.5.5 0 01.5.5v1.5H8a1 1 0 00-1 1v0a1 1 0 001 1h.5V7a.5.5 0 01-.5.5H6V7a1 1 0 00-1-1v0a1 1 0 00-1 1v.5H2.5A.5.5 0 012 7V5.5h.5a1 1 0 001-1v0a1 1 0 00-1-1H2V2a.5.5 0 01.5-.5H6z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" /></svg>}
+                              onClick={() => instances[0] ? onFocusTile(instances[0].id) : onAddExtensionTile?.(ext.type)}
+                              extra={(
+                                <button
+                                  type="button"
+                                  title={
+                                    groupPinned && !explicitBlockPinned
+                                      ? 'Pinned via extension'
+                                      : blockPinned
+                                        ? 'Unpin this block from canvas menu'
+                                        : 'Pin this block to canvas menu'
+                                  }
+                                  onClick={e => {
+                                    e.stopPropagation()
+                                    if (groupPinned && !explicitBlockPinned) return
+                                    onTogglePinnedExtension?.(ext.type)
+                                  }}
+                                  style={{
+                                    width: 20,
+                                    height: 20,
+                                    borderRadius: 5,
+                                    border: 'none',
+                                    background: blockPinned ? theme.surface.accentSoft : 'transparent',
+                                    color: blockPinned ? theme.accent.base : theme.text.disabled,
+                                    cursor: groupPinned && !explicitBlockPinned ? 'default' : 'pointer',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    padding: 0,
+                                    flexShrink: 0,
+                                  }}
+                                >
+                                  <Pin size={12} />
+                                </button>
+                              )}
+                              extraAlwaysVisible={blockPinned}
+                            />
+                            {instances.length > 1 && instances.map(tile => (
+                              <SidebarItem
+                                key={tile.id}
+                                label={`Instance ${tile.id.split('-').pop()}`}
+                                muted
+                                indent={2}
+                                onClick={() => onFocusTile(tile.id)}
+                              />
+                            ))}
+                          </React.Fragment>
+                        )
+                      })}
+                    </React.Fragment>
+                  )
+                })}
                 {extensionInstances.length === 0 && !extensionTiles?.length && (
                   <div style={{ padding: '4px 12px', fontSize: fonts.secondarySize, color: theme.text.disabled }}>No extensions</div>
                 )}

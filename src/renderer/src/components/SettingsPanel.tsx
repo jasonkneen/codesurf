@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback, useRef, lazy } from 'react'
 import type { AppSettings, FontSettings, FontToken } from '../../../shared/types'
 import { DEFAULT_FONTS, withDefaultSettings } from '../../../shared/types'
-import { Settings, Type, Monitor, FolderOpen, Plus, Trash2, ChevronDown, ChevronRight, FileJson, AlertTriangle, Check, Copy, RotateCcw, FormInput, Code2, Puzzle, RefreshCw, Star, Wrench, Users, FileText, Globe, Eye, EyeOff, PanelRight } from 'lucide-react'
+import { Settings, Type, Monitor, FolderOpen, Plus, Trash2, ChevronDown, ChevronRight, FileJson, AlertTriangle, Check, Copy, RotateCcw, FormInput, Code2, Puzzle, RefreshCw, Star, Wrench, Users, FileText, Globe, Eye, EyeOff, PanelRight, Pin } from 'lucide-react'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
 import { THEME_OPTIONS, getThemeCanvasDefaults, resolveEffectiveThemeId, getThemeById, type AppearanceMode } from '../theme'
@@ -1204,6 +1204,7 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
                   const extSettings = ext.contributes?.settings ?? []
                   const isHiddenFromSidebar = (settings.hiddenFromSidebarExtIds ?? []).includes(ext.id)
                   const isInSettingsPanel = (settings.settingsPanelExtIds ?? []).includes(ext.id)
+                  const isPinned = (settings.pinnedExtensionIds ?? []).includes(ext.id)
                   const isExpanded = expandedExtId === ext.id
                   const savedExtSettings = extSettingsMap[ext.id] ?? {}
                   return (
@@ -1254,6 +1255,23 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
                           </div>
                         </div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
+                          <button
+                            title={isPinned ? 'Unpin from canvas menu' : 'Pin to canvas menu'}
+                            onClick={() => {
+                              const next = isPinned
+                                ? (settings.pinnedExtensionIds ?? []).filter(id => id !== ext.id)
+                                : [...(settings.pinnedExtensionIds ?? []), ext.id]
+                              updateSettingsPatch({ pinnedExtensionIds: next })
+                            }}
+                            style={{
+                              background: isPinned ? theme.surface.accentSoft : 'none',
+                              border: 'none', cursor: 'pointer', padding: 4, borderRadius: 6,
+                              color: isPinned ? theme.accent.base : theme.text.disabled,
+                              display: 'flex', alignItems: 'center', transition: 'color 0.15s, background 0.15s',
+                            }}
+                          >
+                            <Pin size={14} />
+                          </button>
                           {/* Show in sidebar toggle (ON by default) */}
                           <button
                             title={isHiddenFromSidebar ? 'Show in sidebar' : 'Hide from sidebar'}

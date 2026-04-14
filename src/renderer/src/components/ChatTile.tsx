@@ -14,7 +14,7 @@ import {
   ShieldCheck, ChevronDown,
   Check, ArrowUp, ArrowDown, Square, MessageSquare, Bot,
   Brain, ChevronRight, Clock, DollarSign,
-  FileText, Paperclip, Trash2, Wrench
+  FileText, Paperclip, Plus, Trash2, Wrench
 } from 'lucide-react'
 import { useMCPServers, type MCPServerEntry } from '../hooks/useMCPServers'
 import { useTheme } from '../ThemeContext'
@@ -210,7 +210,7 @@ const CHAT_MEMORY_THINKING_LIMIT_AGGRESSIVE = 1_200
 const CHAT_MEMORY_CONTENT_BLOCK_LIMIT = 8_000
 const CHAT_MEMORY_CONTENT_BLOCK_LIMIT_AGGRESSIVE = 1_500
 const CHAT_TRIM_NOTICE_PREFIX = '[CodeSurf memory guard]'
-const CHAT_COMPOSER_MAX_WIDTH = 800
+const CHAT_COMPOSER_MAX_WIDTH = 640
 const CHAT_COMPOSER_MIN_WIDTH = 400
 const CHAT_COMPOSER_MIN_HEIGHT = 105
 const CHAT_COMPOSER_TEXTAREA_MIN_HEIGHT = 56
@@ -219,6 +219,10 @@ const TOOLBAR_ICON_SIZE = 16
 const TOOLBAR_PILL_ICON_SIZE = 14
 const TOOLBAR_TEXT_SIZE = 13
 const TOOLBAR_CHEVRON_SIZE = 12
+const NON_SELECTABLE_UI_STYLE = {
+  userSelect: 'none' as const,
+  WebkitUserSelect: 'none' as const,
+}
 
 // Font context so sub-components can read settings-derived fonts without prop drilling
 const FontCtx = React.createContext({ sans: FONT_SANS, secondary: FONT_SANS, mono: FONT_MONO, size: FONT_SIZE_DEFAULT, monoSize: MONO_SIZE_DEFAULT })
@@ -877,11 +881,11 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   }, [connectedPeerSignature, tileId])
   const [mode, setMode] = useState(() => initialMode)
   const [thinking, setThinking] = useState(() => initialRuntimeStateRef.current?.thinking ?? 'adaptive')
-  const [agentMode, setAgentMode] = useState(() => initialRuntimeStateRef.current?.agentMode ?? false)
   const [autoAgentMode, setAutoAgentMode] = useState(() => initialRuntimeStateRef.current?.autoAgentMode ?? false)
+  const effectiveAgentMode = Boolean(isConnected || isAutoConnected || autoAgentMode)
   const [showModelMenu, setShowModelMenu] = useState(false)
   const [showProviderMenu, setShowProviderMenu] = useState(false)
-  const [showMcpMenu, setShowMcpMenu] = useState(false)
+  const [showInsertMenu, setShowInsertMenu] = useState(false)
   const [showModeMenu, setShowModeMenu] = useState(false)
   const [showThinkingMenu, setShowThinkingMenu] = useState(false)
   const [sessionId, setSessionId] = useState<string | null>(() => initialRuntimeStateRef.current?.sessionId ?? null)
@@ -918,7 +922,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const acRef = useRef<HTMLDivElement>(null)
   const modelMenuRef = useRef<HTMLDivElement>(null)
   const providerMenuRef = useRef<HTMLDivElement>(null)
-  const mcpMenuRef = useRef<HTMLDivElement>(null)
+  const insertMenuRef = useRef<HTMLDivElement>(null)
   const modeMenuRef = useRef<HTMLDivElement>(null)
   const thinkingMenuRef = useRef<HTMLDivElement>(null)
 
@@ -1052,7 +1056,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       mcpEnabled,
       mode,
       thinking,
-      agentMode,
+      agentMode: effectiveAgentMode,
       autoAgentMode,
       sessionId,
       isStreaming,
@@ -1061,7 +1065,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       if (isChatTileRuntimeStateDisposed(tileId)) return
       setChatTileRuntimeState(tileId, latestStateRef.current)
     }
-  }, [tileId, messages, input, attachments, provider, model, mcpEnabled, mode, thinking, agentMode, autoAgentMode, sessionId, isStreaming])
+  }, [tileId, messages, input, attachments, provider, model, mcpEnabled, mode, thinking, effectiveAgentMode, autoAgentMode, sessionId, isStreaming])
 
   const persistLatestState = useCallback((stateOverride?: ChatTilePersistedState | null) => {
     if (persistTimerRef.current) {
@@ -1092,7 +1096,6 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       if (typeof saved.mcpEnabled === 'boolean') setMcpEnabled(saved.mcpEnabled)
       if (typeof saved.mode === 'string') setMode(saved.mode)
       if (typeof saved.thinking === 'string') setThinking(saved.thinking)
-      if (typeof saved.agentMode === 'boolean') setAgentMode(saved.agentMode)
       if (typeof saved.autoAgentMode === 'boolean') setAutoAgentMode(saved.autoAgentMode)
       if (typeof saved.sessionId === 'string' || saved.sessionId === null) setSessionId(saved.sessionId)
       if (typeof saved.isStreaming === 'boolean') setIsStreaming(saved.isStreaming)
@@ -1131,7 +1134,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
         persistTimerRef.current = null
       }
     }
-  }, [workspaceId, tileId, messages, input, attachments, provider, model, mcpEnabled, mode, thinking, agentMode, autoAgentMode, sessionId, isStreaming, persistLatestState])
+  }, [workspaceId, tileId, messages, input, attachments, provider, model, mcpEnabled, mode, thinking, effectiveAgentMode, autoAgentMode, sessionId, isStreaming, persistLatestState])
 
   useEffect(() => {
     return () => {
@@ -1245,8 +1248,8 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   }, [currentProviderEntry])
 
   // Close dropdowns on outside click or Escape
-  const anyMenuOpen = showModelMenu || showProviderMenu || showMcpMenu || showModeMenu || showThinkingMenu
-  const menuRefs = [modelMenuRef, providerMenuRef, mcpMenuRef, modeMenuRef, thinkingMenuRef]
+  const anyMenuOpen = showModelMenu || showProviderMenu || showInsertMenu || showModeMenu || showThinkingMenu
+  const menuRefs = [modelMenuRef, providerMenuRef, insertMenuRef, modeMenuRef, thinkingMenuRef]
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -1259,7 +1262,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       // Click is outside all menus — close everything
       setShowModelMenu(false)
       setShowProviderMenu(false)
-      setShowMcpMenu(false)
+      setShowInsertMenu(false)
       setShowModeMenu(false)
       setShowThinkingMenu(false)
       if (acRef.current && !acRef.current.contains(target) && target !== textareaRef.current) {
@@ -1273,7 +1276,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
         e.preventDefault()
         setShowModelMenu(false)
         setShowProviderMenu(false)
-        setShowMcpMenu(false)
+        setShowInsertMenu(false)
         setShowModeMenu(false)
         setShowThinkingMenu(false)
       }
@@ -1325,10 +1328,10 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     setShowProviderMenu(false)
   }, [providerEntryById])
 
-  const toggleMenu = useCallback((which: 'model' | 'provider' | 'mcp' | 'mode' | 'thinking') => {
+  const toggleMenu = useCallback((which: 'model' | 'provider' | 'insert' | 'mode' | 'thinking') => {
     setShowModelMenu(prev => { const next = which === 'model' ? !prev : false; if (!next) setModelFilter(''); return next })
     setShowProviderMenu(prev => which === 'provider' ? !prev : false)
-    setShowMcpMenu(prev => which === 'mcp' ? !prev : false)
+    setShowInsertMenu(prev => which === 'insert' ? !prev : false)
     setShowModeMenu(prev => which === 'mode' ? !prev : false)
     setShowThinkingMenu(prev => which === 'thinking' ? !prev : false)
   }, [])
@@ -1610,6 +1613,12 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       ta.setSelectionRange(pos, pos)
     })
   }, [syncComposerHeight])
+
+  const openAttachmentPicker = useCallback(async () => {
+    const paths = await window.electron.chat?.selectFiles()
+    if (paths && paths.length > 0) addAttachments(paths)
+    setShowInsertMenu(false)
+  }, [addAttachments])
 
   const removeAttachment = useCallback((path: string) => {
     setAttachments(prev => prev.filter(item => item.path !== path))
@@ -2234,7 +2243,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
           </div>
         )}
 
-        {(agentMode || isConnected) && (
+        {effectiveAgentMode && (
           <div style={{
             position: 'absolute',
             top: -17,
@@ -2288,6 +2297,56 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
           display: 'flex', alignItems: 'center',
           padding: '4px 8px 8px 8px', gap: 2,
         }}>
+          {/* Insert menu */}
+          <div ref={insertMenuRef} style={{ position: 'relative' }}>
+            <button
+              type="button"
+              aria-label="Open attachments and tools menu"
+              title="Open attachments and tools menu"
+              onClick={() => toggleMenu('insert')}
+              onMouseDown={e => e.preventDefault()}
+              style={{
+                width: 28,
+                height: 28,
+                minWidth: 28,
+                borderRadius: '50%',
+                border: 'none',
+                background: showInsertMenu ? theme.surface.hover : theme.surface.panelMuted,
+                color: showInsertMenu ? theme.chat.text : theme.chat.muted,
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: 0,
+                transition: 'background 0.15s, color 0.15s',
+                flexShrink: 0,
+              }}
+              onMouseEnter={e => {
+                e.currentTarget.style.background = theme.surface.hover
+                e.currentTarget.style.color = theme.chat.text
+              }}
+              onMouseLeave={e => {
+                e.currentTarget.style.background = showInsertMenu ? theme.surface.hover : theme.surface.panelMuted
+                e.currentTarget.style.color = showInsertMenu ? theme.chat.text : theme.chat.muted
+              }}
+            >
+              <Plus size={16} strokeWidth={2.2} />
+            </button>
+            {showInsertMenu && (
+              <MenuPortal anchorRef={insertMenuRef}>
+                <ComposerInsertMenu
+                  onAttachFiles={openAttachmentPicker}
+                  mcpEnabled={mcpEnabled}
+                  onToggleMcpEnabled={() => setMcpEnabled(v => !v)}
+                  mcpServers={mcpServers}
+                  disabledServers={disabledServers}
+                  setDisabledServers={setDisabledServers}
+                  peerToolNames={peerToolNames}
+                />
+              </MenuPortal>
+            )}
+          </div>
+
           {/* Safety / Mode — icon only, label in dropdown */}
           <div ref={modeMenuRef} style={{ position: 'relative' }}>
             {(() => {
@@ -2297,7 +2356,6 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
                   <ToolbarBtn
                     icon={<ShieldCheck size={TOOLBAR_ICON_SIZE} />}
                     tooltip={`Permissions: ${currentMode.label}`}
-                    color={currentMode.color}
                     onClick={() => toggleMenu('mode')}
                   />
                   {showModeMenu && (
@@ -2395,108 +2453,6 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
               </MenuPortal>
             )}
           </div>
-
-          {/* Agent Mode */}
-          <ToolbarBtn
-            icon={<Bot size={TOOLBAR_ICON_SIZE} />}
-            tooltip={agentMode
-              ? ((typeof isAutoConnected === 'boolean' ? isAutoConnected : autoAgentMode)
-                ? 'Agent mode (auto-enabled by proximity)'
-                : 'Agent mode (on)')
-              : 'Agent mode (off)'}
-            color={agentMode || isConnected ? theme.accent.base : undefined}
-            onClick={() => {
-              setAgentMode(p => !p)
-              setAutoAgentMode(false) // Manual toggle clears auto flag
-            }}
-          />
-
-          {/* MCP — server list with toggles */}
-          <div ref={mcpMenuRef} style={{ position: 'relative' }}>
-            <ToolbarBtn
-              icon={<MCPIcon size={TOOLBAR_ICON_SIZE} />}
-              tooltip={`MCP Tools: ${mcpEnabled ? 'On' : 'Off'}`}
-              color={mcpEnabled ? theme.chat.text : undefined}
-              onClick={() => toggleMenu('mcp')}
-            />
-            {showMcpMenu && (
-              <MenuPortal anchorRef={mcpMenuRef}>
-              <Dropdown>
-                {/* Master toggle */}
-                <DropdownItem
-                  icon={<MCPIcon size={11} />}
-                  label="MCP Tools"
-                  active={mcpEnabled}
-                  onClick={() => setMcpEnabled(v => !v)}
-                />
-                {mcpEnabled && mcpServers.length > 0 && (
-                  <>
-                    <div style={{ height: 1, background: dropdownBorder, margin: '4px 0' }} />
-                    {mcpServers.map(s => {
-                      const enabled = !disabledServers.has(s.name)
-                      return (
-                        <DropdownItem
-                          key={s.name}
-                          label={s.name}
-                          sublabel={s.url ? 'http' : 'stdio'}
-                          active={enabled}
-                          onClick={() => setDisabledServers(prev => {
-                            const next = new Set(prev)
-                            if (enabled) next.add(s.name)
-                            else next.delete(s.name)
-                            return next
-                          })}
-                        />
-                      )
-                    })}
-                  </>
-                )}
-                {mcpEnabled && mcpServers.length === 0 && (
-                  <div style={{ padding: '6px 10px', fontSize: 11, color: theme.chat.muted, fontStyle: 'italic' }}>
-                    No MCP servers configured
-                  </div>
-                )}
-                {mcpEnabled && peerToolNames.length > 0 && (
-                  <>
-                    <div style={{ height: 1, background: dropdownBorder, margin: '4px 0' }} />
-                    <div style={{ padding: '4px 10px 2px 10px', fontSize: 11, color: theme.chat.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
-                      Connected peer tools
-                    </div>
-                    {peerToolNames.map(tool => (
-                      <DropdownItem
-                        key={`peer-tool-${tool}`}
-                        label={tool}
-                        sublabel="peer"
-                        active={mcpEnabled}
-                        onClick={() => { /* read-only affordance */ }}
-                      />
-                    ))}
-                  </>
-                )}
-              </Dropdown>
-              </MenuPortal>
-            )}
-          </div>
-
-          {/* Attach files */}
-          <button
-            onClick={async () => {
-              const paths = await window.electron.chat?.selectFiles()
-              if (paths && paths.length > 0) addAttachments(paths)
-            }}
-            onMouseDown={e => e.preventDefault()}
-            style={{
-              background: 'none', border: 'none', cursor: 'pointer',
-              padding: '2px 4px', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', borderRadius: 4, color: theme.chat.muted,
-              transition: 'color 0.15s',
-            }}
-            onMouseEnter={e => (e.currentTarget.style.color = theme.chat.text)}
-            onMouseLeave={e => (e.currentTarget.style.color = theme.chat.muted)}
-            title="Attach files"
-          >
-            <Paperclip size={14} />
-          </button>
 
           <div style={{ flex: 1 }} />
 
@@ -2772,6 +2728,7 @@ function ToolbarBtn({ icon, tooltip, color, onClick }: {
         color: color ?? (h ? theme.chat.text : theme.chat.muted),
         transition: 'color 0.1s, background 0.1s',
         display: 'flex', alignItems: 'center', justifyContent: 'center',
+        ...NON_SELECTABLE_UI_STYLE,
       }}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
@@ -2801,6 +2758,7 @@ function ToolbarPill({ prefix, label, color, active, onClick }: {
         whiteSpace: 'nowrap',
         maxWidth: 180,
         overflow: 'hidden',
+        ...NON_SELECTABLE_UI_STYLE,
       }}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}
@@ -2851,8 +2809,139 @@ function Dropdown({ children }: { children: React.ReactNode }): JSX.Element {
       background: dropdownBackground, border: `1px solid ${dropdownBorder}`,
       borderRadius: 8, padding: 4,
       boxShadow: theme.shadow.panel,
+      ...NON_SELECTABLE_UI_STYLE,
     }}>
       {children}
+    </div>
+  )
+}
+
+function ComposerInsertMenu({
+  onAttachFiles,
+  mcpEnabled,
+  onToggleMcpEnabled,
+  mcpServers,
+  disabledServers,
+  setDisabledServers,
+  peerToolNames,
+}: {
+  onAttachFiles: () => void
+  mcpEnabled: boolean
+  onToggleMcpEnabled: () => void
+  mcpServers: MCPServerEntry[]
+  disabledServers: Set<string>
+  setDisabledServers: React.Dispatch<React.SetStateAction<Set<string>>>
+  peerToolNames: string[]
+}): JSX.Element {
+  const fonts = useFonts()
+  const theme = useTheme()
+  const [mcpSubmenuOpen, setMcpSubmenuOpen] = useState(false)
+
+  const itemStyle = (active: boolean): React.CSSProperties => ({
+    width: '100%',
+    border: 'none',
+    background: active ? theme.chat.dropdownHoverBackground : 'transparent',
+    color: theme.chat.text,
+    borderRadius: 8,
+    padding: '9px 12px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+    cursor: 'pointer',
+    textAlign: 'left',
+    transition: 'background 0.12s ease',
+    ...NON_SELECTABLE_UI_STYLE,
+  })
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <Dropdown>
+        <button
+          type="button"
+          onClick={onAttachFiles}
+          style={itemStyle(false)}
+          onMouseEnter={e => { e.currentTarget.style.background = theme.chat.dropdownHoverBackground }}
+          onMouseLeave={e => { e.currentTarget.style.background = 'transparent' }}
+        >
+          <Paperclip size={14} color={theme.chat.muted} />
+          <span style={{ fontSize: 12, fontFamily: fonts.sans }}>Add photos & files</span>
+        </button>
+
+        <div style={{ height: 1, background: theme.chat.dropdownBorder, margin: '4px 0' }} />
+
+        <div
+          style={{ position: 'relative' }}
+          onMouseEnter={() => setMcpSubmenuOpen(true)}
+          onMouseLeave={() => setMcpSubmenuOpen(false)}
+        >
+          <button
+            type="button"
+            onClick={() => setMcpSubmenuOpen(open => !open)}
+            style={itemStyle(mcpSubmenuOpen)}
+          >
+            <MCPIcon size={14} color={mcpEnabled ? theme.chat.text : theme.chat.muted} />
+            <span style={{ fontSize: 12, fontFamily: fonts.sans, flex: 1 }}>MCP Tools</span>
+            <ChevronRight size={13} color={theme.chat.muted} />
+          </button>
+
+          {mcpSubmenuOpen && (
+            <div style={{ position: 'absolute', top: 0, left: 'calc(100% + 8px)' }}>
+              <Dropdown>
+                <DropdownItem
+                  icon={<MCPIcon size={11} />}
+                  label="MCP Tools"
+                  active={mcpEnabled}
+                  onClick={onToggleMcpEnabled}
+                />
+                {mcpEnabled && mcpServers.length > 0 && (
+                  <>
+                    <div style={{ height: 1, background: theme.chat.dropdownBorder, margin: '4px 0' }} />
+                    {mcpServers.map(server => {
+                      const enabled = !disabledServers.has(server.name)
+                      return (
+                        <DropdownItem
+                          key={server.name}
+                          label={server.name}
+                          sublabel={server.url ? 'http' : 'stdio'}
+                          active={enabled}
+                          onClick={() => setDisabledServers(prev => {
+                            const next = new Set(prev)
+                            if (enabled) next.add(server.name)
+                            else next.delete(server.name)
+                            return next
+                          })}
+                        />
+                      )
+                    })}
+                  </>
+                )}
+                {mcpEnabled && mcpServers.length === 0 && (
+                  <div style={{ padding: '6px 10px', fontSize: 11, color: theme.chat.muted, fontStyle: 'italic' }}>
+                    No MCP servers configured
+                  </div>
+                )}
+                {mcpEnabled && peerToolNames.length > 0 && (
+                  <>
+                    <div style={{ height: 1, background: theme.chat.dropdownBorder, margin: '4px 0' }} />
+                    <div style={{ padding: '4px 10px 2px 10px', fontSize: 11, color: theme.chat.muted, textTransform: 'uppercase', letterSpacing: '0.08em' }}>
+                      Connected peer tools
+                    </div>
+                    {peerToolNames.map(tool => (
+                      <DropdownItem
+                        key={`peer-tool-${tool}`}
+                        label={tool}
+                        sublabel="peer"
+                        active={mcpEnabled}
+                        onClick={() => { /* read-only affordance */ }}
+                      />
+                    ))}
+                  </>
+                )}
+              </Dropdown>
+            </div>
+          )}
+        </div>
+      </Dropdown>
     </div>
   )
 }
@@ -2941,6 +3030,7 @@ function DropdownItem({ icon, label, sublabel, active, onClick }: {
         display: 'flex', alignItems: 'center', gap: 8,
         background: active ? dropdownActiveBackground : (h ? dropdownHoverBackground : 'transparent'),
         transition: 'background 0.1s',
+        ...NON_SELECTABLE_UI_STYLE,
       }}
       onMouseEnter={() => setH(true)}
       onMouseLeave={() => setH(false)}

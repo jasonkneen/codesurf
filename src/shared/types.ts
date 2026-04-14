@@ -319,7 +319,9 @@ export interface AppSettings {
   // Local OpenAI-compat proxy endpoint remapping
   localProxyEnabled: boolean
   localProxyPort: number
-  // Extensions pinned to top of sidebar
+  // Pinned extension entries used by the sidebar and canvas menu.
+  // Values may be whole extension ids (pin all contributed blocks) or
+  // specific extension tile types such as `ext:hq-email-list`.
   pinnedExtensionIds: string[]
   // Extensions hidden from the sidebar Extensions list (hidden = not in list)
   hiddenFromSidebarExtIds: string[]
@@ -451,6 +453,21 @@ export interface TileState {
   borderRadius?: number
   launchBin?: string
   launchArgs?: string[]
+}
+
+const CURVIER_BLOCK_RADIUS_STEPS = [0, 3, 4, 6, 8, 12, 16, 24, 32] as const
+
+export function getCurvierBlockRadius(radius?: number): number {
+  const current = Number.isFinite(radius) ? Math.max(0, Math.round(radius as number)) : 8
+  if (current <= 0) return 0
+
+  for (let index = 0; index < CURVIER_BLOCK_RADIUS_STEPS.length - 1; index++) {
+    const from = CURVIER_BLOCK_RADIUS_STEPS[index]
+    const to = CURVIER_BLOCK_RADIUS_STEPS[index + 1]
+    if (current <= to) return to
+  }
+
+  return current + 8
 }
 
 export interface GroupState {

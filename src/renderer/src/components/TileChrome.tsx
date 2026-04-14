@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
 import type { TileState, SkillConfig, ContextItem, ActivityStatus } from '../../../shared/types'
+import { getCurvierBlockRadius } from '../../../shared/types'
 import { buildObjective } from '../utils/objectiveBuilder'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 import { useTheme } from '../ThemeContext'
@@ -1193,7 +1194,7 @@ export function TileChrome({
         className="flex flex-col"
         style={{
           width: '100%', height: '100%',
-          borderRadius: tile.borderRadius ?? 8, overflow: 'hidden',
+          borderRadius: getCurvierBlockRadius(tile.borderRadius), overflow: 'hidden',
           border: isSelected ? `1px solid ${theme.accent.base}` : `1px solid ${theme.border.default}`,
           boxShadow: isSelected
             ? `${theme.shadow.panel}, 0 0 0 1px ${theme.border.accent}`

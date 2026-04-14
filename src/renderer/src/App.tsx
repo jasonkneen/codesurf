@@ -60,7 +60,6 @@ type SidebarSessionEntry = {
 
 const LazyTileChrome = React.lazy(() => import('./components/TileChrome').then(m => ({ default: m.TileChrome })))
 const LazySidebar = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })))
-const LazySidebarFooter = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.SidebarFooter })))
 const LazyContextMenu = React.lazy(() => import('./components/ContextMenu').then(m => ({ default: m.ContextMenu })))
 const LazyImageTile = React.lazy(() => import('./components/ImageTile').then(m => ({ default: m.ImageTile })))
 const LazyMediaTile = React.lazy(() => import('./components/MediaTile').then(m => ({ default: m.MediaTile })))
@@ -718,11 +717,12 @@ function App(): JSX.Element {
   const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([])
   const [discoveryPulses, setDiscoveryPulses] = useState<DiscoveryPulse[]>([])
   const [showAgentSetup, setShowAgentSetup] = useState(false)
-  const { extensionTiles } = useExtensions(workspace?.path ?? null)
+  const { extensionTiles, extensionEntries } = useExtensions(workspace?.path ?? null)
   const [systemPrefersDark, setSystemPrefersDark] = useState(true)
   const [brandWordmarkIndex, setBrandWordmarkIndex] = useState(1)
   const [brandPaletteIndex, setBrandPaletteIndex] = useState(0)
   const [brandPrefsReadyTheme, setBrandPrefsReadyTheme] = useState<string | null>(null)
+  const latestSettingsSaveRef = useRef(0)
 
   useEffect(() => { panelLayoutRef.current = panelLayout }, [panelLayout])
   useEffect(() => { activePanelIdRef.current = activePanelId }, [activePanelId])
@@ -1020,6 +1020,21 @@ function App(): JSX.Element {
       window.localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings))
     } catch {}
   }, [settings])
+
+  const updateAppSettings = useCallback((patch: Partial<AppSettings> | ((current: AppSettings) => Partial<AppSettings>)) => {
+    setSettings(current => {
+      const resolvedPatch = typeof patch === 'function' ? patch(current) : patch
+      const next = withDefaultSettings({ ...current, ...resolvedPatch })
+      const requestId = ++latestSettingsSaveRef.current
+      void window.electron.settings?.set(next).then(saved => {
+        if (!saved || requestId !== latestSettingsSaveRef.current) return
+        setSettings(withDefaultSettings(saved))
+      }).catch(err => {
+        console.warn('[settings] Failed to persist app settings patch:', err)
+      })
+      return next
+    })
+  }, [])
 
   useEffect(() => {
     async function init(): Promise<void> {
@@ -1332,6 +1347,13 @@ function App(): JSX.Element {
     return { w: 600, h: 400 }
   }, [settings.defaultTileSizes, extensionTiles])
 
+  const pinnedCanvasExtensionTiles = useMemo(() => {
+    if (settings.extensionsDisabled) return []
+    const pinned = new Set(settings.pinnedExtensionIds ?? [])
+    if (pinned.size === 0) return []
+    return extensionTiles.filter(ext => pinned.has(ext.extId) || pinned.has(ext.type))
+  }, [settings.extensionsDisabled, settings.pinnedExtensionIds, extensionTiles])
+
   // ─── Tile creation ────────────────────────────────────────────────────────
   const addTile = useCallback((type: TileState['type'], filePath?: string, pos?: { x: number; y: number }, initialOptions?: { hideTitlebar?: boolean; hideNavbar?: boolean; launchBin?: string; launchArgs?: string[] }) => {
     const center = pos ?? viewportCenter()
@@ -1539,9 +1561,9 @@ function App(): JSX.Element {
       { label: 'New Board',    action: () => addTile('kanban',   undefined, world) },
     ]
     // Extension tile types
-    if (extensionTiles.length > 0) {
+    if (pinnedCanvasExtensionTiles.length > 0) {
       items.push({ label: '', action: () => {}, divider: true })
-      for (const ext of extensionTiles) {
+      for (const ext of pinnedCanvasExtensionTiles) {
         items.push({
           label: ext.label,
           action: () => addTile(ext.type as TileType, undefined, world),
@@ -1560,7 +1582,7 @@ function App(): JSX.Element {
       items.push({ label: `Group ${selectedTileIds.size} blocks`, action: () => groupSelectedTilesRef.current() })
     }
     setCtxMenu({ x: e.clientX, y: e.clientY, items })
-  }, [screenToWorld, addTile, selectedTileIds, groups, panelLayout, extensionTiles])
+  }, [screenToWorld, addTile, selectedTileIds, groups, panelLayout, pinnedCanvasExtensionTiles])
 
   // Right-click on a tile titlebar
   const handleTileContextMenu = useCallback((e: React.MouseEvent, tile: TileState) => {
@@ -3456,8 +3478,19 @@ function App(): JSX.Element {
                 onOpenSessionInChat={openSessionInChat}
                 onOpenSessionInApp={openSessionInApp}
                 extensionTiles={settings.extensionsDisabled ? [] : extensionTiles.filter(e => e.type !== 'ext:md-preview' && !(settings.hiddenFromSidebarExtIds ?? []).includes(e.extId))}
+                extensionEntries={settings.extensionsDisabled ? [] : extensionEntries}
                 onAddExtensionTile={(type) => addTile(type as TileType)}
                 pinnedExtensionIds={settings.extensionsDisabled ? [] : (settings.pinnedExtensionIds ?? [])}
+                onTogglePinnedExtension={(key) => {
+                  updateAppSettings(current => {
+                    const pinned = current.pinnedExtensionIds ?? []
+                    return {
+                      pinnedExtensionIds: pinned.includes(key)
+                        ? pinned.filter(id => id !== key)
+                        : [...pinned, key],
+                    }
+                  })
+                }}
                 collapsed={sidebarCollapsed}
                 width={sidebarWidth}
                 onWidthChange={setSidebarWidth}
@@ -3549,31 +3582,6 @@ function App(): JSX.Element {
           </div>
         </div>
       )}
-
-      <div style={{
-        position: 'absolute',
-        left: sidebarFooterLeft,
-        bottom: sidebarFooterBottom,
-        zIndex: 105,
-        pointerEvents: 'auto',
-      }}>
-        <Suspense fallback={null}>
-          <LazySidebarFooter
-            key={[
-              settings.extensionsDisabled ? 'disabled' : 'enabled',
-              ...(settings.hiddenFromSidebarExtIds ?? []).slice().sort(),
-              ...extensionTiles.map(ext => `${ext.extId}:${ext.type}`).sort(),
-            ].join('|')}
-            onNewTerminal={() => addTile('terminal')}
-            onNewKanban={() => addTile('kanban')}
-            onNewBrowser={() => addTile('browser')}
-            onNewChat={() => addTile('chat')}
-            onNewFiles={() => addTile('files')}
-            extensionTiles={settings.extensionsDisabled ? [] : extensionTiles.filter(e => e.type !== 'ext:md-preview' && !(settings.hiddenFromSidebarExtIds ?? []).includes(e.extId))}
-            onAddExtensionTile={(type) => addTile(type as TileType)}
-          />
-        </Suspense>
-      </div>
 
       <div
         style={{
@@ -4758,6 +4766,14 @@ function App(): JSX.Element {
               if (panelLayout) exitExpandedMode()
               else enterTabbedView()
             }}
+            onOpenSettings={() => setShowSettings('general')}
+            onNewTerminal={() => addTile('terminal')}
+            onNewKanban={() => addTile('kanban')}
+            onNewBrowser={() => addTile('browser')}
+            onNewChat={() => addTile('chat')}
+            onNewFiles={() => addTile('files')}
+            extensionTiles={settings.extensionsDisabled ? [] : extensionTiles.filter(e => e.type !== 'ext:md-preview' && !(settings.hiddenFromSidebarExtIds ?? []).includes(e.extId))}
+            onAddExtensionTile={(type) => addTile(type as TileType)}
             onZoomToggle={() => {
               setViewport(prev => {
                 if (prev.zoom === 1) {
@@ -4767,7 +4783,6 @@ function App(): JSX.Element {
                 return { ...prev, zoom: 1 }
               })
             }}
-            onOpenSettings={() => setShowSettings('general')}
           />
         </Suspense>
       </div>
