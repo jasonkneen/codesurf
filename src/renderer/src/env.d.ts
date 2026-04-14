@@ -1,6 +1,6 @@
 /// <reference types="vite/client" />
 
-import type { Workspace } from '../../shared/types'
+ import type { Workspace, ProjectRecord } from '../../shared/types'
 
 interface ElectronAPI {
   appearance: {
@@ -10,8 +10,12 @@ interface ElectronAPI {
   }
   workspace: {
     list(): Promise<Workspace[]>
+    listProjects(): Promise<ProjectRecord[]>
     create(name: string): Promise<Workspace>
+    createWithPath(name: string, projectPath: string): Promise<Workspace>
     createFromFolder(folderPath: string): Promise<Workspace>
+    addProjectFolder(workspaceId: string, folderPath: string): Promise<Workspace | null>
+    removeProjectFolder(workspaceId: string, folderPath: string): Promise<Workspace | null>
     openFolder(): Promise<string | null>
     setActive(id: string): Promise<void>
     getActive(): Promise<Workspace | null>

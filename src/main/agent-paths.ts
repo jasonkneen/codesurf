@@ -205,6 +205,13 @@ async function loadSavedPaths(): Promise<AgentPathsConfig | null> {
   }
 }
 
+/** Prime in-memory cache from disk without probing binaries or shell PATH */
+export async function initializeAgentPathsCache(): Promise<AgentPathsConfig | null> {
+  if (cachedPaths) return cachedPaths
+  cachedPaths = await loadSavedPaths()
+  return cachedPaths
+}
+
 /** Save paths to disk */
 async function savePaths(config: AgentPathsConfig): Promise<void> {
   await fs.mkdir(CONTEX_HOME, { recursive: true })

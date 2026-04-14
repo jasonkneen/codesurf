@@ -23,9 +23,12 @@ contextBridge.exposeInMainWorld('electron', {
   // Workspace operations
   workspace: {
     list: () => ipcRenderer.invoke('workspace:list'),
+    listProjects: () => ipcRenderer.invoke('workspace:listProjects'),
     create: (name: string) => ipcRenderer.invoke('workspace:create', name),
     createWithPath: (name: string, projectPath: string) => ipcRenderer.invoke('workspace:createWithPath', name, projectPath),
     createFromFolder: (folderPath: string) => ipcRenderer.invoke('workspace:createFromFolder', folderPath),
+    addProjectFolder: (workspaceId: string, folderPath: string) => ipcRenderer.invoke('workspace:addProjectFolder', workspaceId, folderPath),
+    removeProjectFolder: (workspaceId: string, folderPath: string) => ipcRenderer.invoke('workspace:removeProjectFolder', workspaceId, folderPath),
     openFolder: () => ipcRenderer.invoke('workspace:openFolder'),
     delete: (id: string) => ipcRenderer.invoke('workspace:delete', id),
     setActive: (id: string) => ipcRenderer.invoke('workspace:setActive', id),
@@ -173,7 +176,7 @@ contextBridge.exposeInMainWorld('electron', {
       messages: { role: string; content: string }[]
       negotiatedTools?: string[]
       peers?: { peerId: string; peerType: string; tools: string[] }[]
-      providerTransport?: import('../../shared/types').ExtensionChatTransportConfig | null
+      providerTransport?: import('../shared/types').ExtensionChatTransportConfig | null
     }) =>
       ipcRenderer.invoke('chat:send', req),
     stop: (cardId: string) => ipcRenderer.invoke('chat:stop', cardId),

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, Suspense } from 'react'
-import { Ungroup, Grid2x2X, Scissors, ClipboardPaste, Maximize2, LayoutGrid } from 'lucide-react'
+import { Ungroup, Grid2x2X, Scissors, ClipboardPaste, Maximize2, LayoutGrid, Plus } from 'lucide-react'
 import type { TileState, GroupState, CanvasState, Workspace, AppSettings, TileType, LockedConnection } from '../../shared/types'
 import { TileColorProvider } from './TileColorContext'
 import { withDefaultSettings, DEFAULT_SETTINGS } from '../../shared/types'
@@ -11,7 +11,7 @@ import { ThemeProvider } from './ThemeContext'
 import { DEFAULT_THEME_ID, getThemeById, resolveEffectiveThemeId, registerCustomTheme, unregisterCustomTheme } from './theme'
 import type { PanelNode } from './components/PanelLayout'
 import { createLeaf, removeTileFromTree, addTabToLeaf, getAllTileIds, splitLeaf, closeOthersInLeaf, closeToRightInLeaf, findLeafById } from './components/PanelLayout'
-import { getDroppedPaths, toFileUrl, isMediaFile } from './utils/dnd'
+import { basename, getDroppedPaths, toFileUrl, isMediaFile } from './utils/dnd'
 import { disposeChatTileRuntimeState, setChatTileRuntimeState } from './components/chatTileRuntimeState'
 import { disposeMediaTile } from './components/MediaTile'
 import { MainStatusBar } from './components/MainStatusBar'
@@ -41,6 +41,10 @@ type SidebarSessionEntry = {
   relatedGroupId?: string | null
   nestingLevel?: number
 }
+
+type PendingSessionOpen =
+  | { kind: 'chat'; session: SidebarSessionEntry; workspaceId: string }
+  | { kind: 'app'; session: SidebarSessionEntry; workspaceId: string }
 
 const LazyTileChrome = React.lazy(() => import('./components/TileChrome').then(m => ({ default: m.TileChrome })))
 const LazySidebar = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })))
@@ -103,6 +107,10 @@ function sanitizePanelLayout(root: PanelNode | null | undefined, tileIds: string
     layout: next,
     fallbackActivePanelId: next ? findFirstLeafId(next) : null,
   }
+}
+
+function normalizeWorkspacePath(path: string | null | undefined): string {
+  return String(path ?? '').replace(/\\/g, '/').replace(/\/+$/, '')
 }
 
 const CODE_EXTENSIONS = new Set(['ts', 'tsx', 'js', 'jsx', 'json', 'py', 'rs', 'go', 'cpp', 'c', 'java', 'css', 'html', 'sh', 'bash', 'yaml', 'yml', 'toml', 'xml'])
@@ -704,7 +712,11 @@ function App(): JSX.Element {
   const [guides, setGuides] = useState<{ x?: number; y?: number }[]>([])
   const [discoveryPulses, setDiscoveryPulses] = useState<DiscoveryPulse[]>([])
   const [showAgentSetup, setShowAgentSetup] = useState(false)
-  const { extensionTiles, extensionEntries } = useExtensions(workspace?.path ?? null)
+  const hasCanvasExtensionTiles = useMemo(() => tiles.some(tile => tile.type.startsWith('ext:')), [tiles])
+  const { extensionTiles, extensionEntries } = useExtensions(
+    workspace?.path ?? null,
+    !settings.extensionsDisabled && hasCanvasExtensionTiles,
+  )
   const extensionNameById = useMemo(
     () => new Map((extensionEntries ?? []).map(entry => [entry.id, entry.name] as const)),
     [extensionEntries],
@@ -713,11 +725,16 @@ function App(): JSX.Element {
   const [brandWordmarkIndex, setBrandWordmarkIndex] = useState(1)
   const [brandPaletteIndex, setBrandPaletteIndex] = useState(0)
   const [brandPrefsReadyTheme, setBrandPrefsReadyTheme] = useState<string | null>(null)
+  const [pendingSessionOpen, setPendingSessionOpen] = useState<PendingSessionOpen | null>(null)
+  const [showWorkspacePickerTab, setShowWorkspacePickerTab] = useState(false)
+  const [workspacePickerReturnWorkspaceId, setWorkspacePickerReturnWorkspaceId] = useState<string | null>(null)
   const latestSettingsSaveRef = useRef(0)
 
   useEffect(() => { panelLayoutRef.current = panelLayout }, [panelLayout])
   useEffect(() => { activePanelIdRef.current = activePanelId }, [activePanelId])
   useEffect(() => { expandedTileIdRef.current = expandedTileId }, [expandedTileId])
+  const currentWorkspaceIdRef = useRef<string | null>(workspace?.id ?? null)
+  useEffect(() => { currentWorkspaceIdRef.current = workspace?.id ?? null }, [workspace?.id])
 
   const selectedWorkspaceFilePath = useMemo(() => {
     if (!workspace?.path) return null
@@ -1002,10 +1019,13 @@ function App(): JSX.Element {
     })
   }, [canvasGlowEnabled, canvasGlowRadius, cursorGlowFilterBrightness, cursorGlowOpacity, hideCanvasGlow])
 
-  const showEmptyLayoutPage = useCallback(() => {
+  const showEmptyLayoutPage = useCallback((options?: { preserveOpenTabs?: boolean }) => {
+    const preserveOpenTabs = options?.preserveOpenTabs ?? false
     const emptyPanel = createLeaf([])
+    setShowWorkspacePickerTab(true)
+    setWorkspacePickerReturnWorkspaceId(preserveOpenTabs ? currentWorkspaceIdRef.current : null)
     setWorkspace(null)
-    setOpenWorkspaceIds([])
+    if (!preserveOpenTabs) setOpenWorkspaceIds([])
     setTiles([])
     setGroups([])
     setLockedConnections([])
@@ -1972,8 +1992,17 @@ function App(): JSX.Element {
   // ─── Workspace switching ──────────────────────────────────────────────────
   const handleSwitchWorkspace = useCallback(async (id: string) => {
     await window.electron.workspace.setActive(id)
-    const ws = workspaces.find(w => w.id === id) ?? null
+    let ws = workspaces.find(w => w.id === id) ?? null
+    if (!ws) {
+      const refreshed = await window.electron.workspace.list().catch(() => [])
+      if (refreshed.length > 0) {
+        setWorkspaces(refreshed)
+        ws = refreshed.find(w => w.id === id) ?? null
+      }
+    }
     setWorkspace(ws)
+    setShowWorkspacePickerTab(false)
+    setWorkspacePickerReturnWorkspaceId(null)
     if (ws) {
       const saved = await window.electron.canvas.load(id)
       const savedTiles = saved?.tiles ?? []
@@ -2023,6 +2052,24 @@ function App(): JSX.Element {
 
     showEmptyLayoutPage()
   }, [workspace?.id, openWorkspaceIds, handleSwitchWorkspace, showEmptyLayoutPage])
+
+  const handleCloseWorkspaceTab = useCallback(async (id: string) => {
+    const tabIndex = openWorkspaceIds.indexOf(id)
+    if (tabIndex === -1) return
+
+    const nextOpenIds = openWorkspaceIds.filter(wsId => wsId !== id)
+    setOpenWorkspaceIds(nextOpenIds)
+
+    if (workspace?.id !== id) return
+
+    const nextId = nextOpenIds[tabIndex] ?? nextOpenIds[tabIndex - 1] ?? null
+    if (nextId) {
+      await handleSwitchWorkspace(nextId)
+      return
+    }
+
+    showEmptyLayoutPage()
+  }, [openWorkspaceIds, workspace?.id, handleSwitchWorkspace, showEmptyLayoutPage])
 
   const handleNewWorkspace = useCallback(async (name: string) => {
     if (!name.trim()) return
@@ -2203,16 +2250,38 @@ function App(): JSX.Element {
     void resolveFileTileType(filePath).then(type => addTile(type, filePath))
   }, [addTile, bringToFront, panelLayout, activePanelId])
 
-  const openSessionInChat = useCallback(async (session: SidebarSessionEntry) => {
-    if (!workspace?.id) return
+  const resolveWorkspaceForProjectPath = useCallback(async (projectPath: string | null | undefined): Promise<Workspace | null> => {
+    const normalizedProjectPath = normalizeWorkspacePath(projectPath)
+    if (!normalizedProjectPath) return workspace ?? null
 
-    const state = await window.electron.canvas.getSessionState(workspace.id, session.id).catch(() => null)
+    const currentWorkspacePath = normalizeWorkspacePath(workspace?.path)
+    const currentWorkspaceProjects = new Set((workspace?.projectPaths ?? []).map(normalizeWorkspacePath))
+    if (workspace && (currentWorkspacePath === normalizedProjectPath || currentWorkspaceProjects.has(normalizedProjectPath))) return workspace
+
+    const existingWorkspace = workspaces.find(candidate => {
+      if (normalizeWorkspacePath(candidate.path) === normalizedProjectPath) return true
+      return (candidate.projectPaths ?? []).some(path => normalizeWorkspacePath(path) === normalizedProjectPath)
+    }) ?? null
+    if (existingWorkspace) return existingWorkspace
+
+    const workspaceName = basename(normalizedProjectPath) || 'Project'
+    const created = await window.electron.workspace.createWithPath(workspaceName, normalizedProjectPath)
+    const updated = await window.electron.workspace.list().catch(() => null)
+    if (updated && updated.length > 0) setWorkspaces(updated)
+    return created
+  }, [workspace, workspaces])
+
+  const resolveWorkspaceForSession = useCallback(async (session: SidebarSessionEntry): Promise<Workspace | null> => {
+    return resolveWorkspaceForProjectPath(session.projectPath)
+  }, [resolveWorkspaceForProjectPath])
+
+  const openSessionInChatCurrentWorkspace = useCallback(async (session: SidebarSessionEntry, workspaceId: string) => {
+    const state = await window.electron.canvas.getSessionState(workspaceId, session.id).catch(() => null)
     if (!state) {
       if (session.filePath) handleOpenFile(session.filePath)
       return
     }
 
-    const chatTileId = addTile('chat')
     const provider = typeof state.provider === 'string' ? state.provider : (session.provider || 'claude')
     const defaultModeByProvider: Record<string, string> = {
       claude: 'default',
@@ -2222,7 +2291,7 @@ function App(): JSX.Element {
       hermes: 'full',
     }
 
-    await window.electron.canvas.saveTileState(workspace.id, chatTileId, {
+    const nextChatState = {
       messages: Array.isArray(state.messages) ? state.messages : [],
       input: '',
       attachments: [],
@@ -2234,11 +2303,49 @@ function App(): JSX.Element {
       agentMode: false,
       autoAgentMode: false,
       sessionId: typeof state.sessionId === 'string' || state.sessionId === null ? state.sessionId : session.sessionId,
+      isStreaming: false,
+    }
+
+    const activeFullscreenChatTileId = (() => {
+      const currentLayout = panelLayoutRef.current
+      const currentPanelId = activePanelIdRef.current
+      if (!currentLayout || !currentPanelId) return null
+      const activeLeaf = findLeafById(currentLayout, currentPanelId)
+      const activeTileId = activeLeaf?.activeTab ?? expandedTileIdRef.current
+      if (!activeTileId) return null
+      const activeTile = tilesRef.current.find(tile => tile.id === activeTileId)
+      return activeTile?.type === 'chat' ? activeTile.id : null
+    })()
+
+    if (activeFullscreenChatTileId) {
+      setChatTileRuntimeState(activeFullscreenChatTileId, nextChatState)
+      await window.electron.canvas.saveTileState(workspaceId, activeFullscreenChatTileId, nextChatState).catch(() => {})
+      setChatReloadTokens(prev => ({ ...prev, [activeFullscreenChatTileId]: (prev[activeFullscreenChatTileId] ?? 0) + 1 }))
+      bringToFront(activeFullscreenChatTileId)
+      return
+    }
+
+    const chatTileId = addTile('chat')
+    await window.electron.canvas.saveTileState(workspaceId, chatTileId, {
+      ...nextChatState,
     }).catch(() => {})
     bringToFront(chatTileId)
-  }, [workspace?.id, addTile, bringToFront, handleOpenFile])
+  }, [addTile, bringToFront, handleOpenFile])
 
-  const openSessionInApp = useCallback((session: SidebarSessionEntry) => {
+  const openSessionInChat = useCallback(async (session: SidebarSessionEntry) => {
+    const targetWorkspace = await resolveWorkspaceForSession(session)
+    if (!targetWorkspace?.id) return
+
+    if (targetWorkspace.id !== workspace?.id) {
+      setPendingSessionOpen({ kind: 'chat', session, workspaceId: targetWorkspace.id })
+      await handleSwitchWorkspace(targetWorkspace.id)
+      return
+    }
+
+    await openSessionInChatCurrentWorkspace(session, targetWorkspace.id)
+  }, [resolveWorkspaceForSession, workspace?.id, handleSwitchWorkspace, openSessionInChatCurrentWorkspace])
+
+  const openSessionInAppCurrentWorkspace = useCallback((session: SidebarSessionEntry) => {
     if (!session.resumeBin) return
     const tileId = addTile('terminal', undefined, undefined, {
       launchBin: session.resumeBin,
@@ -2246,6 +2353,34 @@ function App(): JSX.Element {
     })
     bringToFront(tileId)
   }, [addTile, bringToFront])
+
+  const openSessionInApp = useCallback(async (session: SidebarSessionEntry) => {
+    const targetWorkspace = await resolveWorkspaceForSession(session)
+    if (!targetWorkspace?.id) return
+
+    if (targetWorkspace.id !== workspace?.id) {
+      setPendingSessionOpen({ kind: 'app', session, workspaceId: targetWorkspace.id })
+      await handleSwitchWorkspace(targetWorkspace.id)
+      return
+    }
+
+    openSessionInAppCurrentWorkspace(session)
+  }, [resolveWorkspaceForSession, workspace?.id, handleSwitchWorkspace, openSessionInAppCurrentWorkspace])
+
+  useEffect(() => {
+    if (!pendingSessionOpen || !workspace?.id) return
+    if (pendingSessionOpen.workspaceId !== workspace.id) return
+
+    const nextPending = pendingSessionOpen
+    setPendingSessionOpen(null)
+
+    if (nextPending.kind === 'chat') {
+      void openSessionInChatCurrentWorkspace(nextPending.session, workspace.id)
+      return
+    }
+
+    openSessionInAppCurrentWorkspace(nextPending.session)
+  }, [pendingSessionOpen, workspace?.id, openSessionInAppCurrentWorkspace, openSessionInChatCurrentWorkspace])
 
   const importFileToWorkspace = useCallback(async (sourcePath: string, tileId?: string) => {
     if (!workspace?.path) return null
@@ -2768,6 +2903,7 @@ function App(): JSX.Element {
             workspaceDir={workspace?.path ?? ''}
             width={tile.width}
             height={tile.height}
+            reloadToken={chatReloadTokens[tile.id] ?? 0}
             settings={settings}
             isConnected={negotiatedDiscoveryState.connectedTileIds.has(tile.id)}
             isAutoConnected={tile.autoAgentMode && negotiatedDiscoveryState.connectedTileIds.has(tile.id)}
@@ -2785,6 +2921,7 @@ function App(): JSX.Element {
             width={tile.width}
             height={tile.height}
             onOpenFile={handleOpenFile}
+            onOpenWorkspace={() => { void handleOpenFolder() }}
             selectedFilePath={sidebarSelectedPath}
             connectedTerminalIds={terminalPeerIds}
           />
@@ -3343,9 +3480,28 @@ function App(): JSX.Element {
   const openSidebarPillLeft = sidebarWidth - 4
   const sidebarScrollTrackTop = 48
   const sidebarScrollTrackBottom = sidebarFooterHeight + 10
+  const collapsedSidebarPillHeight = 32
+  const sidebarScrollIndicatorMinRatio = 0.045
+  const sidebarScrollIndicatorMaxRatio = 0.11
+  const sidebarScrollIndicatorRatio = sidebarScrollMetrics.hasOverflow
+    ? Math.max(
+        sidebarScrollIndicatorMinRatio,
+        Math.min(sidebarScrollIndicatorMaxRatio, sidebarScrollMetrics.thumbRatio * 0.42),
+      )
+    : 0
+  const sidebarScrollIndicatorTop = sidebarScrollMetrics.hasOverflow
+    ? `${sidebarScrollMetrics.topRatio * (1 - sidebarScrollIndicatorRatio) * 100}%`
+    : `calc(50% - ${collapsedSidebarPillHeight / 2}px)`
   const expandedLayoutLeft = sidebarWidth + 2
   const discoveryHighlightZIndex = 0
   const discoveryGlowZIndex = 0
+  const discoveryPillZIndex = 99997
+  const openWorkspaceTabs = openWorkspaceIds
+    .map(id => workspaces.find(ws => ws.id === id) ?? null)
+    .filter((ws): ws is Workspace => Boolean(ws))
+  const hasWorkspaceTabs = openWorkspaceTabs.length > 0
+  const workspaceTitleFallback = workspace?.name?.trim() || 'WORKSPACES'
+  const showTopWorkspacePickerTab = showWorkspacePickerTab || (!workspace && openWorkspaceTabs.length === 0)
   // Discovery connection colors — adapt to theme mode
   const dsc = theme.mode === 'light'
     ? { line: '53, 104, 255', dot: '53, 104, 255', bg: '255, 255, 255', text: theme.accent.base }
@@ -3525,6 +3681,250 @@ function App(): JSX.Element {
             paddingTop: 2,
           }}
         >
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'flex-end',
+              gap: 8,
+              minWidth: 0,
+              height: '100%',
+              paddingLeft: 6,
+              // @ts-ignore
+              WebkitAppRegion: 'no-drag',
+            }}
+          >
+            {hasWorkspaceTabs ? openWorkspaceTabs.map(ws => {
+              const isActive = ws.id === workspace?.id
+              return (
+                <div
+                  key={ws.id}
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    maxWidth: 280,
+                    minWidth: 0,
+                    height: '100%',
+                    padding: '0 2px 0 0',
+                    gap: 2,
+                    borderBottom: isActive ? `3px solid ${theme.accent.base}` : '3px solid transparent',
+                    color: isActive ? theme.text.primary : theme.text.muted,
+                    transition: 'color 0.12s ease, border-color 0.12s ease',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!isActive) void handleSwitchWorkspace(ws.id)
+                    }}
+                    title={ws.name}
+                    aria-current={isActive ? 'page' : undefined}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      minWidth: 0,
+                      maxWidth: 246,
+                      height: '100%',
+                      padding: '0 2px',
+                      border: 'none',
+                      background: 'transparent',
+                      color: 'inherit',
+                      fontSize: appFonts.size,
+                      fontWeight: 600,
+                      letterSpacing: 0,
+                      cursor: isActive ? 'default' : 'pointer',
+                    }}
+                  >
+                    <span
+                      style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                      }}
+                    >
+                      {ws.name}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      void handleCloseWorkspaceTab(ws.id)
+                    }}
+                    aria-label={`Close ${ws.name}`}
+                    title={`Close ${ws.name}`}
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 18,
+                      height: 18,
+                      marginBottom: 1,
+                      border: 'none',
+                      borderRadius: 4,
+                      background: 'transparent',
+                      color: theme.text.disabled,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      padding: 0,
+                      transition: 'background 0.12s ease, color 0.12s ease',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = theme.surface.hover
+                      e.currentTarget.style.color = theme.text.secondary
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.color = theme.text.disabled
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M3 3l6 6M9 3 3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                </div>
+              )
+            }) : !showTopWorkspacePickerTab ? (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  maxWidth: 280,
+                  minWidth: 0,
+                  height: '100%',
+                  padding: '0 2px',
+                  borderBottom: `3px solid ${theme.accent.base}`,
+                  color: theme.text.primary,
+                  fontSize: appFonts.size,
+                  fontWeight: 600,
+                  letterSpacing: 0,
+                }}
+              >
+                <span
+                  style={{
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap',
+                  }}
+                >
+                  {workspaceTitleFallback}
+                </span>
+              </div>
+            ) : null}
+
+            {showTopWorkspacePickerTab && (
+              <div
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  maxWidth: 280,
+                  minWidth: 0,
+                  height: '100%',
+                  padding: '0 2px 0 0',
+                  gap: 2,
+                  borderBottom: `3px solid ${theme.accent.base}`,
+                  color: theme.text.primary,
+                }}
+              >
+                <button
+                  type="button"
+                  onClick={() => showEmptyLayoutPage({ preserveOpenTabs: openWorkspaceTabs.length > 0 })}
+                  aria-current="page"
+                  title="New workspace"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    minWidth: 0,
+                    maxWidth: 246,
+                    height: '100%',
+                    padding: '0 2px',
+                    border: 'none',
+                    background: 'transparent',
+                    color: 'inherit',
+                    fontSize: appFonts.size,
+                    fontWeight: 600,
+                    letterSpacing: 0,
+                    cursor: 'default',
+                  }}
+                >
+                  <span
+                    style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      whiteSpace: 'nowrap',
+                    }}
+                  >
+                    NEW WORKSPACE
+                  </span>
+                </button>
+                {openWorkspaceTabs.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={e => {
+                      e.stopPropagation()
+                      setShowWorkspacePickerTab(false)
+                      const fallbackWorkspaceId = workspacePickerReturnWorkspaceId
+                        ?? workspace?.id
+                        ?? openWorkspaceTabs[openWorkspaceTabs.length - 1]?.id
+                        ?? null
+                      if (fallbackWorkspaceId) void handleSwitchWorkspace(fallbackWorkspaceId)
+                    }}
+                    aria-label="Close new workspace tab"
+                    title="Close new workspace tab"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      width: 18,
+                      height: 18,
+                      marginBottom: 1,
+                      border: 'none',
+                      borderRadius: 4,
+                      background: 'transparent',
+                      color: theme.text.disabled,
+                      cursor: 'pointer',
+                      flexShrink: 0,
+                      padding: 0,
+                      transition: 'background 0.12s ease, color 0.12s ease',
+                    }}
+                    onMouseEnter={e => {
+                      e.currentTarget.style.background = theme.surface.hover
+                      e.currentTarget.style.color = theme.text.secondary
+                    }}
+                    onMouseLeave={e => {
+                      e.currentTarget.style.background = 'transparent'
+                      e.currentTarget.style.color = theme.text.disabled
+                    }}
+                  >
+                    <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+                      <path d="M3 3l6 6M9 3 3 9" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            )}
+
+            <button
+              type="button"
+              onClick={() => showEmptyLayoutPage({ preserveOpenTabs: true })}
+              aria-label="New workspace"
+              title="New workspace"
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                width: 28,
+                height: '100%',
+                padding: 0,
+                border: 'none',
+                background: 'transparent',
+                color: theme.text.muted,
+                cursor: 'pointer',
+                transition: 'color 0.12s ease',
+              }}
+            >
+              <Plus size={18} strokeWidth={2.1} />
+            </button>
+          </div>
         </div>
 
         {/* Sidebar collapse pill / scroll indicator */}
@@ -3539,7 +3939,7 @@ function App(): JSX.Element {
               transform: 'translateY(-50%)',
               transition: 'opacity 0.12s ease',
               width: 8,
-              height: 40,
+              height: collapsedSidebarPillHeight,
               background: theme.surface.panelElevated,
               border: `1px solid ${theme.border.strong}`,
               borderRadius: 9999,
@@ -3583,13 +3983,11 @@ function App(): JSX.Element {
                 position: 'absolute',
                 left: 0,
                 right: 0,
-                top: sidebarScrollMetrics.hasOverflow
-                  ? `${sidebarScrollMetrics.topRatio * (1 - sidebarScrollMetrics.thumbRatio) * 100}%`
-                  : 'calc(50% - 20px)',
+                top: sidebarScrollIndicatorTop,
                 height: sidebarScrollMetrics.hasOverflow
-                  ? `${sidebarScrollMetrics.thumbRatio * 100}%`
-                  : 40,
-                minHeight: sidebarScrollMetrics.hasOverflow ? 32 : 40,
+                  ? `${sidebarScrollIndicatorRatio * 100}%`
+                  : collapsedSidebarPillHeight,
+                minHeight: sidebarScrollMetrics.hasOverflow ? 24 : collapsedSidebarPillHeight,
                 background: theme.surface.panelElevated,
                 border: `1px solid ${theme.border.strong}`,
                 borderRadius: 9999,
@@ -4180,7 +4578,7 @@ function App(): JSX.Element {
 
             {/* Connection pills — rendered in screen-space under tiles, like edges */}
             {!panelLayout && (ambientDiscoveryRenderRoutes.length > 0 || discoveryPreview?.match) && (
-              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+              <div style={{ position: 'absolute', inset: 0, pointerEvents: 'none', zIndex: discoveryPillZIndex }}>
                 {/* Ambient route pills */}
                 {ambientDiscoveryRenderRoutes.map(connection => {
                   const mid = getRouteMidpoint(connection.displayRoute)

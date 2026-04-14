@@ -12,14 +12,14 @@ import { registerAgentsIPC } from './ipc/agents'
 import { registerStreamIPC } from './ipc/stream'
 import { registerGitIPC } from './ipc/git'
 import { registerBusIPC } from './ipc/bus'
-import { registerChatIPC, warmOpenCodeModelsOnStartup } from './ipc/chat'
+import { registerChatIPC } from './ipc/chat'
 import { registerActivityIPC } from './ipc/activity'
 import { registerCollabIPC, stopAllCollabWatchers } from './ipc/collab'
 import { registerTileContextIPC } from './ipc/tile-context'
 import { registerSystemIPC } from './ipc/system'
 import { registerFileProtocol } from './file-protocol'
 import { flushAll as flushActivityStore } from './activity-store'
-import { detectAllAgents, registerAgentPathsIPC } from './agent-paths'
+import { initializeAgentPathsCache, registerAgentPathsIPC } from './agent-paths'
 import { ExtensionRegistry } from './extensions/registry'
 import { registerExtensionProtocol } from './extensions/protocol'
 import { registerExtensionIPC } from './ipc/extensions'
@@ -29,7 +29,6 @@ import { applyWindowAppearance, getWindowAppearanceOptions } from './windowAppea
 import { migrateLegacyStorage } from './migration'
 import { APP_ID, APP_NAME, CONTEX_HOME } from './paths'
 import { stopAllRelayServices } from './relay/service'
-import { readSettingsSync } from './ipc/workspace'
 // browserTile BrowserView IPC was removed — renderer uses <webview> tag directly
 
 const DEFAULT_MAX_OLD_SPACE_SIZE_MB = 8192
@@ -193,14 +192,9 @@ app.whenReady().then(async () => {
   registerChromeSyncIPC()
   registerLocalProxyIPC()
 
-  // Load extensions (global + workspace) — skip entirely when user has disabled extensions
+  // Keep the extension system fully lazy. Do not scan or boot extension hosts
+  // at startup; load them only when an extension tile or explicit management UI asks.
   extensionRegistry = new ExtensionRegistry()
-  const appSettings = readSettingsSync()
-  if (!appSettings.extensionsDisabled) {
-    await extensionRegistry.rescan()
-  } else {
-    console.log('[Extensions] Skipped — extensions globally disabled in settings')
-  }
   registerExtensionProtocol(extensionRegistry)
   registerExtensionIPC(extensionRegistry)
   setExtensionRegistryProvider(() => extensionRegistry)
@@ -216,8 +210,9 @@ app.whenReady().then(async () => {
     return true
   })
 
-  // Detect agent binaries (claude, codex, opencode) — uses real shell PATH
-  detectAllAgents().catch(err => console.error('[AgentPaths] Detection failed:', err))
+  // Prime cached agent paths from disk only. Full binary detection is deferred
+  // until setup/manual refresh so startup does not shell out across all agents.
+  initializeAgentPathsCache().catch(err => console.error('[AgentPaths] Cache init failed:', err))
   // registerBrowserTileIPC() — removed, renderer uses <webview> tag directly
 
   // Start local MCP server for agent→kanban callbacks
@@ -572,7 +567,6 @@ app.whenReady().then(async () => {
   Menu.setApplicationMenu(menu)
 
   createWindow()
-  warmOpenCodeModelsOnStartup()
 
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()

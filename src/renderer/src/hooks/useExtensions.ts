@@ -14,11 +14,18 @@ type ExtensionEntrySummary = {
   name: string
 }
 
-export function useExtensions(workspacePath?: string | null) {
+export function useExtensions(workspacePath?: string | null, enabled = true) {
   const [extensionTiles, setExtensionTiles] = useState<ExtensionTileContrib[]>([])
   const [extensionEntries, setExtensionEntries] = useState<ExtensionEntrySummary[]>([])
 
   const load = useCallback(async (cancelledRef?: { current: boolean }) => {
+    if (!enabled) {
+      if (!cancelledRef?.current) {
+        setExtensionTiles([])
+        setExtensionEntries([])
+      }
+      return
+    }
     try {
       await el.extensions?.refresh?.(workspacePath ?? null)
       const [tiles, entries] = await Promise.all([
@@ -34,19 +41,25 @@ export function useExtensions(workspacePath?: string | null) {
     } catch (err) {
       console.warn('[useExtensions] Failed to load extension tiles:', err)
     }
-  }, [workspacePath])
+  }, [enabled, workspacePath])
 
   useEffect(() => {
+    if (!enabled) {
+      setExtensionTiles([])
+      setExtensionEntries([])
+      return
+    }
     const cancelledRef = { current: false }
     void load(cancelledRef)
     return () => { cancelledRef.current = true }
-  }, [load])
+  }, [enabled, load])
 
   useEffect(() => {
+    if (!enabled) return
     const handleChanged = () => { void load() }
     window.addEventListener(EXTENSIONS_CHANGED_EVENT, handleChanged)
     return () => window.removeEventListener(EXTENSIONS_CHANGED_EVENT, handleChanged)
-  }, [load])
+  }, [enabled, load])
 
   return { extensionTiles, extensionEntries }
 }

@@ -38,6 +38,57 @@ interface MCPRequest {
   }
 }
 
+type UserConfigWorkspaceRef = {
+  id: string
+  path: string
+}
+
+async function readWorkspaceRefsFromUserConfig(): Promise<UserConfigWorkspaceRef[]> {
+  try {
+    const userConfigPath = join(getContexDir(), 'config.json')
+    const raw = await fs.readFile(userConfigPath, 'utf8')
+    const parsed = JSON.parse(raw) as {
+      projects?: Array<{ id?: string; path?: string }>
+      workspaces?: Array<{ id?: string; path?: string; projectIds?: string[]; primaryProjectId?: string | null }>
+    }
+
+    if (Array.isArray(parsed.projects) && Array.isArray(parsed.workspaces)) {
+      const projectsById = new Map(
+        parsed.projects
+          .filter(project => typeof project?.id === 'string' && typeof project?.path === 'string' && project.path.trim())
+          .map(project => [String(project.id), String(project.path).trim()] as const),
+      )
+
+      return parsed.workspaces.flatMap(workspace => {
+        const workspaceId = typeof workspace?.id === 'string' ? workspace.id : ''
+        if (!workspaceId) return []
+
+        const directPath = typeof workspace?.path === 'string' ? workspace.path.trim() : ''
+        if (directPath) return [{ id: workspaceId, path: directPath }]
+
+        const primaryProjectId = typeof workspace?.primaryProjectId === 'string' ? workspace.primaryProjectId : null
+        const projectIds = Array.isArray(workspace?.projectIds) ? workspace.projectIds : []
+        const projectPath = (primaryProjectId && projectsById.get(primaryProjectId))
+          || projectIds.map(projectId => projectsById.get(String(projectId))).find(Boolean)
+          || ''
+        return projectPath ? [{ id: workspaceId, path: projectPath }] : []
+      })
+    }
+
+    if (Array.isArray(parsed.workspaces)) {
+      return parsed.workspaces.flatMap(workspace => {
+        const workspaceId = typeof workspace?.id === 'string' ? workspace.id : ''
+        const workspacePath = typeof workspace?.path === 'string' ? workspace.path.trim() : ''
+        return workspaceId && workspacePath ? [{ id: workspaceId, path: workspacePath }] : []
+      })
+    }
+  } catch {
+    // ignore missing or invalid config
+  }
+
+  return []
+}
+
 function normalizeMcpServer(entry: unknown, fallbackUrl?: string): Record<string, unknown> {
   if (!entry || typeof entry !== 'object') return fallbackUrl ? { type: 'http', url: fallbackUrl } : {}
 
@@ -776,7 +827,7 @@ function asBoolean(value: unknown): boolean {
 function publishPeerCommand(tileId: string, command: string, payload: Record<string, unknown>): string {
   const evt = bus.publish({
     channel: `tile:${tileId}`,
-    type: 'mcp_command',
+    type: 'data',
     source: 'mcp:contex',
     payload: { command, ...payload },
   })
@@ -823,17 +874,13 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     if (name === 'note_read_content') {
       // Read note content from the tile's context file
       try {
-        const userConfigPath = join(getContexDir(), 'config.json')
-        const raw = await fs.readFile(userConfigPath, 'utf8')
-        const cfg = JSON.parse(raw) as { workspaces?: Array<{ path: string }> }
-        if (cfg.workspaces) {
-          for (const ws of cfg.workspaces) {
-            const notePath = join(ws.path, '.contex', tileId, 'context', 'note.txt')
-            try {
-              const content = await fs.readFile(notePath, 'utf8')
-              return content
-            } catch { /* not in this workspace */ }
-          }
+        const workspaces = await readWorkspaceRefsFromUserConfig()
+        for (const ws of workspaces) {
+          const notePath = join(ws.path, '.contex', tileId, 'context', 'note.txt')
+          try {
+            const content = await fs.readFile(notePath, 'utf8')
+            return content
+          } catch { /* not in this workspace */ }
         }
       } catch { /**/ }
       return `Note block ${tileId} is empty or not found`
@@ -1166,17 +1213,13 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     const tileId = args.tile_id as string
     // Search all known workspace paths for .contex/{tileId}/objective.md
     try {
-      const userConfigPath = join(getContexDir(), 'config.json')
-      const raw = await fs.readFile(userConfigPath, 'utf8')
-      const cfg = JSON.parse(raw) as { workspaces?: Array<{ path: string }> }
-      if (cfg.workspaces) {
-        for (const ws of cfg.workspaces) {
-          const objPath = join(ws.path, '.contex', tileId, 'objective.md')
-          try {
-            const content = await fs.readFile(objPath, 'utf8')
-            return content
-          } catch { /* not in this workspace */ }
-        }
+      const workspaces = await readWorkspaceRefsFromUserConfig()
+      for (const ws of workspaces) {
+        const objPath = join(ws.path, '.contex', tileId, 'objective.md')
+        try {
+          const content = await fs.readFile(objPath, 'utf8')
+          return content
+        } catch { /* not in this workspace */ }
       }
     } catch { /**/ }
     return `No objective.md found for block ${tileId}`
@@ -1196,25 +1239,21 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
   if (name === 'get_context') {
     const tileId = args.tile_id as string
     try {
-      const userConfigPath = join(getContexDir(), 'config.json')
-      const raw = await fs.readFile(userConfigPath, 'utf8')
-      const cfg = JSON.parse(raw) as { workspaces?: Array<{ path: string }> }
-      if (cfg.workspaces) {
-        for (const ws of cfg.workspaces) {
-          const ctxDir = join(ws.path, '.contex', tileId, 'context')
-          try {
-            const entries = await fs.readdir(ctxDir)
-            const parts: string[] = []
-            for (const entry of entries) {
-              if (entry.startsWith('.')) continue
-              try {
-                const content = await fs.readFile(join(ctxDir, entry), 'utf8')
-                parts.push(`--- ${entry} ---\n${content}`)
-              } catch { /**/ }
-            }
-            if (parts.length > 0) return parts.join('\n\n')
-          } catch { /* not in this workspace */ }
-        }
+      const workspaces = await readWorkspaceRefsFromUserConfig()
+      for (const ws of workspaces) {
+        const ctxDir = join(ws.path, '.contex', tileId, 'context')
+        try {
+          const entries = await fs.readdir(ctxDir)
+          const parts: string[] = []
+          for (const entry of entries) {
+            if (entry.startsWith('.')) continue
+            try {
+              const content = await fs.readFile(join(ctxDir, entry), 'utf8')
+              parts.push(`--- ${entry} ---\n${content}`)
+            } catch { /**/ }
+          }
+          if (parts.length > 0) return parts.join('\n\n')
+        } catch { /* not in this workspace */ }
       }
     } catch { /**/ }
     return `No context files found for block ${tileId}`
@@ -1295,13 +1334,10 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     if (workspaceId) { const wsErr = assertMcpSafeId(workspaceId); if (wsErr) return wsErr }
 
     try {
-      const userConfigPath = join(getContexDir(), 'config.json')
-      const raw = await fs.readFile(userConfigPath, 'utf8')
-      const cfg = JSON.parse(raw) as { workspaces?: Array<{ id: string; path: string }> }
-
+      const workspaceRefs = await readWorkspaceRefsFromUserConfig()
       const workspace = workspaceId
-        ? cfg.workspaces?.find(ws => ws.id === workspaceId)
-        : cfg.workspaces?.[0]
+        ? workspaceRefs.find(ws => ws.id === workspaceId)
+        : workspaceRefs[0]
 
       if (!workspace) return 'Workspace not found'
 
@@ -1352,13 +1388,10 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
     if (workspaceId) { const wsErr = assertMcpSafeId(workspaceId); if (wsErr) return wsErr }
 
     try {
-      const userConfigPath = join(getContexDir(), 'config.json')
-      const raw = await fs.readFile(userConfigPath, 'utf8')
-      const cfg = JSON.parse(raw) as { workspaces?: Array<{ id: string; path: string }> }
-
+      const workspaceRefs = await readWorkspaceRefsFromUserConfig()
       const workspace = workspaceId
-        ? cfg.workspaces?.find(ws => ws.id === workspaceId)
-        : cfg.workspaces?.[0]
+        ? workspaceRefs.find(ws => ws.id === workspaceId)
+        : workspaceRefs[0]
 
       if (!workspace) return 'Workspace not found'
 
@@ -1674,13 +1707,9 @@ export async function startMCPServer(): Promise<number> {
       // Write .mcp.json to all known workspace directories so Claude Code
       // sessions in terminal tiles auto-discover the contex MCP server
       try {
-        const userConfigPath = join(getContexDir(), 'config.json')
-        const userConfigRaw = await fs.readFile(userConfigPath, 'utf8')
-        const userConfig = JSON.parse(userConfigRaw) as { workspaces?: Array<{ path: string }> }
-        if (userConfig.workspaces) {
-          for (const ws of userConfig.workspaces) {
-            writeMCPConfigToWorkspace(ws.path).catch(() => {})
-          }
+        const workspaceRefs = await readWorkspaceRefsFromUserConfig()
+        for (const ws of workspaceRefs) {
+          writeMCPConfigToWorkspace(ws.path).catch(() => {})
         }
       } catch { /* no workspaces yet */ }
 

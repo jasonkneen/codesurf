@@ -361,8 +361,6 @@ const OPEN_CODE_FALLBACK_MODELS: Array<{ id: string; label: string; description?
 let cachedOpenCodeModels: Array<{ id: string; label: string; description?: string }> = []
 let openCodeModelsInflight: Promise<Array<{ id: string; label: string; description?: string }>> | null = null
 let openCodeModelsRefreshPromise: Promise<void> | null = null
-let openCodeModelsWarmupStarted = false
-let openCodeModelsWarmupCompleted = false
 let cachedOpenCodeModelsAt = 0
 const OPEN_CODE_MODELS_CACHE_MS = 15_000
 
@@ -408,12 +406,7 @@ function refreshOpenCodeModelsInBackground(force = false): Promise<void> {
 }
 
 export function warmOpenCodeModelsOnStartup(): void {
-  if (openCodeModelsWarmupStarted) return
-  openCodeModelsWarmupStarted = true
-
-  void refreshOpenCodeModelsInBackground(true).finally(() => {
-    openCodeModelsWarmupCompleted = true
-  })
+  // Startup warmup intentionally disabled.
 }
 
 async function fetchOpenCodeModels(): Promise<Array<{ id: string; label: string; description?: string }>> {
@@ -1837,10 +1830,9 @@ export function registerChatIPC(): void {
     return { agents }
   })
 
-  // Return whatever OpenCode models are already cached from startup warmup.
-  // No implicit refresh here — avoid surprise background work while the UI is live.
   ipcMain.handle('chat:opencodeModels', async () => {
     const isFresh = cachedOpenCodeModels.length > 0 && (Date.now() - cachedOpenCodeModelsAt) < OPEN_CODE_MODELS_CACHE_MS
+    if (!isFresh) void refreshOpenCodeModelsInBackground()
     const models = isFresh
       ? cachedOpenCodeModels
       : (cachedOpenCodeModels.length > 0 ? cachedOpenCodeModels : getOpenCodeFallbackModels())
@@ -1848,7 +1840,7 @@ export function registerChatIPC(): void {
     return {
       models,
       source: isFresh ? 'cache' : (cachedOpenCodeModels.length > 0 ? 'stale-cache' : 'fallback'),
-      loading: openCodeModelsWarmupStarted && !openCodeModelsWarmupCompleted && cachedOpenCodeModels.length === 0,
+      loading: openCodeModelsRefreshPromise !== null,
     }
   })
 }

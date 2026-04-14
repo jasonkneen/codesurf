@@ -640,6 +640,7 @@ interface FileExplorerTileProps {
   width: number
   height: number
   onOpenFile: (filePath: string) => void
+  onOpenWorkspace?: () => void
   selectedFilePath?: string | null
   connectedTerminalIds?: string[]
 }
@@ -653,13 +654,14 @@ export default function FileExplorerTile({
   width: _width,
   height: _height,
   onOpenFile,
+  onOpenWorkspace,
   selectedFilePath,
   connectedTerminalIds = [],
 }: FileExplorerTileProps): JSX.Element {
   const fonts = useAppFonts()
   const theme = useTheme()
 
-  // Root folder — defaults to workspace, user can scope to a subfolder
+  // Root folder — defaults to the current project path, but can scope to a subfolder
   const [rootPath, setRootPath] = useState(workspacePath)
   useEffect(() => { setRootPath(workspacePath) }, [workspacePath])
 
@@ -1070,7 +1072,7 @@ export default function FileExplorerTile({
       {/* File tree */}
       <div style={{ flex: 1, overflowY: 'auto', padding: '10px 0 4px', position: 'relative' }} onContextMenu={handleBgCtxMenu}>
         {!rootPath ? (
-          <div style={{ padding: '16px', fontSize: fonts.size, color: theme.text.disabled, fontFamily: 'inherit' }}>No workspace open</div>
+          <div style={{ padding: '16px', fontSize: fonts.size, color: theme.text.disabled, fontFamily: 'inherit' }}>No project open</div>
         ) : loadingTree && treeEntries.length === 0 ? (
           <div style={{ padding: '16px', fontSize: fonts.size, color: theme.text.muted, fontFamily: 'inherit' }}>Loading files...</div>
         ) : viewMode === 'list' ? (
@@ -1140,20 +1142,69 @@ export default function FileExplorerTile({
       {/* Path breadcrumb — click to reset root */}
       <div
         style={{
-          padding: '4px 10px',
+          minHeight: 44,
+          padding: '8px 12px',
           borderTop: `1px solid ${theme.border.subtle}`,
           fontSize: fonts.size - 1,
-          color: rootPath !== workspacePath ? theme.accent.base : theme.text.disabled,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          whiteSpace: 'nowrap',
           flexShrink: 0,
-          cursor: rootPath !== workspacePath ? 'pointer' : 'default',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 10,
+          cursor: !rootPath || rootPath !== workspacePath ? 'pointer' : 'default',
         }}
-        title={rootPath !== workspacePath ? `Click to reset to ${workspacePath}` : rootPath}
-        onClick={rootPath !== workspacePath ? () => setRootPath(workspacePath) : undefined}
+        title={
+          !rootPath
+            ? 'Open project folder'
+            : rootPath !== workspacePath
+              ? `Click to reset to ${workspacePath}`
+              : rootPath
+        }
+        onClick={
+          !rootPath
+            ? onOpenWorkspace
+            : rootPath !== workspacePath
+              ? () => setRootPath(workspacePath)
+              : undefined
+        }
       >
-        {rootPath || 'No workspace'}
+        <div
+          style={{
+            minWidth: 0,
+            flex: 1,
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            whiteSpace: 'nowrap',
+            color: rootPath !== workspacePath ? theme.accent.base : theme.text.disabled,
+          }}
+        >
+          {rootPath || 'No project'}
+        </div>
+
+        {!rootPath && (
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 7,
+              color: theme.accent.base,
+              flexShrink: 0,
+              fontSize: fonts.size,
+              fontWeight: 600,
+              whiteSpace: 'nowrap',
+            }}
+          >
+            <svg width="15" height="13" viewBox="0 0 15 13" fill="none" aria-hidden="true">
+              <path
+                d="M1 3C1 2.17 1.67 1.5 2.5 1.5H5.2L6.7 3H12.5C13.33 3 14 3.67 14 4.5V10.5C14 11.33 13.33 12 12.5 12H2.5C1.67 12 1 11.33 1 10.5V3Z"
+                stroke="currentColor"
+                strokeWidth="1.4"
+                strokeLinejoin="round"
+              />
+            </svg>
+            <span>Open</span>
+          </div>
+        )}
       </div>
 
       {ctx && <ContextMenu x={ctx.x} y={ctx.y} items={ctxItems()} onClose={() => setCtx(null)} />}

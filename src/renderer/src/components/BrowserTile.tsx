@@ -1044,12 +1044,24 @@ export function BrowserTile({ tileId, workspaceId, initialUrl, width, height, zI
     }
   }, [initialUrl])
 
-  // When the toolbar is engaged, explicitly disable pointer handling on the
-  // actual <webview> element so Chromium can't steal mouseup/click/focus.
+  // Electron webviews are their own compositor surface. During drag/resize
+  // interactions, hiding the surface is more reliable than pointer-events:none
+  // for keeping dock/drop gestures on the host document.
   useEffect(() => {
     const webview = wvRef.current
+    const container = wvContainerRef.current
     if (!webview) return
-    webview.style.pointerEvents = (isToolbarHovered || isAddressFocused || isInteracting) ? 'none' : 'auto'
+
+    const blockPointerCapture = Boolean(isToolbarHovered || isAddressFocused || isInteracting)
+    const hideDuringInteraction = Boolean(isInteracting)
+
+    webview.style.pointerEvents = blockPointerCapture ? 'none' : 'auto'
+    webview.style.visibility = hideDuringInteraction ? 'hidden' : 'visible'
+    webview.style.opacity = hideDuringInteraction ? '0' : '1'
+
+    if (container) {
+      container.style.pointerEvents = blockPointerCapture ? 'none' : 'auto'
+    }
   }, [isToolbarHovered, isAddressFocused, isInteracting])
 
   // ---- navigation actions -----------------------------------------------

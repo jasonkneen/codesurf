@@ -39,9 +39,28 @@ async function readExtensionSettings(registry: ExtensionRegistry, extId: string)
 }
 
 export function registerExtensionIPC(registry: ExtensionRegistry): void {
+  let lastScannedWorkspacePath: string | null = null
+  let hasScanned = false
+
+  const ensureLoaded = async (workspacePath?: string | null, force = false): Promise<void> => {
+    const settings = readSettingsSync()
+    if (settings.extensionsDisabled) {
+      lastScannedWorkspacePath = null
+      hasScanned = false
+      return
+    }
+
+    const targetWorkspacePath = workspacePath ?? registry.getActiveWorkspacePath() ?? null
+    if (!force && hasScanned && lastScannedWorkspacePath === targetWorkspacePath) return
+
+    await registry.rescan(targetWorkspacePath)
+    lastScannedWorkspacePath = targetWorkspacePath
+    hasScanned = true
+  }
 
   // List all loaded extensions
-  ipcMain.handle('ext:list', () => {
+  ipcMain.handle('ext:list', async () => {
+    await ensureLoaded()
     return registry.getAll().map(m => ({
       id: m.id,
       name: m.name,
@@ -57,7 +76,8 @@ export function registerExtensionIPC(registry: ExtensionRegistry): void {
   })
 
   // List contributed tile types (for renderer to add to context menu / addTile)
-  ipcMain.handle('ext:list-tiles', () => {
+  ipcMain.handle('ext:list-tiles', async () => {
+    await ensureLoaded()
     const extActions = registry.getExtensionActions()
     return registry.getTileTypes().map(t => {
       const actions = extActions.get(t.extId)
@@ -75,7 +95,8 @@ export function registerExtensionIPC(registry: ExtensionRegistry): void {
   })
 
   // Get the custom protocol URL for a tile's entry HTML
-  ipcMain.handle('ext:tile-entry', (_, extId: string, tileType: string, tileId?: string) => {
+  ipcMain.handle('ext:tile-entry', async (_, extId: string, tileType: string, tileId?: string) => {
+    await ensureLoaded()
     const url = registry.getTileEntry(extId, tileType, tileId)
     return url
   })
@@ -95,12 +116,13 @@ export function registerExtensionIPC(registry: ExtensionRegistry): void {
   })
 
   ipcMain.handle('ext:refresh', async (_, workspacePath?: string | null) => {
-    const settings = readSettingsSync()
-    if (settings.extensionsDisabled) {
+    if (readSettingsSync().extensionsDisabled) {
       console.log('[Extensions] Refresh skipped — extensions globally disabled')
+      lastScannedWorkspacePath = null
+      hasScanned = false
       return []
     }
-    await registry.rescan(workspacePath ?? registry.getActiveWorkspacePath())
+    await ensureLoaded(workspacePath ?? registry.getActiveWorkspacePath(), true)
     return registry.getAll().map(m => ({
       id: m.id,
       name: m.name,

@@ -33,16 +33,33 @@ function registerPanel(id: string, el: HTMLDivElement | null) {
   else _panelElements.delete(id)
 }
 
-function getPanelAtPoint(x: number, y: number): string | null {
-  for (const [id, el] of _panelElements) {
-    const r = el.getBoundingClientRect()
-    if (x >= r.left && x <= r.right && y >= r.top && y <= r.bottom) return id
+function getLivePanelElement(panelId: string): HTMLDivElement | null {
+  const el = _panelElements.get(panelId) ?? null
+  if (!el) return null
+  if (!el.isConnected) {
+    _panelElements.delete(panelId)
+    return null
   }
-  return null
+  const rect = el.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  return el
+}
+
+function getPanelAtPoint(x: number, y: number): string | null {
+  let bestMatch: { id: string; area: number } | null = null
+  for (const [id] of _panelElements) {
+    const el = getLivePanelElement(id)
+    if (!el) continue
+    const r = el.getBoundingClientRect()
+    if (x < r.left || x > r.right || y < r.top || y > r.bottom) continue
+    const area = r.width * r.height
+    if (!bestMatch || area < bestMatch.area) bestMatch = { id, area }
+  }
+  return bestMatch?.id ?? null
 }
 
 function getZone(x: number, y: number, panelId: string): DockZone {
-  const el = _panelElements.get(panelId)
+  const el = getLivePanelElement(panelId)
   if (!el) return 'center'
   const r = el.getBoundingClientRect()
   const rx = (x - r.left) / r.width
@@ -329,6 +346,8 @@ function TabBar({ tabs, activeTab, panelId, onActivate, onClose, onTabMouseDown,
               data-tab-id={tab.id}
               onMouseDown={e => {
                 if (e.button !== 0) return
+                e.preventDefault()
+                e.stopPropagation()
                 onTabMouseDown(tab.id, panelId, tab.label, e)
               }}
               onClick={() => onActivate(tab.id)}
@@ -528,7 +547,7 @@ function LeafPanel({ leaf, getTileLabel, renderTile, isInteracting, onActivate, 
   const fonts = useAppFonts()
   const keepMountedWhenInactive = useCallback((tileId: string) => {
     const type = getTileType(tileId)
-    return type === 'terminal' || type === 'browser' || type.startsWith('ext:')
+    return type === 'terminal' || type === 'browser' || type === 'chat' || type.startsWith('ext:')
   }, [getTileType])
   const panelRef = useRef<HTMLDivElement>(null)
   const tabs = leaf.tabs.map(id => ({ id, label: getTileLabel(id) }))
@@ -766,11 +785,14 @@ export function PanelLayout({ root, getTileLabel, renderTile, onLayoutChange, on
         {node.children.map((child, i) => (
           <React.Fragment key={child.id}>
             <div style={{
-              flex: `${node.sizes[i]} 0 0%`,
+              flex: `0 0 ${node.sizes[i]}%`,
+              width: node.direction === 'horizontal' ? `${node.sizes[i]}%` : undefined,
+              height: node.direction === 'vertical' ? `${node.sizes[i]}%` : undefined,
               minWidth: node.direction === 'horizontal' ? getNodeMinWidth(child, getTileType) : 0,
               minHeight: 0,
               display: 'flex',
-              flexDirection: 'column'
+              flexDirection: 'column',
+              overflow: 'hidden',
             }}>
               {renderNode(child)}
             </div>
@@ -801,6 +823,19 @@ export function PanelLayout({ root, getTileLabel, renderTile, onLayoutChange, on
       <div style={{ flex: 1, display: 'flex', minHeight: 0 }}>
         {renderNode(root)}
       </div>
+
+      {panelInteractionActive && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            background: 'transparent',
+            pointerEvents: 'auto',
+            userSelect: 'none',
+            zIndex: 99995,
+          }}
+        />
+      )}
 
       {/* Drag ghost — follows cursor */}
       {ghost && (

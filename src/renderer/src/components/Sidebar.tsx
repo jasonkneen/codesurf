@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState, useMemo, useCallback } from 'react'
+import React, { useEffect, useRef, useState, useMemo, useCallback, useLayoutEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Pin, Settings } from 'lucide-react'
-import type { Workspace, TileState } from '../../../shared/types'
+import type { Workspace, TileState, ProjectRecord } from '../../../shared/types'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
+import { basename } from '../utils/dnd'
 import { ContextMenu, type MenuItem } from './ContextMenu'
 
 interface ExtTileEntry { extId: string; type: string; label: string; icon?: string }
@@ -44,6 +46,11 @@ interface Props {
   showFooter?: boolean
 }
 
+interface ProjectListEntry extends ProjectRecord {
+  workspaceIds: string[]
+  representativeWorkspaceId: string | null
+}
+
 // ─── Section header ──────────────────────────────────────────────────────────
 
 function SectionHeader({ label, collapsed, onToggle, extra }: { label: string; collapsed: boolean; onToggle: () => void; extra?: React.ReactNode }): JSX.Element {
@@ -55,7 +62,7 @@ function SectionHeader({ label, collapsed, onToggle, extra }: { label: string; c
       style={{
         display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 6,
         padding: '6px 12px 4px',
-        cursor: 'pointer', userSelect: 'none',
+        cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none',
       }}
     >
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
@@ -86,6 +93,8 @@ function ThreadMenuSectionLabel({ children }: { children: React.ReactNode }): JS
       fontSize: Math.max(11, fonts.secondarySize + 1),
       fontWeight: 500,
       color: theme.text.disabled,
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
     }}>
       {children}
     </div>
@@ -122,6 +131,8 @@ function ThreadMenuItem({
         padding: '9px 12px',
         borderRadius: 8,
         cursor: 'pointer',
+        userSelect: 'none',
+        WebkitUserSelect: 'none',
         fontFamily: fonts.primary,
         fontSize: Math.max(fonts.size, 14),
         lineHeight: 1.2,
@@ -141,9 +152,59 @@ function ThreadMenuItem({
   )
 }
 
+function SidebarMenuPortal({
+  anchorRef,
+  children,
+}: {
+  anchorRef: React.RefObject<HTMLElement | null>
+  children: React.ReactNode
+}): JSX.Element | null {
+  const [position, setPosition] = useState<{ top: number; right: number } | null>(null)
+
+  useLayoutEffect(() => {
+    const updatePosition = () => {
+      const anchor = anchorRef.current
+      if (!anchor) {
+        setPosition(null)
+        return
+      }
+      const rect = anchor.getBoundingClientRect()
+      setPosition({
+        top: rect.bottom + 6,
+        right: Math.max(8, window.innerWidth - rect.right),
+      })
+    }
+
+    updatePosition()
+    window.addEventListener('resize', updatePosition)
+    window.addEventListener('scroll', updatePosition, true)
+    return () => {
+      window.removeEventListener('resize', updatePosition)
+      window.removeEventListener('scroll', updatePosition, true)
+    }
+  }, [anchorRef])
+
+  if (!position) return null
+
+  return createPortal(
+    <div
+      data-sidebar-menu-portal="true"
+      style={{
+        position: 'fixed',
+        top: position.top,
+        right: position.right,
+        zIndex: 4000,
+      }}
+    >
+      {children}
+    </div>,
+    document.body,
+  )
+}
+
 // ─── Sidebar item ────────────────────────────────────────────────────────────
 
-function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, indent = 0, extra, extraAlwaysVisible = false }: {
+function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, indent = 0, extra, extraAlwaysVisible = false, extraWidth }: {
   label: string
   icon?: React.ReactNode
   active?: boolean
@@ -153,6 +214,7 @@ function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, inden
   indent?: number
   extra?: React.ReactNode
   extraAlwaysVisible?: boolean
+  extraWidth?: number
 }): JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
@@ -165,23 +227,48 @@ function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, inden
       onMouseLeave={() => setHovered(false)}
       style={{
         display: 'flex', alignItems: 'center', gap: 7,
-        padding: '4px 8px 4px ' + (12 + indent * 14) + 'px',
-        cursor: 'pointer', userSelect: 'none',
+        paddingTop: 4,
+        paddingBottom: 4,
+        paddingLeft: 12 + indent * 14,
+        paddingRight: extra && (hovered || extraAlwaysVisible) ? 8 + (extraWidth ?? 20) : 8,
+        minHeight: 30,
+        cursor: 'pointer', userSelect: 'none', WebkitUserSelect: 'none',
         borderRadius: 6, margin: '0 6px',
         background: active ? theme.surface.selection : hovered ? theme.surface.hover : 'transparent',
         transition: 'background 0.1s ease',
+        position: 'relative',
       }}
     >
       {icon && <span style={{ color: active ? theme.accent.base : muted ? theme.text.disabled : theme.text.muted, flexShrink: 0, display: 'flex', alignItems: 'center' }}>{icon}</span>}
       <span style={{
         fontSize: fonts.size, fontWeight: active ? 500 : 400,
+        lineHeight: 1.2,
         color: active ? theme.accent.base : muted ? theme.text.disabled : theme.text.secondary,
         overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
         flex: 1,
       }}>
         {label}
       </span>
-      {extra && (hovered || extraAlwaysVisible) && extra}
+      {extra && (
+        <span style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          width: extraWidth,
+          minWidth: 20,
+          minHeight: 20,
+          position: 'absolute',
+          right: 8,
+          top: '50%',
+          transform: 'translateY(-50%)',
+          opacity: hovered || extraAlwaysVisible ? 1 : 0,
+          visibility: hovered || extraAlwaysVisible ? 'visible' : 'hidden',
+          pointerEvents: hovered || extraAlwaysVisible ? 'auto' : 'none',
+          transition: 'opacity 0.1s ease',
+        }}>
+          {extra}
+        </span>
+      )}
     </div>
   )
 }
@@ -216,6 +303,9 @@ const SESSION_SOURCE_ICONS: Record<string, JSX.Element> = {
 }
 
 interface SessionEntry {
+  workspaceId: string
+  workspaceName: string
+  workspacePath: string
   id: string
   source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
   scope: 'workspace' | 'project' | 'user'
@@ -244,6 +334,9 @@ interface DisplaySessionEntry extends SessionEntry {
 }
 
 interface SessionProjectGroup {
+  projectId: string
+  projectPath: string
+  representativeWorkspaceId: string | null
   key: string
   label: string
   sessions: DisplaySessionEntry[]
@@ -258,11 +351,33 @@ function sessionMetaText(session: SessionEntry): string {
   return `${session.title} ${session.sourceLabel} ${session.sourceDetail ?? ''}`.toLowerCase()
 }
 
-function getProjectLabel(session: SessionEntry, workspace: Workspace | null): string {
-  const raw = session.projectPath?.trim() || workspace?.path?.trim() || workspace?.name?.trim() || 'Project'
-  const normalized = raw.replace(/\/+$/, '')
-  const parts = normalized.split('/').filter(Boolean)
-  return parts[parts.length - 1] || raw
+function normalizeSidebarPath(path: string | null | undefined): string {
+  return String(path ?? '').replace(/\\/g, '/').replace(/\/+$/, '')
+}
+
+function getProjectDisplayLabel(project: Pick<ProjectRecord, 'name' | 'path'>): string {
+  const normalizedPath = normalizeSidebarPath(project.path)
+  const pathLabel = basename(normalizedPath)
+  const nameLabel = project.name?.trim() || ''
+  const looksGenerated = /^ws-\d{6,}$/.test(pathLabel)
+  if (pathLabel && !looksGenerated) return pathLabel
+  return nameLabel || pathLabel || 'Project'
+}
+
+function getWorkspaceProjectPaths(workspaceEntry: Workspace | null | undefined): string[] {
+  if (!workspaceEntry) return []
+  const seen = new Set<string>()
+  const paths = [
+    workspaceEntry.path,
+    ...(workspaceEntry.projectPaths ?? []),
+  ]
+
+  for (const candidate of paths) {
+    const normalized = normalizeSidebarPath(candidate)
+    if (normalized) seen.add(normalized)
+  }
+
+  return [...seen]
 }
 
 function isCronSession(session: SessionEntry): boolean {
@@ -293,12 +408,12 @@ function buildNestedSessionList(sessions: SessionEntry[], sortMode: ThreadSortMo
   }
 
   const sorted = [...sessions].sort((a, b) => compareSessions(a, b, sortMode))
-  const nodes = new Map(sorted.map(session => [session.id, {
+  const nodes = new Map<string, SessionNode>(sorted.map(session => [session.id, {
     session,
     children: [],
     parentId: null,
     subtreeUpdatedAt: session.updatedAt,
-  }]))
+  } satisfies SessionNode] as const))
   const byGroup = new Map<string, SessionEntry[]>()
 
   for (const session of sorted) {
@@ -471,7 +586,7 @@ export function SidebarFooter({
 // ─── Sidebar ─────────────────────────────────────────────────────────────────
 
 export function Sidebar({
-  workspace, workspaces, tiles, onSwitchWorkspace, onDeleteWorkspace, onNewWorkspace, onOpenFolder, onOpenFile, onFocusTile, onUpdateTile, onCloseTile,
+  workspace, workspaces, tiles, onSwitchWorkspace: _onSwitchWorkspace, onDeleteWorkspace: _onDeleteWorkspace, onNewWorkspace: _onNewWorkspace, onOpenFolder, onOpenFile, onFocusTile, onUpdateTile: _onUpdateTile, onCloseTile: _onCloseTile,
   onNewTerminal, onNewKanban, onNewBrowser, onNewChat, onNewFiles, onOpenSettings,
   onOpenSessionInChat, onOpenSessionInApp,
   extensionTiles, extensionEntries, onAddExtensionTile, pinnedExtensionIds, onTogglePinnedExtension,
@@ -486,16 +601,78 @@ export function Sidebar({
   const [sectionsCollapsed, setSectionsCollapsed] = useState<Record<string, boolean>>({})
   const [sessionCtx, setSessionCtx] = useState<{ x: number; y: number; session: SessionEntry } | null>(null)
   const [sessions, setSessions] = useState<SessionEntry[]>([])
+  const [projects, setProjects] = useState<ProjectRecord[]>([])
   const [threadMenuOpen, setThreadMenuOpen] = useState(false)
   const [threadOrganizeMode, setThreadOrganizeMode] = useState<ThreadOrganizeMode>('project')
   const [threadSortMode, setThreadSortMode] = useState<ThreadSortMode>('updated')
   const [showCronSessions, setShowCronSessions] = useState(false)
   const [showSubagentSessions, setShowSubagentSessions] = useState(false)
+  const [collapsedThreadGroups, setCollapsedThreadGroups] = useState<Record<string, boolean>>({})
+  const [loadedSessionWorkspaceIds, setLoadedSessionWorkspaceIds] = useState<string[]>([])
   const [pendingDeleteSessionId, setPendingDeleteSessionId] = useState<string | null>(null)
   const [deletingSessionId, setDeletingSessionId] = useState<string | null>(null)
   const [visibleSessionCount, setVisibleSessionCount] = useState(SESSION_PAGE_SIZE)
   const deleteConfirmTimerRef = useRef<number | null>(null)
   const threadMenuRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    void window.electron.workspace.listProjects()
+      .then(items => {
+        if (!cancelled) setProjects(items)
+      })
+      .catch(() => {
+        if (!cancelled) setProjects([])
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [workspaces])
+
+  const projectEntries = useMemo<ProjectListEntry[]>(() => {
+    const workspaceIdsByPath = new Map<string, string[]>()
+    for (const workspaceEntry of workspaces) {
+      for (const projectPath of getWorkspaceProjectPaths(workspaceEntry)) {
+        const existing = workspaceIdsByPath.get(projectPath) ?? []
+        if (!existing.includes(workspaceEntry.id)) existing.push(workspaceEntry.id)
+        workspaceIdsByPath.set(projectPath, existing)
+      }
+    }
+
+    return projects
+      .map(project => {
+        const normalizedPath = normalizeSidebarPath(project.path)
+        const workspaceIds = workspaceIdsByPath.get(normalizedPath) ?? []
+        return {
+          ...project,
+          workspaceIds,
+          representativeWorkspaceId: workspaceIds.includes(workspace?.id ?? '')
+            ? (workspace?.id ?? null)
+            : (workspaceIds[0] ?? null),
+        }
+      })
+      .filter(project => project.workspaceIds.length > 0)
+      .sort((a, b) => getProjectDisplayLabel(a).localeCompare(getProjectDisplayLabel(b), undefined, { sensitivity: 'base' }))
+  }, [projects, workspaces, workspace?.id])
+
+  const workspaceById = useMemo(() => new Map(workspaces.map(workspaceEntry => [workspaceEntry.id, workspaceEntry] as const)), [workspaces])
+
+  const activeProjectId = useMemo(() => {
+    const primaryProjectPath = normalizeSidebarPath(workspace?.path)
+    const currentPaths = new Set(getWorkspaceProjectPaths(workspace))
+    const currentProject = projectEntries.find(project => normalizeSidebarPath(project.path) === primaryProjectPath)
+      ?? projectEntries.find(project => currentPaths.has(normalizeSidebarPath(project.path)))
+      ?? null
+    return currentProject?.id ?? projectEntries[0]?.id ?? null
+  }, [projectEntries, workspace])
+
+  const loadedSessionWorkspaceIdSet = useMemo(() => new Set(loadedSessionWorkspaceIds), [loadedSessionWorkspaceIds])
+
+  const isThreadGroupCollapsed = useCallback((group: SessionProjectGroup) => {
+    const explicit = collapsedThreadGroups[group.key]
+    if (typeof explicit === 'boolean') return explicit
+    return group.projectId !== activeProjectId
+  }, [collapsedThreadGroups, activeProjectId])
 
   useEffect(() => {
     return () => {
@@ -506,7 +683,9 @@ export function Sidebar({
   useEffect(() => {
     if (!threadMenuOpen) return
     const handlePointerDown = (event: MouseEvent) => {
-      if (threadMenuRef.current && !threadMenuRef.current.contains(event.target as Node)) {
+      const target = event.target instanceof Element ? event.target : null
+      const insidePortal = Boolean(target?.closest('[data-sidebar-menu-portal="true"]'))
+      if (!insidePortal && threadMenuRef.current && !threadMenuRef.current.contains(event.target as Node)) {
         setThreadMenuOpen(false)
       }
     }
@@ -521,30 +700,97 @@ export function Sidebar({
     }
   }, [threadMenuOpen])
 
-  // Load sessions for current workspace
+  const annotateSessions = useCallback((workspaceEntry: Workspace, items: Array<Omit<SessionEntry, 'workspaceId' | 'workspaceName' | 'workspacePath'>>): SessionEntry[] => {
+    return items.map(session => ({
+      ...session,
+      workspaceId: workspaceEntry.id,
+      workspaceName: workspaceEntry.name,
+      workspacePath: workspaceEntry.path,
+    }))
+  }, [])
+
+  const loadWorkspaceSessions = useCallback(async (workspaceEntry: Workspace, forceRefresh = false) => {
+    const items = await window.electron.canvas.listSessions(workspaceEntry.id, forceRefresh).catch(() => [])
+    const annotated = annotateSessions(workspaceEntry, items as Array<Omit<SessionEntry, 'workspaceId' | 'workspaceName' | 'workspacePath'>>)
+    setSessions(prev => [...prev.filter(session => session.workspaceId !== workspaceEntry.id), ...annotated])
+    setLoadedSessionWorkspaceIds(prev => prev.includes(workspaceEntry.id) ? prev : [...prev, workspaceEntry.id])
+  }, [annotateSessions])
+
   useEffect(() => {
-    if (!workspace) {
+    const validWorkspaceIds = new Set(projectEntries.flatMap(projectEntry => projectEntry.workspaceIds))
+    setSessions(prev => prev.filter(session => validWorkspaceIds.has(session.workspaceId)))
+    setLoadedSessionWorkspaceIds(prev => prev.filter(workspaceId => validWorkspaceIds.has(workspaceId)))
+  }, [projectEntries])
+
+  useEffect(() => {
+    if (projectEntries.length === 0) {
       setSessions([])
+      setLoadedSessionWorkspaceIds([])
       return
     }
-    let cancelled = false
-    const load = (forceRefresh = false) => {
-      window.electron.canvas.listSessions(workspace.id, forceRefresh).then(s => {
-        if (!cancelled) setSessions(s)
-      }).catch(() => {})
+
+    const workspaceIdsToLoad = new Set<string>()
+    const activeProject = activeProjectId
+      ? (projectEntries.find(projectEntry => projectEntry.id === activeProjectId) ?? null)
+      : null
+
+    for (const workspaceId of activeProject?.workspaceIds ?? []) {
+      workspaceIdsToLoad.add(workspaceId)
     }
-    load()
+
+    if (threadOrganizeMode === 'project') {
+      for (const projectEntry of projectEntries) {
+        const group: SessionProjectGroup = {
+          projectId: projectEntry.id,
+          projectPath: projectEntry.path,
+          representativeWorkspaceId: projectEntry.representativeWorkspaceId,
+          key: projectEntry.id,
+          label: getProjectDisplayLabel(projectEntry),
+          sessions: [],
+        }
+        if (!isThreadGroupCollapsed(group)) {
+          for (const workspaceId of projectEntry.workspaceIds) {
+            workspaceIdsToLoad.add(workspaceId)
+          }
+        }
+      }
+    }
+
+    for (const workspaceId of workspaceIdsToLoad) {
+      if (loadedSessionWorkspaceIdSet.has(workspaceId)) continue
+      const workspaceEntry = workspaceById.get(workspaceId)
+      if (workspaceEntry) void loadWorkspaceSessions(workspaceEntry)
+    }
+  }, [
+    activeProjectId,
+    isThreadGroupCollapsed,
+    loadWorkspaceSessions,
+    loadedSessionWorkspaceIdSet,
+    projectEntries,
+    threadOrganizeMode,
+    workspaceById,
+  ])
+
+  useEffect(() => {
     const unsubscribe = window.electron.canvas.onSessionsChanged(({ workspaceId }) => {
-      if (workspaceId === workspace.id) load()
+      const workspaceEntry = workspaceById.get(workspaceId)
+      if (!workspaceEntry || !loadedSessionWorkspaceIdSet.has(workspaceEntry.id)) return
+      void loadWorkspaceSessions(workspaceEntry, true)
     })
-    const onFocus = () => load(true)
+
+    const onFocus = () => {
+      for (const workspaceId of loadedSessionWorkspaceIdSet) {
+        const workspaceEntry = workspaceById.get(workspaceId)
+        if (workspaceEntry) void loadWorkspaceSessions(workspaceEntry, true)
+      }
+    }
+
     window.addEventListener('focus', onFocus)
     return () => {
-      cancelled = true
       unsubscribe()
       window.removeEventListener('focus', onFocus)
     }
-  }, [workspace?.id])
+  }, [loadWorkspaceSessions, loadedSessionWorkspaceIdSet, workspaceById])
 
   const sessionContextMenuItems = useCallback((session: SessionEntry): MenuItem[] => {
     const items: MenuItem[] = []
@@ -569,6 +815,17 @@ export function Sidebar({
   const startWidth = useRef(0)
 
   const toggleSection = (key: string) => setSectionsCollapsed(prev => ({ ...prev, [key]: !prev[key] }))
+  const toggleThreadGroup = useCallback((key: string) => {
+    const projectEntry = projectEntries.find(entry => entry.id === key) ?? null
+    const nextCollapsed = !(collapsedThreadGroups[key] ?? (key !== activeProjectId))
+    setCollapsedThreadGroups(prev => ({ ...prev, [key]: nextCollapsed }))
+    if (!nextCollapsed && projectEntry) {
+      for (const workspaceId of projectEntry.workspaceIds) {
+        const workspaceEntry = workspaceById.get(workspaceId)
+        if (workspaceEntry) void loadWorkspaceSessions(workspaceEntry)
+      }
+    }
+  }, [activeProjectId, collapsedThreadGroups, loadWorkspaceSessions, projectEntries, workspaceById])
 
   useEffect(() => {
     const onMove = (e: MouseEvent) => {
@@ -628,17 +885,30 @@ export function Sidebar({
   }, [extensionTiles, extensionNameById])
 
   const visibleSessions = useMemo(() => {
-    const filtered = sessions.filter(session => {
+    const deduped = new Map<string, SessionEntry>()
+    for (const session of sessions) {
+      const existing = deduped.get(session.id)
+      if (!existing) {
+        deduped.set(session.id, session)
+        continue
+      }
+      if (existing.scope === 'user' && session.scope !== 'user') {
+        deduped.set(session.id, session)
+      }
+    }
+
+    const filtered = [...deduped.values()].filter(session => {
       const normalizedTitle = session.title?.trim().toLowerCase() ?? ''
       const hasContent = Boolean(session.title?.trim()) || Boolean(session.lastMessage?.trim()) || session.messageCount > 0
       if (!hasContent) return false
       if (normalizedTitle === 'new agent') return false
       if (!showCronSessions && isCronSession(session)) return false
       if (!showSubagentSessions && isSubagentSession(session)) return false
+      if (threadOrganizeMode === 'project' && session.scope === 'user') return false
       return true
     })
     return buildNestedSessionList(filtered, threadSortMode)
-  }, [sessions, showCronSessions, showSubagentSessions, threadSortMode])
+  }, [sessions, showCronSessions, showSubagentSessions, threadOrganizeMode, threadSortMode])
 
   useEffect(() => {
     setVisibleSessionCount(SESSION_PAGE_SIZE)
@@ -651,27 +921,33 @@ export function Sidebar({
   const displayedSessionGroups = useMemo<SessionProjectGroup[]>(() => {
     if (threadOrganizeMode === 'chronological') {
       return displayedSessions.length > 0 ? [{
+        projectId: 'chronological',
+        projectPath: '',
+        representativeWorkspaceId: null,
         key: 'chronological',
         label: 'Threads',
         sessions: displayedSessions,
       }] : []
     }
-    const groups = new Map<string, SessionProjectGroup>()
-    for (const session of displayedSessions) {
-      const key = session.projectPath?.trim() || workspace?.path?.trim() || workspace?.id || 'project'
-      const existing = groups.get(key)
-      if (existing) {
-        existing.sessions.push(session)
-        continue
-      }
-      groups.set(key, {
-        key,
-        label: getProjectLabel(session, workspace),
-        sessions: [session],
+    return projectEntries
+      .map(projectEntry => {
+        const projectPath = normalizeSidebarPath(projectEntry.path)
+        const workspaceIdSet = new Set(projectEntry.workspaceIds)
+        const workspaceSessions = displayedSessions.filter(session => {
+          const sessionProjectPath = normalizeSidebarPath(session.projectPath ?? session.workspacePath)
+          if (sessionProjectPath) return sessionProjectPath === projectPath
+          return workspaceIdSet.has(session.workspaceId)
+        })
+        return {
+          projectId: projectEntry.id,
+          projectPath: projectEntry.path,
+          representativeWorkspaceId: projectEntry.representativeWorkspaceId,
+          key: projectEntry.id,
+          label: getProjectDisplayLabel(projectEntry),
+          sessions: workspaceSessions,
+        }
       })
-    }
-    return [...groups.values()]
-  }, [displayedSessions, threadOrganizeMode, workspace])
+  }, [displayedSessions, projectEntries, threadOrganizeMode])
 
   const hasMoreSessions = displayedSessions.length < visibleSessions.length
 
@@ -685,10 +961,10 @@ export function Sidebar({
   }, [])
 
   const deleteSession = useCallback(async (session: SessionEntry) => {
-    if (!workspace || deletingSessionId) return
+    if (!session.workspaceId || deletingSessionId) return
     setDeletingSessionId(session.id)
     try {
-      const result = await window.electron.canvas.deleteSession(workspace.id, session.id)
+      const result = await window.electron.canvas.deleteSession(session.workspaceId, session.id)
       if (result?.ok) {
         setSessions(prev => prev.filter(entry => entry.id !== session.id))
       }
@@ -700,15 +976,12 @@ export function Sidebar({
         deleteConfirmTimerRef.current = null
       }
     }
-  }, [workspace, deletingSessionId])
+  }, [deletingSessionId])
 
-  const handleCreateWorkspaceFromSidebar = useCallback(() => {
-    const suggested = `Workspace ${workspaces.length + 1}`
-    const name = window.prompt('New workspace name', suggested)?.trim()
-    if (!name) return
-    onNewWorkspace(name)
+  const handleOpenProjectFromSidebar = useCallback(() => {
+    onOpenFolder()
     setThreadMenuOpen(false)
-  }, [onNewWorkspace, workspaces.length])
+  }, [onOpenFolder])
 
   const emitScrollMetrics = useCallback(() => {
     const el = scrollRef.current
@@ -757,14 +1030,16 @@ export function Sidebar({
       display: 'flex', flexDirection: 'column',
       position: 'relative', overflow: 'hidden',
       transition: 'width 0.15s ease',
+      userSelect: 'none',
+      WebkitUserSelect: 'none',
     }}>
       {/* Scrollable sections */}
       <div
         ref={scrollRef}
         className="sidebar-scroll-container"
-        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingTop: 6, scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        style={{ flex: 1, overflowY: 'auto', overflowX: 'hidden', paddingTop: 6, scrollbarWidth: 'none', msOverflowStyle: 'none', userSelect: 'none', WebkitUserSelect: 'none' }}
       >
-        <div ref={scrollContentRef}>
+        <div ref={scrollContentRef} style={{ userSelect: 'none', WebkitUserSelect: 'none' }}>
 
         {/* ── PINNED EXTENSIONS ── */}
         {pinnedExtensionIds && pinnedExtensionIds.length > 0 && (() => {
@@ -808,13 +1083,15 @@ export function Sidebar({
               color: theme.text.disabled,
               letterSpacing: 1.2,
               textTransform: 'uppercase',
+              userSelect: 'none',
+              WebkitUserSelect: 'none',
             }}>
-              Threads
+              Projects
             </span>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, position: 'relative' }} ref={threadMenuRef}>
               <button
-                title="Filter and sort threads"
-                aria-label="Filter and sort threads"
+                title="Filter and sort projects and threads"
+                aria-label="Filter and sort projects and threads"
                 onClick={() => setThreadMenuOpen(open => !open)}
                 style={{
                   width: 28,
@@ -835,9 +1112,9 @@ export function Sidebar({
                 </svg>
               </button>
               <button
-                title="New workspace"
-                aria-label="New workspace"
-                onClick={handleCreateWorkspaceFromSidebar}
+                title="Open project folder"
+                aria-label="Open project folder"
+                onClick={handleOpenProjectFromSidebar}
                 style={{
                   width: 28,
                   height: 28,
@@ -860,18 +1137,15 @@ export function Sidebar({
                 </svg>
               </button>
               {threadMenuOpen && (
-                <div style={{
-                  position: 'absolute',
-                  top: 34,
-                  right: 0,
-                  width: 292,
-                  background: theme.surface.panelElevated,
-                  border: `1px solid ${theme.border.default}`,
-                  borderRadius: 14,
-                  boxShadow: theme.shadow.panel,
-                  padding: 8,
-                  zIndex: 1000,
-                }}>
+                <SidebarMenuPortal anchorRef={threadMenuRef}>
+                  <div style={{
+                    width: 292,
+                    background: theme.surface.panelElevated,
+                    border: `1px solid ${theme.border.default}`,
+                    borderRadius: 14,
+                    boxShadow: theme.shadow.panel,
+                    padding: 8,
+                  }}>
                   <ThreadMenuSectionLabel>Organize</ThreadMenuSectionLabel>
                   <ThreadMenuItem
                     icon={<svg width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M2.5 5c0-.83.67-1.5 1.5-1.5h2.5l1.4 1.4H12c.83 0 1.5.67 1.5 1.5v5c0 .83-.67 1.5-1.5 1.5H4c-.83 0-1.5-.67-1.5-1.5V5Z" stroke="currentColor" strokeWidth="1.25" strokeLinejoin="round" /></svg>}
@@ -913,27 +1187,60 @@ export function Sidebar({
                     active={showCronSessions}
                     onClick={() => setShowCronSessions(value => !value)}
                   />
-                </div>
+                  </div>
+                </SidebarMenuPortal>
               )}
             </div>
           </div>
 
-          {visibleSessions.length === 0 ? (
+          {threadOrganizeMode === 'chronological' && visibleSessions.length === 0 ? (
             <div style={{ padding: '4px 0', fontSize: fonts.secondarySize, color: theme.text.disabled }}>No threads yet</div>
           ) : (
             <>
               {displayedSessionGroups.map(group => (
                 <div key={group.key} style={{ paddingBottom: 8 }}>
                   {threadOrganizeMode === 'project' && (
-                    <div
+                    <button
+                      type="button"
+                      onClick={() => toggleThreadGroup(group.key)}
+                      title={`${isThreadGroupCollapsed(group) ? 'Expand' : 'Collapse'} ${group.label}`}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: 10,
+                        width: '100%',
                         padding: '6px 0 8px',
-                        color: theme.text.secondary,
+                        color: group.projectId === activeProjectId ? theme.text.primary : theme.text.secondary,
+                        background: 'transparent',
+                        border: 'none',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        userSelect: 'none',
+                        WebkitUserSelect: 'none',
                       }}
                     >
+                      <span
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          width: 10,
+                          color: theme.text.disabled,
+                          flexShrink: 0,
+                        }}
+                      >
+                        <svg
+                          width="8"
+                          height="8"
+                          viewBox="0 0 8 8"
+                          style={{
+                            transition: 'transform 0.15s ease',
+                            transform: isThreadGroupCollapsed(group) ? 'rotate(0deg)' : 'rotate(90deg)',
+                          }}
+                        >
+                          <path d="M2 1l4 3-4 3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                        </svg>
+                      </span>
                       <span style={{ display: 'flex', alignItems: 'center', color: theme.text.disabled }}>
                         <svg width="16" height="16" viewBox="0 0 14 14" fill="none">
                           <path d="M1.8 4.1c0-.9.7-1.6 1.6-1.6h2l1.1 1.2h4.1c.9 0 1.6.7 1.6 1.6v4.4c0 .9-.7 1.6-1.6 1.6H3.4c-.9 0-1.6-.7-1.6-1.6V4.1Z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round" />
@@ -942,15 +1249,16 @@ export function Sidebar({
                       <span style={{ fontSize: fonts.size + 1, fontWeight: 600, color: theme.text.secondary }}>
                         {group.label}
                       </span>
-                    </div>
+                    </button>
                   )}
 
-                  {group.sessions.map(session => (
+                  {(threadOrganizeMode !== 'project' || !isThreadGroupCollapsed(group)) && group.sessions.map(session => (
                     <SidebarItem
                       key={session.id}
                       label={session.title.length > 44 ? `${session.title.slice(0, 44)}...` : session.title}
                       icon={SESSION_SOURCE_ICONS[session.source]}
                       indent={Math.max(1, session.displayIndent + 1)}
+                      extraWidth={132}
                       onClick={() => {
                         if (session.tileId) {
                           onFocusTile(session.tileId)
@@ -1011,6 +1319,18 @@ export function Sidebar({
                       }
                     />
                   ))}
+
+                  {threadOrganizeMode === 'project' && !isThreadGroupCollapsed(group) && group.sessions.length === 0 && (
+                    <div
+                      style={{
+                        padding: '0 0 2px 36px',
+                        fontSize: fonts.secondarySize,
+                        color: theme.text.disabled,
+                      }}
+                    >
+                      No threads yet
+                    </div>
+                  )}
                 </div>
               ))}
 
@@ -1110,6 +1430,8 @@ export function Sidebar({
                           gap: 7,
                           padding: '6px 8px 4px 12px',
                           margin: '0 6px',
+                          userSelect: 'none',
+                          WebkitUserSelect: 'none',
                         }}
                       >
                         <span style={{ color: theme.text.muted, flexShrink: 0, display: 'flex', alignItems: 'center' }}>

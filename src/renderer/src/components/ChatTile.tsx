@@ -215,6 +215,12 @@ interface GitBranchSummary {
   branches: Array<{ name: string; current: boolean }>
 }
 
+interface CachedGitState {
+  status: GitStatusSummary
+  branches: GitBranchSummary
+  fetchedAt: number
+}
+
 interface DiscoveryPeer {
   peerId: string
   peerType: string
@@ -240,6 +246,7 @@ interface Props {
   workspaceDir: string
   width: number
   height: number
+  reloadToken?: number
   settings?: AppSettings
   isConnected?: boolean
   isAutoConnected?: boolean
@@ -279,9 +286,80 @@ const TOOLBAR_TEXT_SIZE = 13
 const CHAT_FOOTER_TEXT_SIZE = 12
 const TOOL_BLOCK_MAX_WIDTH = 420
 const TOOLBAR_CHEVRON_SIZE = 12
+const GIT_STATE_CACHE_TTL_MS = 15_000
 const NON_SELECTABLE_UI_STYLE = {
   userSelect: 'none' as const,
   WebkitUserSelect: 'none' as const,
+}
+
+const gitStateCache = new Map<string, CachedGitState>()
+const gitStateInflight = new Map<string, Promise<CachedGitState>>()
+
+function normalizeGitWorkspaceKey(workspaceDir: string): string {
+  return workspaceDir.replace(/\/+$/, '')
+}
+
+function createEmptyGitState(workspaceDir: string): CachedGitState {
+  return {
+    status: { isRepo: false, root: workspaceDir, changedCount: 0 },
+    branches: { isRepo: false, root: workspaceDir, current: null, branches: [] },
+    fetchedAt: 0,
+  }
+}
+
+function getCachedGitState(workspaceDir: string): CachedGitState | null {
+  if (!workspaceDir) return null
+  return gitStateCache.get(normalizeGitWorkspaceKey(workspaceDir)) ?? null
+}
+
+function isFreshGitState(entry: CachedGitState | null | undefined): entry is CachedGitState {
+  return Boolean(entry) && (Date.now() - entry.fetchedAt) < GIT_STATE_CACHE_TTL_MS
+}
+
+async function loadGitState(workspaceDir: string, force = false): Promise<CachedGitState> {
+  if (!workspaceDir || !window.electron?.git) return createEmptyGitState(workspaceDir)
+
+  const cacheKey = normalizeGitWorkspaceKey(workspaceDir)
+  const cached = gitStateCache.get(cacheKey)
+  if (!force && isFreshGitState(cached)) return cached
+
+  const pending = gitStateInflight.get(cacheKey)
+  if (!force && pending) return pending
+
+  const request = (async () => {
+    try {
+      const [statusResult, branchResult] = await Promise.all([
+        window.electron.git.status(workspaceDir),
+        window.electron.git.branches(workspaceDir),
+      ])
+
+      const next: CachedGitState = {
+        status: {
+          isRepo: statusResult?.isRepo === true,
+          root: statusResult?.root ?? workspaceDir,
+          changedCount: Array.isArray(statusResult?.files) ? statusResult.files.length : 0,
+        },
+        branches: {
+          isRepo: branchResult?.isRepo === true,
+          root: branchResult?.root ?? workspaceDir,
+          current: branchResult?.current ?? null,
+          branches: Array.isArray(branchResult?.branches) ? branchResult.branches : [],
+        },
+        fetchedAt: Date.now(),
+      }
+      gitStateCache.set(cacheKey, next)
+      return next
+    } catch {
+      const empty: CachedGitState = { ...createEmptyGitState(workspaceDir), fetchedAt: Date.now() }
+      gitStateCache.set(cacheKey, empty)
+      return empty
+    } finally {
+      gitStateInflight.delete(cacheKey)
+    }
+  })()
+
+  gitStateInflight.set(cacheKey, request)
+  return request
 }
 
 // Font context so sub-components can read settings-derived fonts without prop drilling
@@ -930,7 +1008,7 @@ function WorkingDots({ color, size = 5 }: { color?: string; size?: number }): JS
 
 // --- Component -------------------------------------------------------------------
 
-export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, width: _width, height: _height, settings, isConnected, isAutoConnected, connectedPeers = [] }: Props): JSX.Element {
+export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, width: _width, height: _height, reloadToken = 0, settings, isConnected, isAutoConnected, connectedPeers = [] }: Props): JSX.Element {
   const theme = useTheme()
   const composerBackground = theme.chat.input
   const composerBorder = theme.chat.inputBorder
@@ -1073,8 +1151,8 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const [isDropTarget, setIsDropTarget] = useState(false)
   const [showScrollToLatest, setShowScrollToLatest] = useState(false)
   const [branchFilter, setBranchFilter] = useState('')
-  const [gitStatus, setGitStatus] = useState<GitStatusSummary>({ isRepo: false, root: _workspaceDir, changedCount: 0 })
-  const [gitBranches, setGitBranches] = useState<GitBranchSummary>({ isRepo: false, root: _workspaceDir, current: null, branches: [] })
+  const [gitStatus, setGitStatus] = useState<GitStatusSummary>(() => getCachedGitState(_workspaceDir)?.status ?? createEmptyGitState(_workspaceDir).status)
+  const [gitBranches, setGitBranches] = useState<GitBranchSummary>(() => getCachedGitState(_workspaceDir)?.branches ?? createEmptyGitState(_workspaceDir).branches)
   const setMessagesSafe = useCallback((updater: React.SetStateAction<ChatMessage[]>) => {
     setMessages(prev => normalizeMessagesForMemory(typeof updater === 'function'
       ? (updater as (prev: ChatMessage[]) => ChatMessage[])(prev)
@@ -1108,6 +1186,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const locationMenuRef = useRef<HTMLDivElement>(null)
   const branchMenuRef = useRef<HTMLDivElement>(null)
   const contextMenuRef = useRef<HTMLDivElement>(null)
+  const latestGitWorkspaceKeyRef = useRef(normalizeGitWorkspaceKey(_workspaceDir))
 
   // Slash commands
   const SLASH_COMMANDS = [
@@ -1191,15 +1270,17 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
 
   useEffect(() => { ensureShimmerStyle() }, [])
 
-  // Subscribe once to async OpenCode model refreshes, but only request provider-specific
-  // options lazily when that provider is actually selected.
+  // Only tiles actively using OpenCode should subscribe to the model list, otherwise
+  // every chat tile holds the same large provider payload in memory.
   useEffect(() => {
+    if (provider !== 'opencode') return
+
     const unsubscribeOpencode = window.electron?.chat?.onOpencodeModelsUpdated?.((payload: any) => {
       if (payload?.models?.length) setOpencodeModels(payload.models)
     })
 
     return () => { unsubscribeOpencode?.() }
-  }, [])
+  }, [provider])
 
   useEffect(() => {
     if (provider === 'opencode' && !requestedProviderOptionsRef.current.opencode) {
@@ -1286,7 +1367,9 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
       if (typeof saved.isStreaming === 'boolean') setIsStreaming(saved.isStreaming)
     }
 
-    const cached = initialRuntimeStateRef.current ?? getChatTileRuntimeState<ChatTilePersistedState>(tileId)
+    const cached = reloadToken > 0
+      ? getChatTileRuntimeState<ChatTilePersistedState>(tileId)
+      : (initialRuntimeStateRef.current ?? getChatTileRuntimeState<ChatTilePersistedState>(tileId))
     if (cached) {
       applySavedState(cached)
       stateLoadedRef.current = true
@@ -1303,7 +1386,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     }).catch(() => {}).finally(() => {
       stateLoadedRef.current = true
     })
-  }, [workspaceId, tileId])
+  }, [workspaceId, tileId, reloadToken])
 
   useEffect(() => {
     if (!workspaceId || !stateLoadedRef.current || isChatTileRuntimeStateDisposed(tileId)) return
@@ -1493,42 +1576,40 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
   const contextUsageRatio = contextWindowLimit > 0 ? Math.min(1, estimatedContextTokens / contextWindowLimit) : 0
   const contextUsagePercent = Math.max(1, Math.round(contextUsageRatio * 100))
 
-  const refreshGitState = useCallback(async () => {
-    if (!_workspaceDir || !window.electron?.git) {
-      setGitStatus({ isRepo: false, root: _workspaceDir, changedCount: 0 })
-      setGitBranches({ isRepo: false, root: _workspaceDir, current: null, branches: [] })
+  const applyGitState = useCallback((next: CachedGitState) => {
+    setGitStatus(next.status)
+    setGitBranches(next.branches)
+  }, [])
+
+  const refreshGitState = useCallback(async (force = false) => {
+    const requestWorkspaceDir = _workspaceDir
+    const requestKey = normalizeGitWorkspaceKey(requestWorkspaceDir)
+    if (!requestWorkspaceDir) {
+      applyGitState(createEmptyGitState(_workspaceDir))
       return
     }
 
-    try {
-      const [statusResult, branchResult] = await Promise.all([
-        window.electron.git.status(_workspaceDir),
-        window.electron.git.branches(_workspaceDir),
-      ])
-
-      setGitStatus({
-        isRepo: statusResult?.isRepo === true,
-        root: statusResult?.root ?? _workspaceDir,
-        changedCount: Array.isArray(statusResult?.files) ? statusResult.files.length : 0,
-      })
-      setGitBranches({
-        isRepo: branchResult?.isRepo === true,
-        root: branchResult?.root ?? _workspaceDir,
-        current: branchResult?.current ?? null,
-        branches: Array.isArray(branchResult?.branches) ? branchResult.branches : [],
-      })
-    } catch {
-      setGitStatus({ isRepo: false, root: _workspaceDir, changedCount: 0 })
-      setGitBranches({ isRepo: false, root: _workspaceDir, current: null, branches: [] })
+    const cached = getCachedGitState(requestWorkspaceDir)
+    if (!force && cached) {
+      if (latestGitWorkspaceKeyRef.current === requestKey) applyGitState(cached)
+      if (isFreshGitState(cached)) return
     }
-  }, [_workspaceDir])
+
+    const next = await loadGitState(requestWorkspaceDir, force)
+    if (latestGitWorkspaceKeyRef.current !== requestKey) return
+    applyGitState(next)
+  }, [_workspaceDir, applyGitState])
 
   useEffect(() => {
-    void refreshGitState()
-    const onFocus = () => { void refreshGitState() }
+    latestGitWorkspaceKeyRef.current = normalizeGitWorkspaceKey(_workspaceDir)
+    const cached = getCachedGitState(_workspaceDir)
+    applyGitState(cached ?? createEmptyGitState(_workspaceDir))
+    void refreshGitState(false)
+
+    const onFocus = () => { void refreshGitState(true) }
     window.addEventListener('focus', onFocus)
     return () => window.removeEventListener('focus', onFocus)
-  }, [refreshGitState])
+  }, [_workspaceDir, applyGitState, refreshGitState])
 
   const isGitRepo = gitStatus.isRepo || gitBranches.isRepo
   const branchMenuCreateEnabled = isGitRepo
