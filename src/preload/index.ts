@@ -460,6 +460,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // OS utilities
   homedir: homedir(),
+  platform: process.platform,
 
   // File path extraction for drag/drop — replaces the old File.path field that
   // Electron removed in v32. Must be called in the renderer (which is where the
