@@ -67,7 +67,11 @@ const LazyFileTile = React.lazy(() => import('./components/FileTile').then(m => 
 const LazyFileExplorerTile = React.lazy(() => import('./components/FileExplorerTile'))
 const LazyConnectionPill = React.lazy(() => import('./components/ConnectionPill').then(m => ({ default: m.ConnectionPill })))
 const LazyExtensionTile = React.lazy(() => import('./components/ExtensionTile').then(m => ({ default: m.ExtensionTile })))
-const LazyClusoWidgetMount = React.lazy(() => import('./components/ClusoWidgetMount').then(m => ({ default: m.ClusoWidgetMount })))
+const LazyClusoWidgetMount = React.lazy(() =>
+  import('./components/ClusoWidgetMount')
+    .then(m => ({ default: m.ClusoWidgetMount }))
+    .catch(() => ({ default: () => null as React.ReactNode }))
+)
 const LazyAgentSetup = React.lazy(() => import('./components/AgentSetup').then(m => ({ default: m.AgentSetup })))
 
 type DragState =

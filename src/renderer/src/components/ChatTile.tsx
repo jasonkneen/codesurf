@@ -953,7 +953,7 @@ function relativeTime(ts: number): string {
   return `${days}d ago`
 }
 
-function ensureShimmerStyle(): void {
+function ensureShimmerStyle(theme: ReturnType<typeof useTheme>): void {
   if (document.getElementById(SHIMMER_ID)) return
   const style = document.createElement('style')
   style.id = SHIMMER_ID
@@ -1346,7 +1346,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     setAcIndex(i => Math.min(i, Math.max(0, acItems.length - 1)))
   }, [acItems.length])
 
-  useEffect(() => { ensureShimmerStyle() }, [])
+  useEffect(() => { ensureShimmerStyle(theme) }, [])
 
   // Only tiles actively using OpenCode should subscribe to the model list, otherwise
   // every chat tile holds the same large provider payload in memory.
