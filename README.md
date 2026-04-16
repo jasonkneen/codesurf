@@ -50,6 +50,8 @@ Platform packaging:
 
 ```bash
 npm run dist:mac
+npm run dist:windows   # NSIS installer + portable .exe
+npm run dist:linux     # AppImage + .deb
 ```
 
 ## Project structure
