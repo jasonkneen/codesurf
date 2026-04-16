@@ -12,7 +12,7 @@ import type {
 import { ContexRelay as RelayCore, RelayRuntime } from '../../../packages/contex-relay/src'
 import type { TileState } from '../../shared/types'
 import { bus } from '../event-bus'
-import { CONTEX_HOME } from '../paths'
+import { loadWorkspaceTileState } from '../storage/workspaceArtifacts'
 import { createMainProcessRelayExecutor } from './provider-executor'
 
 interface WorkspaceRelayInstance {
@@ -44,16 +44,8 @@ function broadcast(event: RelayEvent, workspacePath: string): void {
   }
 }
 
-async function tileStatePath(workspaceId: string, tileId: string): Promise<string> {
-  return join(CONTEX_HOME, 'workspaces', workspaceId, '.contex', `tile-state-${tileId}.json`)
-}
-
 async function readTileState(workspaceId: string, tileId: string): Promise<any | null> {
-  try {
-    return JSON.parse(await fs.readFile(await tileStatePath(workspaceId, tileId), 'utf8'))
-  } catch {
-    return null
-  }
+  return loadWorkspaceTileState(workspaceId, tileId, null)
 }
 
 export async function getWorkspaceRelay(workspacePath: string): Promise<WorkspaceRelayInstance> {

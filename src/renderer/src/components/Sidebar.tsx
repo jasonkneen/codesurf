@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState, useMemo, useCallback, useLayoutEffect } from 'react'
 import { createPortal } from 'react-dom'
 import { Pin, Settings } from 'lucide-react'
+import type { WorkspaceSessionEntry } from '../../../shared/session-types'
 import type { ProjectRecord, Workspace, TileState } from '../../../shared/types'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
@@ -330,32 +331,7 @@ const SESSION_SOURCE_ICONS: Record<string, React.JSX.Element> = {
   opencode: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" /><path d="M4.5 9.5 7 4.5l2.5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>,
 }
 
-interface SessionEntry {
-  workspaceId: string
-  workspaceName: string
-  workspacePath: string
-  id: string
-  source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
-  scope: 'workspace' | 'project' | 'user'
-  tileId: string | null
-  sessionId: string | null
-  provider: string
-  model: string
-  messageCount: number
-  lastMessage: string | null
-  updatedAt: number
-  filePath?: string
-  title: string
-  projectPath?: string | null
-  sourceLabel: string
-  sourceDetail?: string
-  canOpenInChat?: boolean
-  canOpenInApp?: boolean
-  resumeBin?: string
-  resumeArgs?: string[]
-  relatedGroupId?: string | null
-  nestingLevel?: number
-}
+type SessionEntry = WorkspaceSessionEntry
 
 interface DisplaySessionEntry extends SessionEntry {
   displayIndent: number
@@ -511,12 +487,13 @@ function buildNestedSessionList(sessions: SessionEntry[], sortMode: ThreadSortMo
 
 type SidebarFooterProps = Pick<Props,
   'onNewTerminal' | 'onNewKanban' | 'onNewBrowser' | 'onNewChat' | 'onNewFiles' | 'onOpenSettings' | 'extensionTiles' | 'onAddExtensionTile'
->
+> & { collapsed?: boolean }
 
 export function SidebarFooter({
   onNewTerminal, onNewKanban, onNewBrowser, onNewChat, onNewFiles,
   onOpenSettings,
   extensionTiles, onAddExtensionTile,
+  collapsed,
 }: SidebarFooterProps): React.JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
@@ -538,8 +515,8 @@ export function SidebarFooter({
   }, [extensionTiles])
 
   return (
-    <div style={{ padding: '11px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: 2 }}>
-      <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 2, flexShrink: 0 }}>
+    <div style={{ padding: collapsed ? '4px 2px 2px' : '11px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: collapsed ? 'center' : 'flex-end', gap: 2, flexDirection: collapsed ? 'column' : 'row' }}>
+      <div style={{ display: 'flex', justifyContent: collapsed ? 'center' : 'flex-end', gap: 2, flexShrink: 0, flexDirection: collapsed ? 'column' : 'row' }}>
         {([
           { label: 'Settings', icon: <Settings size={14} />, action: () => onOpenSettings('general') },
           { label: 'New Terminal', icon: TILE_ICONS.terminal, action: onNewTerminal },

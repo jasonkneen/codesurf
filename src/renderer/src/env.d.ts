@@ -1,5 +1,6 @@
 /// <reference types="vite/client" />
 
+ import type { AggregatedSessionEntry } from '../../shared/session-types'
  import type { ExecutionHostRecord, ExecutionPreference, Workspace, ProjectRecord } from '../../shared/types'
 
 interface ElectronAPI {
@@ -106,29 +107,7 @@ interface ElectronAPI {
     saveTileState(workspaceId: string, tileId: string, state: any): Promise<void>
     clearTileState(workspaceId: string, tileId: string): Promise<void>
     deleteTileArtifacts(workspaceId: string, tileId: string): Promise<void>
-    listSessions(workspaceId: string, forceRefresh?: boolean): Promise<Array<{
-      id: string
-      source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
-      scope: 'workspace' | 'project' | 'user'
-      tileId: string | null
-      sessionId: string | null
-      provider: string
-      model: string
-      messageCount: number
-      lastMessage: string | null
-      updatedAt: number
-      filePath?: string
-      title: string
-      projectPath?: string | null
-      sourceLabel: string
-      sourceDetail?: string
-      canOpenInChat?: boolean
-      canOpenInApp?: boolean
-      resumeBin?: string
-      resumeArgs?: string[]
-      relatedGroupId?: string | null
-      nestingLevel?: number
-    }>>
+    listSessions(workspaceId: string, forceRefresh?: boolean): Promise<AggregatedSessionEntry[]>
     onSessionsChanged(cb: (payload: { workspaceId: string }) => void): () => void
     getSessionState(workspaceId: string, sessionEntryId: string): Promise<any>
     deleteSession(workspaceId: string, sessionEntryId: string): Promise<{ ok: boolean; error?: string }>

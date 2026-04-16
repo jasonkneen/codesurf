@@ -1,37 +1,19 @@
 import { ipcMain, BrowserWindow } from 'electron'
-import { promises as fs } from 'fs'
-import { join } from 'path'
-import { CONTEX_HOME } from '../paths'
+import type { TileContextEntry } from '../../shared/types'
 import { bus } from '../event-bus'
+import { loadWorkspaceTileState, saveWorkspaceTileState } from '../storage/workspaceArtifacts'
 
-function assertSafeId(id: string): void {
-  if (/[\/\\]|\.\./.test(id)) throw new Error(`Unsafe ID: ${id}`)
-}
-
-function tileStatePath(workspaceId: string, tileId: string): string {
-  assertSafeId(workspaceId)
-  assertSafeId(tileId)
-  return join(CONTEX_HOME, 'workspaces', workspaceId, '.contex', `tile-state-${tileId}.json`)
-}
-
-interface TileState {
-  _context?: Record<string, { key: string; value: unknown; updatedAt: number; source: string }>
+interface TileContextState {
+  _context?: Record<string, TileContextEntry>
   [k: string]: unknown
 }
 
-async function loadTileState(workspaceId: string, tileId: string): Promise<TileState> {
-  try {
-    const raw = await fs.readFile(tileStatePath(workspaceId, tileId), 'utf8')
-    return JSON.parse(raw) as TileState
-  } catch {
-    return {}
-  }
+async function loadTileState(workspaceId: string, tileId: string): Promise<TileContextState> {
+  return loadWorkspaceTileState<TileContextState>(workspaceId, tileId, {})
 }
 
-async function saveTileState(workspaceId: string, tileId: string, state: TileState): Promise<void> {
-  const dir = join(CONTEX_HOME, 'workspaces', workspaceId, '.contex')
-  await fs.mkdir(dir, { recursive: true })
-  await fs.writeFile(tileStatePath(workspaceId, tileId), JSON.stringify(state, null, 2))
+async function saveTileState(workspaceId: string, tileId: string, state: TileContextState): Promise<void> {
+  await saveWorkspaceTileState(workspaceId, tileId, state)
 }
 
 function publishContextChanged(tileId: string, key: string, value: unknown): void {

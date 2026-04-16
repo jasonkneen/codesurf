@@ -1,86 +1,24 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
 import { promises as fs } from 'fs'
-import { join } from 'path'
+import { dirname } from 'path'
+import type { AggregatedSessionEntry } from '../../shared/session-types'
 import type { TileState } from '../../shared/types'
-import { CONTEX_HOME } from '../paths'
-import type { AggregatedSessionEntry } from '../session-sources'
-import { getWorkspacePathById, getWorkspaceStorageIds } from './workspace'
+import {
+  assertSafeWorkspaceArtifactId,
+  canvasStatePath,
+  ensureWorkspaceStorageMigrated,
+  kanbanStatePath,
+  loadWorkspaceTileState,
+  saveWorkspaceTileState,
+  tileSessionSummaryPath,
+  tileStatePath,
+} from '../storage/workspaceArtifacts'
+import { getWorkspacePathById } from './workspace'
+import { deleteFileIfExists } from '../utils/fs'
+import { broadcastToRenderer } from '../utils/broadcast'
 import { isRelayHostActive } from '../relay/registration'
 import { syncWorkspaceRelayParticipants } from '../relay/service'
 import { daemonClient } from '../daemon/client'
-
-function assertSafeId(id: string): void {
-  if (/[\/\\]|\.\./.test(id)) throw new Error(`Unsafe ID: ${id}`)
-}
-
-/**
- * Migrate legacy flat files into .contex/ subfolder.
- * Runs once per storage dir — moves canvas-state, tile-state-*, kanban-* files.
- */
-async function migrateStorageToContexDir(storageId: string): Promise<void> {
-  assertSafeId(storageId)
-  const wsDir = join(CONTEX_HOME, 'workspaces', storageId)
-  const dotDir = join(wsDir, '.contex')
-  try { await fs.mkdir(dotDir, { recursive: true }) } catch {}
-  try {
-    const entries = await fs.readdir(wsDir)
-    const migratable = entries.filter(name =>
-      name === 'canvas-state.json' ||
-      name === 'activity.json' ||
-      name === 'mcp-merged.json' ||
-      name.startsWith('tile-state-') ||
-      name.startsWith('kanban-')
-    )
-    for (const name of migratable) {
-      const src = join(wsDir, name)
-      const dest = join(dotDir, name)
-      try {
-        await fs.access(dest) // already migrated
-      } catch {
-        await fs.rename(src, dest)
-      }
-    }
-  } catch {} // workspace dir may not exist yet
-}
-const migratedStorageIds = new Set<string>()
-
-async function resolveStorageIds(workspaceId: string): Promise<string[]> {
-  const ids = await getWorkspaceStorageIds(workspaceId)
-  return Array.from(new Set(ids))
-}
-
-async function ensureWorkspaceStorageMigrated(workspaceId: string): Promise<string[]> {
-  const storageIds = await resolveStorageIds(workspaceId)
-  for (const storageId of storageIds) {
-    if (migratedStorageIds.has(storageId)) continue
-    migratedStorageIds.add(storageId)
-    await migrateStorageToContexDir(storageId)
-  }
-  return storageIds
-}
-
-function canvasStatePath(storageId: string): string {
-  assertSafeId(storageId)
-  return join(CONTEX_HOME, 'workspaces', storageId, '.contex', 'canvas-state.json')
-}
-
-function kanbanStatePath(storageId: string, tileId: string): string {
-  assertSafeId(storageId)
-  assertSafeId(tileId)
-  return join(CONTEX_HOME, 'workspaces', storageId, '.contex', `kanban-${tileId}.json`)
-}
-
-function tileStatePath(storageId: string, tileId: string): string {
-  assertSafeId(storageId)
-  assertSafeId(tileId)
-  return join(CONTEX_HOME, 'workspaces', storageId, '.contex', `tile-state-${tileId}.json`)
-}
-
-function tileSessionSummaryPath(storageId: string, tileId: string): string {
-  assertSafeId(storageId)
-  assertSafeId(tileId)
-  return join(CONTEX_HOME, 'workspaces', storageId, '.contex', `tile-session-${tileId}.json`)
-}
 
 interface TileSessionSummary {
   version: 1
@@ -222,18 +160,7 @@ async function writeTileSessionSummary(storageId: string, tileId: string, state:
 }
 
 function broadcastSessionsChanged(workspaceId: string): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed() || win.webContents.isDestroyed()) continue
-    win.webContents.send('canvas:sessionsChanged', { workspaceId })
-  }
-}
-
-async function deleteFileIfExists(path: string): Promise<void> {
-  try {
-    await fs.unlink(path)
-  } catch {
-    // ignore missing files
-  }
+  broadcastToRenderer('canvas:sessionsChanged', { workspaceId })
 }
 
 async function pathExists(path: string): Promise<boolean> {
@@ -263,7 +190,7 @@ export function registerCanvasIPC(): void {
     const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
     const storageId = storageIds[0] ?? workspaceId
     const path = canvasStatePath(storageId)
-    await fs.mkdir(join(CONTEX_HOME, 'workspaces', storageId, '.contex'), { recursive: true })
+    await fs.mkdir(dirname(path), { recursive: true })
     await fs.writeFile(path, JSON.stringify(state, null, 2))
 
     if (isRelayHostActive() && state && typeof state === 'object' && Array.isArray((state as { tiles?: unknown }).tiles)) {
@@ -294,29 +221,16 @@ export function registerCanvasIPC(): void {
     const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
     const storageId = storageIds[0] ?? workspaceId
     const path = kanbanStatePath(storageId, tileId)
-    await fs.mkdir(join(CONTEX_HOME, 'workspaces', storageId, '.contex'), { recursive: true })
+    await fs.mkdir(dirname(path), { recursive: true })
     await fs.writeFile(path, JSON.stringify(state, null, 2))
   })
 
   ipcMain.handle('canvas:loadTileState', async (_, workspaceId: string, tileId: string) => {
-    const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
-    for (const storageId of storageIds) {
-      try {
-        const raw = await fs.readFile(tileStatePath(storageId, tileId), 'utf8')
-        return JSON.parse(raw)
-      } catch {
-        // try next alias storage dir
-      }
-    }
-    return null
+    return await loadWorkspaceTileState(workspaceId, tileId, null)
   })
 
   ipcMain.handle('canvas:saveTileState', async (_, workspaceId: string, tileId: string, state: unknown) => {
-    const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
-    const storageId = storageIds[0] ?? workspaceId
-    const path = tileStatePath(storageId, tileId)
-    await fs.mkdir(join(CONTEX_HOME, 'workspaces', storageId, '.contex'), { recursive: true })
-    await fs.writeFile(path, JSON.stringify(state, null, 2))
+    const { storageId } = await saveWorkspaceTileState(workspaceId, tileId, state)
 
     const { changed } = await writeTileSessionSummary(storageId, tileId, state)
     if (changed && (!(state && typeof state === 'object') || (state as { isStreaming?: boolean }).isStreaming !== true)) {
@@ -339,7 +253,7 @@ export function registerCanvasIPC(): void {
   // List all chat sessions for a workspace by combining local CodeSurf tile sessions with
   // project/user .codesurf sessions and external provider session stores.
   ipcMain.handle('canvas:listSessions', async (_, workspaceId: string, forceRefresh = false) => {
-    assertSafeId(workspaceId)
+    assertSafeWorkspaceArtifactId(workspaceId)
     const workspacePath = await getWorkspacePathById(workspaceId)
     const sessions: AggregatedSessionEntry[] = await daemonClient.listLocalSessions(workspaceId).catch(() => [])
     for (const session of sessions) {
@@ -361,7 +275,7 @@ export function registerCanvasIPC(): void {
   })
 
   ipcMain.handle('canvas:deleteSession', async (_, workspaceId: string, sessionEntryId: string) => {
-    assertSafeId(workspaceId)
+    assertSafeWorkspaceArtifactId(workspaceId)
     const workspacePath = await getWorkspacePathById(workspaceId)
 
     if (sessionEntryId.startsWith('codesurf-tile:') || sessionEntryId.startsWith('codesurf-job:')) {
@@ -382,7 +296,7 @@ export function registerCanvasIPC(): void {
   })
 
   ipcMain.handle('canvas:renameSession', async (_, workspaceId: string, sessionEntryId: string, title: string) => {
-    assertSafeId(workspaceId)
+    assertSafeWorkspaceArtifactId(workspaceId)
     const workspacePath = await getWorkspacePathById(workspaceId)
 
     const result = (sessionEntryId.startsWith('codesurf-tile:') || sessionEntryId.startsWith('codesurf-job:'))

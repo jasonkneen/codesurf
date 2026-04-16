@@ -3,10 +3,9 @@ import { homedir } from 'os'
 import { basename, extname, join } from 'path'
 import { createInterface } from 'readline'
 import Database from 'better-sqlite3'
+import type { AggregatedSessionEntry, SessionScope, SessionSource } from '../shared/session-types'
 import { CONTEX_HOME } from './paths'
 
-export type SessionSource = 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
-export type SessionScope = 'workspace' | 'project' | 'user'
 export type ChatRole = 'user' | 'assistant' | 'system'
 
 export interface ImportedChatMessage {
@@ -61,30 +60,6 @@ export interface ImportedToolBlock {
 export type ImportedContentBlock =
   | { type: 'text'; text: string }
   | { type: 'tool'; toolId: string }
-
-export interface AggregatedSessionEntry {
-  id: string
-  source: SessionSource
-  scope: SessionScope
-  tileId: string | null
-  sessionId: string | null
-  provider: string
-  model: string
-  messageCount: number
-  lastMessage: string | null
-  updatedAt: number
-  filePath?: string
-  title: string
-  projectPath?: string | null
-  sourceLabel: string
-  sourceDetail?: string
-  canOpenInChat?: boolean
-  canOpenInApp?: boolean
-  resumeBin?: string
-  resumeArgs?: string[]
-  relatedGroupId?: string | null
-  nestingLevel?: number
-}
 
 const STANDARD_CODESURF_SUBDIRS = ['sessions', 'agents', 'skills', 'tools', 'plugins', 'extensions'] as const
 const EXTERNAL_SESSION_CACHE_MS = 30_000

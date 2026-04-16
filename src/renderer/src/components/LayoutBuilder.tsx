@@ -1,10 +1,9 @@
-import React, { useState, useRef, useCallback } from 'react'
+import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useTheme } from '../ThemeContext'
 import { useAppFonts } from '../FontContext'
 import { useLayoutTemplates } from '../hooks/useLayoutTemplates'
 import type { LayoutTemplate, LayoutTemplateNode, LayoutTemplateSlot, TileType } from '../../../shared/types'
 
-const APP_ICON_URL = new URL('../../../../resources/icon.png', import.meta.url).href
 
 // ─── Tile definitions ────────────────────────────────────────────────────────
 
@@ -300,67 +299,13 @@ function MiniPreview({ node }: { node: LayoutTemplateNode }): JSX.Element {
 
 // ─── Main LayoutBuilder ─────────────────────────────────────────────────────
 
-// ─── Saved layout card with hover actions ────────────────────────────────────
-
-function SavedLayoutCard({ template, onLaunch, onEdit, onDelete }: {
-  template: LayoutTemplate; onLaunch: () => void; onEdit: () => void; onDelete: () => void
-}): JSX.Element {
-  const theme = useTheme()
-  const fonts = useAppFonts()
-  const [hovered, setHovered] = useState(false)
-  return (
-    <div
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-      style={{
-        borderRadius: 10, minWidth: 140, flexShrink: 0,
-        background: theme.surface.panel, border: `1px solid ${hovered ? theme.border.accent : theme.border.default}`,
-        display: 'flex', flexDirection: 'column', overflow: 'hidden',
-        transition: 'border-color 0.12s ease',
-      }}
-    >
-      <span style={{ fontSize: Math.max(11, fonts.size - 1), fontWeight: 600, color: theme.text.primary, padding: '6px 10px 2px' }}>{template.name}</span>
-      <div
-        onClick={onLaunch}
-        style={{ height: 48, display: 'flex', margin: '2px 6px 6px', borderRadius: 6, overflow: 'hidden', border: `1px solid ${theme.border.subtle}`, cursor: 'pointer', position: 'relative' }}
-      >
-        <MiniPreview node={template.tree} />
-        {hovered && (
-          <>
-            {/* Edit */}
-            <button onClick={e => { e.stopPropagation(); onEdit() }} title="Edit" style={{
-              position: 'absolute', top: 3, left: 3,
-              width: 18, height: 18, borderRadius: 4, border: 'none',
-              background: 'rgba(0,0,0,0.4)', color: '#fff',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}>
-              <svg width="9" height="9" viewBox="0 0 13 13" fill="none"><path d="M9 1.5L11.5 4L4.5 11H2V8.5L9 1.5Z" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" /></svg>
-            </button>
-            {/* Delete */}
-            <button onClick={e => { e.stopPropagation(); onDelete() }} title="Delete" style={{
-              position: 'absolute', top: 3, right: 3,
-              width: 18, height: 18, borderRadius: 4, border: 'none',
-              background: 'rgba(0,0,0,0.4)', color: '#fff',
-              cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            }}
-              onMouseEnter={e => { e.currentTarget.style.background = theme.status.danger }}
-              onMouseLeave={e => { e.currentTarget.style.background = 'rgba(0,0,0,0.4)' }}
-            >
-              <svg width="9" height="9" viewBox="0 0 14 14" fill="none"><path d="M3 3l8 8M11 3l-8 8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /></svg>
-            </button>
-          </>
-        )}
-      </div>
-    </div>
-  )
-}
 
 // ─── Main LayoutBuilder ─────────────────────────────────────────────────────
 
 export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
-  const { templates, addTemplate, deleteTemplate } = useLayoutTemplates()
+  const { templates, addTemplate, updateTemplate, deleteTemplate } = useLayoutTemplates()
 
   const [cards, setCards] = useState<Array<{ tree: LayoutTemplateNode | null; name: string }>>(
     Array.from({ length: 8 }, () => ({ tree: null, name: '' }))
@@ -375,16 +320,48 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
   const [hoverZone, setHoverZone] = useState<DockZone | null>(null)
   const [hoveredLayoutCard, setHoveredLayoutCard] = useState<number | null>(null)
 
-  // Load saved templates into cards
+  // Load saved templates into cards on first load
   const loadedRef = useRef(false)
   if (!loadedRef.current && templates.length > 0) {
     loadedRef.current = true
-    setTimeout(() => setCards(prev => {
-      const next = [...prev]
-      templates.forEach((t, i) => { if (i < 8) next[i] = { tree: t.tree, name: t.name } })
+    const padded = Math.max(8, Math.ceil(templates.length / 8) * 8)
+    setTimeout(() => setCards(() => {
+      const next = Array.from({ length: padded }, (_, i) => {
+        const t = templates[i]
+        return t ? { tree: t.tree, name: t.name } : { tree: null, name: '' }
+      })
       return next
     }), 0)
   }
+
+  // Auto-save cards to templates (debounced)
+  const autoSaveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const cardsRef = useRef(cards)
+  cardsRef.current = cards
+  useEffect(() => {
+    if (!loadedRef.current) return
+    if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current)
+    autoSaveTimer.current = setTimeout(async () => {
+      const currentCards = cardsRef.current
+      const existingIds = templates.map(t => t.id)
+      for (let i = 0; i < currentCards.length; i++) {
+        const card = currentCards[i]
+        const existingTemplate = templates[i]
+        if (card.tree) {
+          if (existingTemplate) {
+            if (JSON.stringify(existingTemplate.tree) !== JSON.stringify(card.tree) || existingTemplate.name !== card.name) {
+              await updateTemplate(existingTemplate.id, { tree: card.tree, name: card.name.trim() || `Layout ${i + 1}` })
+            }
+          } else {
+            await addTemplate({ id: `layout-${Date.now()}-${i}`, name: card.name.trim() || `Layout ${i + 1}`, created_at: new Date().toISOString(), tree: card.tree })
+          }
+        } else if (existingTemplate) {
+          await deleteTemplate(existingTemplate.id)
+        }
+      }
+    }, 800)
+    return () => { if (autoSaveTimer.current) clearTimeout(autoSaveTimer.current) }
+  }, [cards])
 
   // ── Global drag handlers ──
 
@@ -504,11 +481,20 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
     document.addEventListener('mouseup', onUp)
   }, [])
 
-  // Which cards are in edit mode (editable = accepts drops, shows remove buttons)
-  const [editingCards, setEditingCards] = useState<Set<number>>(new Set())
-  const toggleEditing = useCallback((idx: number) => {
-    setEditingCards(prev => { const n = new Set(prev); if (n.has(idx)) n.delete(idx); else n.add(idx); return n })
-  }, [])
+  const CARDS_PER_PAGE = 8
+  const totalPages = Math.max(1, Math.ceil(cards.length / CARDS_PER_PAGE))
+  const [currentPage, setCurrentPage] = useState(0)
+  const pageStart = currentPage * CARDS_PER_PAGE
+  const pageCards = cards.slice(pageStart, pageStart + CARDS_PER_PAGE)
+
+  // Add a new page if all cards on the last page have content
+  const addPageIfNeeded = useCallback(() => {
+    const lastPageStart = (totalPages - 1) * CARDS_PER_PAGE
+    const lastPageCards = cards.slice(lastPageStart, lastPageStart + CARDS_PER_PAGE)
+    if (lastPageCards.every(c => c.tree !== null)) {
+      setCards(prev => [...prev, ...Array.from({ length: CARDS_PER_PAGE }, () => ({ tree: null, name: '' }))])
+    }
+  }, [cards, totalPages])
 
   const clearCard = useCallback((idx: number) => {
     setCards(prev => { const n = [...prev]; n[idx] = { tree: null, name: '' }; return n })
@@ -520,13 +506,9 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
     onLaunchTemplate({ id: `layout-${Date.now()}`, name: card.name.trim() || `Layout ${idx + 1}`, created_at: new Date().toISOString(), tree: card.tree })
   }, [cards, onLaunchTemplate])
 
-  const saveCard = useCallback(async (idx: number) => {
-    const card = cards[idx]
-    if (!card.tree) return
-    await addTemplate({ id: `layout-${Date.now()}`, name: card.name.trim() || `Layout ${idx + 1}`, created_at: new Date().toISOString(), tree: card.tree })
-  }, [cards, addTemplate])
 
-  // Grid: 0-2 top, 3=left, CENTER, 4=right, 5-7 bottom
+
+  // Grid: 0-2 top, 3=left, CENTER, 4=right, 5-7 bottom (relative to page)
   const GRID_MAP = [0, 1, 2, 3, -1, 4, 5, 6, 7]
 
   return (
@@ -547,24 +529,6 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
     }}>
       <div style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, userSelect: 'none' }}>
-          <img
-            src={APP_ICON_URL}
-            alt="CodeSurf"
-            style={{
-              width: 76,
-              height: 76,
-              borderRadius: 18,
-              border: `1px solid ${theme.text.disabled}`,
-              boxShadow: theme.shadow.panel,
-              background: `${theme.surface.panelElevated}cc`,
-            }}
-            draggable={false}
-          />
-          <span style={{ fontSize: Math.max(18, fonts.size + 5), fontWeight: 700, color: theme.text.secondary, letterSpacing: 1.8, textTransform: 'uppercase' }}>
-            CodeSurf
-          </span>
-        </div>
 
         <div style={{
           display: 'grid',
@@ -572,8 +536,8 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
           gridTemplateRows: 'repeat(3, auto)',
           gap: 10, width: '100%',
         }}>
-          {GRID_MAP.map((cardIdx, gridPos) => {
-            if (cardIdx === -1) {
+          {GRID_MAP.map((relIdx, gridPos) => {
+            if (relIdx === -1) {
               // Center: tile picker
               return (
                 <div key="center" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: 8, padding: 8 }}>
@@ -604,15 +568,11 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
               )
             }
 
-            const card = cards[cardIdx]
+            const cardIdx = pageStart + relIdx
+            const card = cards[cardIdx] ?? { tree: null, name: '' }
             const isEmpty = card.tree === null
             const isCardHovered = hoverCard === cardIdx && dragType !== null
-            const isEditing = editingCards.has(cardIdx) || isEmpty
-
-            // Auto-enable editing when something is dropped
-            if (isCardHovered && !editingCards.has(cardIdx) && !isEmpty) {
-              // Will be set on drop via the drag handler
-            }
+            const isEditing = true
 
             return (
               <div
@@ -624,51 +584,38 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
                 {/* Header: name + edit + delete */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '1px 2px 2px' }}>
                   {isEmpty ? (
-                    <>
-                      <span style={{ flex: 1, fontSize: Math.max(12, fonts.size - 1), fontWeight: 700, color: theme.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', visibility: 'hidden' }}>
-                        Untitled
-                      </span>
-                      <div style={{ width: 18, height: 18, flexShrink: 0, visibility: 'hidden' }} />
-                      <div style={{ width: 18, height: 18, flexShrink: 0, visibility: 'hidden' }} />
-                      <div style={{ width: 18, height: 18, flexShrink: 0, visibility: 'hidden' }} />
-                    </>
-                  ) : isEditing ? (
-                    <input value={card.name} onChange={e => setCards(prev => { const n = [...prev]; n[cardIdx] = { ...n[cardIdx], name: e.target.value }; return n })}
-                      placeholder="Name..."
-                      onBlur={() => toggleEditing(cardIdx)}
-                      style={{ flex: 1, padding: '3px 7px', fontSize: Math.max(11, fonts.size - 1), borderRadius: 4, background: theme.surface.input, color: theme.text.secondary, border: `1px solid ${theme.border.default}`, outline: 'none', fontFamily: 'inherit', minWidth: 0 }}
-                    />
-                  ) : (
-                    <span style={{ flex: 1, fontSize: Math.max(12, fonts.size - 1), fontWeight: 700, color: theme.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                      {card.name || 'Untitled'}
+                    <span style={{ flex: 1, fontSize: Math.max(12, fonts.size - 1), fontWeight: 700, color: theme.text.primary, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', visibility: 'hidden' }}>
+                      Untitled
                     </span>
+                  ) : (
+                    <input value={card.name} onChange={e => setCards(prev => { const n = [...prev]; n[cardIdx] = { ...n[cardIdx], name: e.target.value }; return n })}
+                      placeholder="Click to name..."
+                      style={{ flex: 1, padding: '3px 7px', fontSize: Math.max(11, fonts.size - 1), borderRadius: 4, background: 'transparent', color: theme.text.primary, border: '1px solid transparent', outline: 'none', fontFamily: 'inherit', minWidth: 0, fontWeight: 700, cursor: 'text' }}
+                      onFocus={e => { e.currentTarget.style.background = theme.surface.input; e.currentTarget.style.borderColor = theme.border.default }}
+                      onBlur={e => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.borderColor = 'transparent' }}
+                    />
                   )}
                   {!isEmpty && (
                     <>
-                      <button onClick={() => toggleEditing(cardIdx)} title={isEditing ? 'Done editing' : 'Edit layout'} style={{
-                        width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent',
-                        color: isEditing ? theme.accent.base : theme.text.disabled, cursor: 'pointer',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        opacity: hoveredLayoutCard === cardIdx || isEditing ? 1 : 0,
-                        pointerEvents: hoveredLayoutCard === cardIdx || isEditing ? 'auto' : 'none',
+                      <button onClick={() => { if (onLaunchTemplate) onLaunchTemplate({ id: `launch-${Date.now()}`, name: card.name.trim() || `Layout ${cardIdx + 1}`, created_at: new Date().toISOString(), tree: card.tree! }) }} title="Load" style={{
+                        padding: '2px 8px', borderRadius: 4, border: `1px solid ${theme.border.default}`,
+                        background: theme.surface.panelElevated, color: theme.text.secondary,
+                        cursor: 'pointer', fontSize: Math.max(9, fonts.secondarySize - 2), fontWeight: 600,
+                        opacity: hoveredLayoutCard === cardIdx ? 1 : 0,
+                        pointerEvents: hoveredLayoutCard === cardIdx ? 'auto' : 'none',
                         transition: 'opacity 0.12s ease',
-                      }}>
-                        <svg width="11" height="11" viewBox="0 0 13 13" fill="none"><path d="M9 1.5L11.5 4L4.5 11H2V8.5L9 1.5Z" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round" /></svg>
-                      </button>
-                      <button onClick={() => saveCard(cardIdx)} title="Save" style={{
-                        width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent',
-                        color: theme.text.disabled, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        opacity: hoveredLayoutCard === cardIdx || isEditing ? 1 : 0,
-                        pointerEvents: hoveredLayoutCard === cardIdx || isEditing ? 'auto' : 'none',
-                        transition: 'opacity 0.12s ease',
-                      }}>
-                        <svg width="11" height="11" viewBox="0 0 14 14" fill="none"><path d="M11 1H3a2 2 0 00-2 2v8a2 2 0 002 2h8a2 2 0 002-2V4l-2-3z" stroke="currentColor" strokeWidth="1.3" /><path d="M4 1v3h5V1M4 13V8h6v5" stroke="currentColor" strokeWidth="1.1" /></svg>
+                        letterSpacing: 0.3, textTransform: 'uppercase',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = theme.accent.base; e.currentTarget.style.color = theme.text.inverse; e.currentTarget.style.borderColor = theme.accent.base }}
+                        onMouseLeave={e => { e.currentTarget.style.background = theme.surface.panelElevated; e.currentTarget.style.color = theme.text.secondary; e.currentTarget.style.borderColor = theme.border.default }}
+                      >
+                        Load
                       </button>
                       <button onClick={() => clearCard(cardIdx)} title="Delete" style={{
                         width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent',
                         color: theme.text.disabled, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        opacity: hoveredLayoutCard === cardIdx || isEditing ? 1 : 0,
-                        pointerEvents: hoveredLayoutCard === cardIdx || isEditing ? 'auto' : 'none',
+                        opacity: hoveredLayoutCard === cardIdx ? 1 : 0,
+                        pointerEvents: hoveredLayoutCard === cardIdx ? 'auto' : 'none',
                         transition: 'opacity 0.12s ease',
                       }}
                         onMouseEnter={e => { e.currentTarget.style.color = theme.status.danger }}
@@ -686,8 +633,10 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
                   onClick={() => { if (!isEmpty && !isEditing) buildAndLaunch(cardIdx) }}
                   style={{
                     borderRadius: 10, aspectRatio: '16 / 9',
-                    border: `2px ${isEmpty ? 'dashed' : 'solid'} ${isCardHovered ? theme.accent.base : isEmpty ? theme.text.disabled : theme.border.accent}`,
-                    background: isEmpty ? 'transparent' : theme.surface.panel,
+                    border: `1.5px ${isEmpty ? 'dashed' : 'solid'} ${isCardHovered ? theme.accent.base : isEmpty ? `${theme.text.disabled}44` : theme.border.accent}`,
+                    background: isEmpty ? `${theme.surface.panel}40` : theme.surface.panel,
+                    backdropFilter: isEmpty ? 'blur(8px)' : 'none',
+                    WebkitBackdropFilter: isEmpty ? 'blur(8px)' : 'none',
                     position: 'relative', overflow: 'hidden',
                     transition: 'border-color 0.12s ease',
                     display: 'flex',
@@ -695,7 +644,7 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
                   }}
                 >
                   {isEmpty ? (
-                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: theme.text.disabled, fontSize: Math.max(12, fonts.size - 1), fontWeight: 600, userSelect: 'none' }}>
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: `${theme.text.disabled}66`, fontSize: Math.max(11, fonts.secondarySize), fontWeight: 500, userSelect: 'none', letterSpacing: 0.3 }}>
                       {isCardHovered ? <span style={{ color: theme.accent.base }}>Drop here</span> : 'Drag blocks here'}
                     </div>
                   ) : (
@@ -738,27 +687,48 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
           })}
         </div>
 
-        {/* Saved templates gallery */}
-        {templates.length > 0 && (
-          <div style={{ width: '100%', marginTop: 8 }}>
-            <span style={{ fontSize: Math.max(10, fonts.secondarySize - 1), fontWeight: 700, color: theme.text.disabled, letterSpacing: 1.5, textTransform: 'uppercase' }}>Saved Layouts</span>
-            <div style={{ display: 'flex', gap: 8, marginTop: 8, overflowX: 'auto', paddingBottom: 4 }}>
-              {templates.map(t => (
-                <SavedLayoutCard
-                  key={t.id}
-                  template={t}
-                  onLaunch={() => { if (onLaunchTemplate) onLaunchTemplate(t) }}
-                  onEdit={() => {
-                    const emptyIdx = cards.findIndex(c => c.tree === null)
-                    if (emptyIdx >= 0) {
-                      setCards(prev => { const n = [...prev]; n[emptyIdx] = { tree: t.tree, name: t.name }; return n })
-                      setEditingCards(prev => new Set(prev).add(emptyIdx))
-                    }
-                  }}
-                  onDelete={() => deleteTemplate(t.id)}
-                />
-              ))}
-            </div>
+        {/* Pagination pips */}
+        {totalPages > 1 && (
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
+            <button
+              type="button"
+              onClick={() => setCurrentPage(p => Math.max(0, p - 1))}
+              disabled={currentPage === 0}
+              style={{
+                width: 24, height: 24, borderRadius: 6,
+                border: `1px solid ${theme.border.default}`,
+                background: theme.surface.panelElevated,
+                color: currentPage === 0 ? theme.text.disabled : theme.text.secondary,
+                cursor: currentPage === 0 ? 'default' : 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: fonts.secondarySize,
+              }}
+            >{'<'}</button>
+            {Array.from({ length: totalPages }, (_, i) => (
+              <button
+                key={i}
+                type="button"
+                onClick={() => setCurrentPage(i)}
+                style={{
+                  width: 8, height: 8, borderRadius: 2, border: 'none', padding: 0,
+                  background: i === currentPage ? theme.accent.base : `${theme.text.disabled}44`,
+                  cursor: 'pointer', transition: 'background 0.12s ease',
+                }}
+              />
+            ))}
+            <button
+              type="button"
+              onClick={() => { addPageIfNeeded(); setCurrentPage(p => Math.min(totalPages, p + 1)) }}
+              style={{
+                width: 24, height: 24, borderRadius: 6,
+                border: `1px solid ${theme.border.default}`,
+                background: theme.surface.panelElevated,
+                color: theme.text.secondary,
+                cursor: 'pointer',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                fontSize: fonts.secondarySize,
+              }}
+            >{'>'}</button>
           </div>
         )}
       </div>

@@ -1,5 +1,6 @@
 import React, { useState, useRef, useCallback, useEffect, useMemo, Suspense } from 'react'
 import { Ungroup, Grid2x2X, Scissors, ClipboardPaste, Maximize2, LayoutGrid, Plus } from 'lucide-react'
+import type { AggregatedSessionEntry } from '../../shared/session-types'
 import type { TileState, GroupState, CanvasState, Workspace, AppSettings, TileType, LockedConnection } from '../../shared/types'
 import { TileColorProvider } from './TileColorContext'
 import { withDefaultSettings, DEFAULT_SETTINGS } from '../../shared/types'
@@ -19,33 +20,9 @@ import { MainStatusBar } from './components/MainStatusBar'
 
 const LazyPanelLayout = React.lazy(() => import('./components/PanelLayout').then(m => ({ default: m.PanelLayout })))
 
-type SidebarSessionEntry = {
-  id: string
-  source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
-  scope: 'workspace' | 'project' | 'user'
-  tileId: string | null
-  sessionId: string | null
-  provider: string
-  model: string
-  messageCount: number
-  lastMessage: string | null
-  updatedAt: number
-  filePath?: string
-  title: string
-  projectPath?: string | null
-  sourceLabel: string
-  sourceDetail?: string
-  canOpenInChat?: boolean
-  canOpenInApp?: boolean
-  resumeBin?: string
-  resumeArgs?: string[]
-  relatedGroupId?: string | null
-  nestingLevel?: number
-}
-
 type PendingSessionOpen =
-  | { kind: 'chat'; session: SidebarSessionEntry; workspaceId: string }
-  | { kind: 'app'; session: SidebarSessionEntry; workspaceId: string }
+  | { kind: 'chat'; session: AggregatedSessionEntry; workspaceId: string }
+  | { kind: 'app'; session: AggregatedSessionEntry; workspaceId: string }
 
 const LazyTileChrome = React.lazy(() => import('./components/TileChrome').then(m => ({ default: m.TileChrome })))
 const LazySidebar = React.lazy(() => import('./components/Sidebar').then(m => ({ default: m.Sidebar })))
@@ -2405,11 +2382,11 @@ function App(): JSX.Element {
     return created
   }, [workspace, workspaces])
 
-  const resolveWorkspaceForSession = useCallback(async (session: SidebarSessionEntry): Promise<Workspace | null> => {
+  const resolveWorkspaceForSession = useCallback(async (session: AggregatedSessionEntry): Promise<Workspace | null> => {
     return resolveWorkspaceForProjectPath(session.projectPath)
   }, [resolveWorkspaceForProjectPath])
 
-  const openSessionInChatCurrentWorkspace = useCallback(async (session: SidebarSessionEntry, workspaceId: string) => {
+  const openSessionInChatCurrentWorkspace = useCallback(async (session: AggregatedSessionEntry, workspaceId: string) => {
     const state = await window.electron.canvas.getSessionState(workspaceId, session.id).catch(() => null)
     if (!state) {
       if (session.filePath) handleOpenFile(session.filePath)
@@ -2471,7 +2448,7 @@ function App(): JSX.Element {
     bringToFront(chatTileId)
   }, [addTile, bringToFront, handleOpenFile])
 
-  const openSessionInChat = useCallback(async (session: SidebarSessionEntry) => {
+  const openSessionInChat = useCallback(async (session: AggregatedSessionEntry) => {
     const targetWorkspace = await resolveWorkspaceForSession(session)
     if (!targetWorkspace?.id) return
 
@@ -2484,7 +2461,7 @@ function App(): JSX.Element {
     await openSessionInChatCurrentWorkspace(session, targetWorkspace.id)
   }, [resolveWorkspaceForSession, workspace?.id, handleSwitchWorkspace, openSessionInChatCurrentWorkspace])
 
-  const openSessionInAppCurrentWorkspace = useCallback((session: SidebarSessionEntry) => {
+  const openSessionInAppCurrentWorkspace = useCallback((session: AggregatedSessionEntry) => {
     if (!session.resumeBin) return
     const tileId = addTile('terminal', undefined, undefined, {
       launchBin: session.resumeBin,
@@ -2493,7 +2470,7 @@ function App(): JSX.Element {
     bringToFront(tileId)
   }, [addTile, bringToFront])
 
-  const openSessionInApp = useCallback(async (session: SidebarSessionEntry) => {
+  const openSessionInApp = useCallback(async (session: AggregatedSessionEntry) => {
     const targetWorkspace = await resolveWorkspaceForSession(session)
     if (!targetWorkspace?.id) return
 
@@ -2518,7 +2495,7 @@ function App(): JSX.Element {
     const projectPath = normalizeWorkspacePath(task.workspaceDir)
     if (!projectPath) return
 
-    const session: SidebarSessionEntry = {
+    const session: AggregatedSessionEntry = {
       id: `codesurf-job:${task.id}`,
       source: 'codesurf',
       scope: 'workspace',
@@ -3664,7 +3641,7 @@ function App(): JSX.Element {
   const mainPanelBottomInset = sidebarPanelBottomOffset
   const mainStatusBarLeft = sidebarCollapsed ? 0 : sidebarWidth
   const openSidebarToolbarPadding = sidebarWidth + 16
-  const openSidebarPillLeft = sidebarWidth - 4
+  const openSidebarPillLeft = sidebarWidth - 5
   const sidebarScrollTrackTop = 48
   const sidebarScrollTrackBottom = sidebarFooterHeight + 10
   const collapsedSidebarPillHeight = 32
@@ -3703,6 +3680,44 @@ function App(): JSX.Element {
     discoveryTimeoutsRef.current.forEach(timeout => window.clearTimeout(timeout))
     discoveryTimeoutsRef.current = []
   }, [])
+
+  useEffect(() => {
+    const root = document.documentElement
+    root.style.setProperty('--color-background', theme.chat.background)
+    root.style.setProperty('--color-foreground', theme.text.primary)
+    root.style.setProperty('--color-muted', theme.surface.panelMuted)
+    root.style.setProperty('--color-muted-foreground', theme.text.muted)
+    root.style.setProperty('--color-border', theme.border.default)
+    root.style.setProperty('--color-input', theme.chat.inputBorder)
+    root.style.setProperty('--color-ring', theme.accent.base)
+    root.style.setProperty('--color-primary', theme.accent.base)
+    root.style.setProperty('--color-primary-foreground', theme.text.inverse)
+    root.style.setProperty('--color-secondary', theme.surface.panelElevated)
+    root.style.setProperty('--color-secondary-foreground', theme.text.secondary)
+    root.style.setProperty('--color-accent', theme.surface.hover)
+    root.style.setProperty('--color-accent-foreground', theme.text.primary)
+    root.style.setProperty('--color-destructive', theme.status.danger)
+    root.style.setProperty('--color-destructive-foreground', theme.text.inverse)
+    root.style.setProperty('--color-card', theme.surface.panel)
+    root.style.setProperty('--color-card-foreground', theme.text.primary)
+    root.style.setProperty('--color-popover', theme.surface.panel)
+    root.style.setProperty('--color-popover-foreground', theme.text.primary)
+    root.style.setProperty('--color-sidebar', theme.surface.panelMuted)
+  }, [
+    theme.accent.base,
+    theme.border.default,
+    theme.chat.background,
+    theme.chat.inputBorder,
+    theme.status.danger,
+    theme.surface.hover,
+    theme.surface.panel,
+    theme.surface.panelElevated,
+    theme.surface.panelMuted,
+    theme.text.inverse,
+    theme.text.muted,
+    theme.text.primary,
+    theme.text.secondary,
+  ])
 
   return (
     <ThemeProvider value={theme}>
@@ -3808,33 +3823,33 @@ function App(): JSX.Element {
         </div>
       </div>
 
-      {!sidebarCollapsed && (
-        <div
-          style={{
-            position: 'absolute',
-            left: sidebarFooterLeft,
-            bottom: sidebarFooterBottom,
-            width: sidebarWidth,
-            height: sidebarFooterHeight,
-            zIndex: 110,
-            pointerEvents: 'auto',
-            transition: 'width 0.15s ease',
-          }}
-        >
-          <Suspense fallback={null}>
-            <LazySidebarFooter
-              onNewTerminal={() => addTile('terminal')}
-              onNewKanban={() => addTile('kanban')}
-              onNewBrowser={() => addTile('browser')}
-              onNewChat={() => addTile('chat')}
-              onNewFiles={() => addTile('files')}
-              onOpenSettings={(tab) => setShowSettings(tab)}
-              extensionTiles={settings.extensionsDisabled ? [] : extensionTiles.filter(e => e.type !== 'ext:md-preview' && !(settings.hiddenFromSidebarExtIds ?? []).includes(e.extId))}
-              onAddExtensionTile={(type) => addTile(type as TileType)}
-            />
-          </Suspense>
-        </div>
-      )}
+      <div
+        style={{
+          position: 'absolute',
+          left: sidebarCollapsed ? 0 : sidebarFooterLeft,
+          bottom: sidebarFooterBottom,
+          width: sidebarCollapsed ? 48 : sidebarWidth,
+          height: sidebarFooterHeight,
+          zIndex: 110,
+          pointerEvents: 'auto',
+          transition: 'width 0.15s ease, left 0.15s ease',
+          overflow: 'hidden',
+        }}
+      >
+        <Suspense fallback={null}>
+          <LazySidebarFooter
+            onNewTerminal={() => addTile('terminal')}
+            onNewKanban={() => addTile('kanban')}
+            onNewBrowser={() => addTile('browser')}
+            onNewChat={() => addTile('chat')}
+            onNewFiles={() => addTile('files')}
+            onOpenSettings={(tab) => setShowSettings(tab)}
+            extensionTiles={settings.extensionsDisabled ? [] : extensionTiles.filter(e => e.type !== 'ext:md-preview' && !(settings.hiddenFromSidebarExtIds ?? []).includes(e.extId))}
+            onAddExtensionTile={(type) => addTile(type as TileType)}
+            collapsed={sidebarCollapsed}
+          />
+        </Suspense>
+      </div>
 
       <div
         style={{
@@ -3893,7 +3908,9 @@ function App(): JSX.Element {
                     height: '100%',
                     padding: '0 2px 0 0',
                     gap: 2,
-                    borderBottom: isActive ? `3px solid ${theme.accent.base}` : '3px solid transparent',
+                    borderBottom: isActive ? `1px solid ${theme.accent.base}` : '1px solid transparent',
+                    marginBottom: 5,
+                    paddingTop: 4,
                     color: isActive ? theme.text.primary : theme.text.muted,
                     transition: 'color 0.12s ease, border-color 0.12s ease',
                   }}
@@ -3979,7 +3996,9 @@ function App(): JSX.Element {
                   minWidth: 0,
                   height: '100%',
                   padding: '0 2px',
-                  borderBottom: `3px solid ${theme.accent.base}`,
+                  borderBottom: `1px solid ${theme.accent.base}`,
+                  marginBottom: 5,
+                  paddingTop: 4,
                   color: theme.text.primary,
                   fontSize: appFonts.size,
                   fontWeight: 600,
@@ -4008,7 +4027,9 @@ function App(): JSX.Element {
                   height: '100%',
                   padding: '0 2px 0 0',
                   gap: 2,
-                  borderBottom: `3px solid ${theme.accent.base}`,
+                  borderBottom: `1px solid ${theme.accent.base}`,
+                  marginBottom: 5,
+                  paddingTop: 4,
                   color: theme.text.primary,
                 }}
               >
@@ -4158,7 +4179,7 @@ function App(): JSX.Element {
               left: openSidebarPillLeft,
               top: sidebarScrollTrackTop,
               bottom: sidebarScrollTrackBottom,
-              width: 8,
+              width: 6,
               zIndex: 200,
               pointerEvents: 'none',
               transition: 'left 0.15s ease, opacity 0.12s ease',

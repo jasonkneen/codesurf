@@ -2,7 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useTheme } from '../ThemeContext'
 import { useAppFonts } from '../FontContext'
 import type { PromptTemplate, PromptField, SkillDefinition, AgentMode } from '../../../shared/types'
-import { renderMarkdown } from './NoteTile'
+import { ChatMarkdown } from './shared/streamdown-utils'
 
 type Tab = 'prompts' | 'skills' | 'tools' | 'agents'
 
@@ -122,12 +122,12 @@ function LocationsPanel({ title, value, onChange, onClose }: {
       {/* Variable hint */}
       <div style={{ padding: '8px 16px', background: theme.surface.panel, borderBottom: `1px solid ${theme.border.subtle}`, flexShrink: 0, display: 'flex', gap: 12, flexWrap: 'wrap' }}>
         {(['$HOME', '$WORKSPACE'] as const).map(v => (
-          <span key={v} style={{ fontSize: 10, fontFamily: fonts.mono, color: theme.text.muted,
+          <span key={v} style={{ fontSize: fonts.secondarySize, fontFamily: fonts.mono, color: theme.text.muted,
             background: theme.surface.hover, padding: '2px 6px', borderRadius: 4, border: `1px solid ${theme.border.subtle}` }}>
             {v}
           </span>
         ))}
-        <span style={{ fontSize: 10, color: theme.text.disabled }}>— variables resolved at scan time</span>
+        <span style={{ fontSize: fonts.secondarySize, color: theme.text.disabled }}>— variables resolved at scan time</span>
       </div>
       {/* Textarea */}
       <textarea
@@ -173,8 +173,8 @@ function ItemCard({ title, description, chips, onEdit, onDelete, color }: {
         padding: '14px 16px', borderRadius: 10,
         background: theme.surface.panel,
         border: `1px solid ${hovered ? (color ?? theme.border.accent) : theme.border.default}`,
-        cursor: 'pointer', transition: 'border-color 0.12s ease, box-shadow 0.12s ease',
-        boxShadow: hovered ? theme.shadow.panel : 'none',
+        cursor: 'pointer', transition: 'border-color 0.12s ease, box-shadow 0.12s ease, transform 0.12s ease',
+        boxShadow: hovered ? theme.shadow.panel : '0 0 0 0 transparent',
         position: 'relative',
       }}
     >
@@ -196,7 +196,7 @@ function ItemCard({ title, description, chips, onEdit, onDelete, color }: {
       {description && <div style={{ fontSize: fonts.secondarySize, color: theme.text.muted, lineHeight: 1.5, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{description}</div>}
       {chips && chips.length > 0 && (
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 8 }}>
-          {chips.map(c => <span key={c} style={{ fontSize: 9, padding: '2px 7px', borderRadius: 4, background: theme.surface.panelMuted, color: theme.text.disabled, fontWeight: 500 }}>{c}</span>)}
+          {chips.map(c => <span key={c} style={{ fontSize: fonts.secondarySize - 1, padding: '2px 7px', borderRadius: 4, background: theme.surface.panelMuted, color: theme.text.disabled, fontWeight: 500 }}>{c}</span>)}
         </div>
       )}
     </div>
@@ -210,7 +210,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   const fonts = useAppFonts()
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-      <label style={{ fontSize: 10, fontWeight: 600, color: theme.text.disabled, letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</label>
+      <label style={{ fontSize: fonts.secondarySize, fontWeight: 600, color: theme.text.disabled, letterSpacing: 0.8, textTransform: 'uppercase' }}>{label}</label>
       {children}
     </div>
   )
@@ -412,7 +412,7 @@ function PromptEditor({ item, onSave, onCancel }: { item: PromptTemplate; onSave
       <Field label="Tags">
         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', alignItems: 'center' }}>
           {draft.tags.map(t => (
-            <span key={t} onClick={() => up({ tags: draft.tags.filter(x => x !== t) })} style={{ fontSize: 10, padding: '2px 8px', borderRadius: 4, background: theme.accent.soft, color: theme.accent.base, cursor: 'pointer' }}>{t} x</span>
+            <span key={t} onClick={() => up({ tags: draft.tags.filter(x => x !== t) })} style={{ fontSize: fonts.secondarySize, padding: '2px 8px', borderRadius: 4, background: theme.accent.soft, color: theme.accent.base, cursor: 'pointer' }}>{t} x</span>
           ))}
           <input value={tagInput} onChange={e => setTagInput(e.target.value)} placeholder="Add tag..."
             onKeyDown={e => { if (e.key === 'Enter' && tagInput.trim()) { up({ tags: [...draft.tags, tagInput.trim()] }); setTagInput('') } }}
@@ -525,7 +525,7 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
             onMouseLeave={e => { if (selected?.id !== s.id) e.currentTarget.style.background = 'transparent' }}
           >
             <div style={{ fontSize: fonts.secondarySize, fontWeight: 500, color: theme.text.primary }}>{s.name || 'Untitled'}</div>
-            {s.command && <div style={{ fontSize: 10, color: theme.text.disabled, fontFamily: fonts.mono, marginTop: 2 }}>/{s.command}</div>}
+            {s.command && <div style={{ fontSize: fonts.secondarySize, color: theme.text.disabled, fontFamily: fonts.mono, marginTop: 2 }}>/{s.command}</div>}
           </div>
         ))}
         {items.length === 0 && <div style={{ padding: 10, fontSize: fonts.secondarySize, color: theme.text.disabled }}>No skills yet</div>}
@@ -536,13 +536,13 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
           <>
             <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
               <span style={{ fontSize: fonts.size, fontWeight: 600, color: theme.text.primary, flex: 1 }}>{selected.name}</span>
-              <button onClick={() => setEditing(selected)} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 5, border: `1px solid ${theme.border.default}`, background: 'transparent', color: theme.text.muted, cursor: 'pointer' }}>Edit</button>
-              <button onClick={() => { save(items.filter(i => i.id !== selected.id)); setSelected(null) }} style={{ fontSize: 10, padding: '4px 10px', borderRadius: 5, border: `1px solid ${theme.border.default}`, background: 'transparent', color: theme.status.danger, cursor: 'pointer' }}>Delete</button>
+              <button onClick={() => setEditing(selected)} style={{ fontSize: fonts.secondarySize, padding: '4px 10px', borderRadius: 5, border: `1px solid ${theme.border.default}`, background: 'transparent', color: theme.text.muted, cursor: 'pointer' }}>Edit</button>
+              <button onClick={() => { save(items.filter(i => i.id !== selected.id)); setSelected(null) }} style={{ fontSize: fonts.secondarySize, padding: '4px 10px', borderRadius: 5, border: `1px solid ${theme.border.default}`, background: 'transparent', color: theme.status.danger, cursor: 'pointer' }}>Delete</button>
             </div>
             {selected.description && <div style={{ fontSize: fonts.secondarySize, color: theme.text.muted, lineHeight: 1.5 }}>{selected.description}</div>}
             <div style={{ display: 'flex', gap: 4 }}>
-              <button onClick={() => setViewMode('preview')} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, border: `1px solid ${viewMode === 'preview' ? theme.border.accent : theme.border.default}`, background: viewMode === 'preview' ? theme.accent.soft : 'transparent', color: viewMode === 'preview' ? theme.accent.base : theme.text.muted, cursor: 'pointer' }}>Preview</button>
-              <button onClick={() => setViewMode('raw')} style={{ fontSize: 10, padding: '3px 10px', borderRadius: 4, border: `1px solid ${viewMode === 'raw' ? theme.border.accent : theme.border.default}`, background: viewMode === 'raw' ? theme.accent.soft : 'transparent', color: viewMode === 'raw' ? theme.accent.base : theme.text.muted, cursor: 'pointer' }}>Raw</button>
+              <button onClick={() => setViewMode('preview')} style={{ fontSize: fonts.secondarySize, padding: '3px 10px', borderRadius: 4, border: `1px solid ${viewMode === 'preview' ? theme.border.accent : theme.border.default}`, background: viewMode === 'preview' ? theme.accent.soft : 'transparent', color: viewMode === 'preview' ? theme.accent.base : theme.text.muted, cursor: 'pointer' }}>Preview</button>
+              <button onClick={() => setViewMode('raw')} style={{ fontSize: fonts.secondarySize, padding: '3px 10px', borderRadius: 4, border: `1px solid ${viewMode === 'raw' ? theme.border.accent : theme.border.default}`, background: viewMode === 'raw' ? theme.accent.soft : 'transparent', color: viewMode === 'raw' ? theme.accent.base : theme.text.muted, cursor: 'pointer' }}>Raw</button>
             </div>
             {viewMode === 'raw' ? (
               <div style={{
@@ -556,15 +556,15 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
               </div>
             ) : (
               <div
-                className="skill-preview-markdown"
                 style={{
                   flex: 1, padding: 12, borderRadius: 8, overflow: 'auto',
                   background: theme.surface.panelMuted, border: `1px solid ${theme.border.subtle}`,
                   fontSize: fonts.secondarySize, lineHeight: 1.6,
                   color: theme.text.secondary,
                 }}
-                dangerouslySetInnerHTML={{ __html: selected.content ? renderMarkdown(selected.content) : 'No content' }}
-              />
+              >
+                <ChatMarkdown text={selected.content || 'No content'} />
+              </div>
             )}
           </>
         ) : (
@@ -572,22 +572,7 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
         )}
       </div>
       </div>
-      <style>{`
-        .skill-preview-markdown h1 { font-size: 1.6em; font-weight: 700; color: ${theme.text.primary}; margin: 0 0 12px; }
-        .skill-preview-markdown h2 { font-size: 1.3em; font-weight: 600; color: ${theme.text.secondary}; margin: 16px 0 8px; }
-        .skill-preview-markdown h3 { font-size: 1.1em; font-weight: 600; color: ${theme.text.secondary}; margin: 12px 0 6px; }
-        .skill-preview-markdown p  { color: ${theme.text.secondary}; line-height: 1.7; margin: 0 0 10px; }
-        .skill-preview-markdown code { background: ${theme.surface.panel}; color: ${theme.accent.base}; padding: 1px 5px; border-radius: 3px; font-size: 12px; font-family: "JetBrains Mono", monospace; }
-        .skill-preview-markdown pre { background: ${theme.surface.panel}; border: 1px solid ${theme.border.default}; border-radius: 4px; padding: 12px; overflow-x: auto; margin: 10px 0; }
-        .skill-preview-markdown pre code { background: none; padding: 0; }
-        .skill-preview-markdown ul, .skill-preview-markdown ol { color: ${theme.text.secondary}; padding-left: 20px; margin: 6px 0; }
-        .skill-preview-markdown li { line-height: 1.7; }
-        .skill-preview-markdown a { color: ${theme.accent.base}; text-decoration: none; }
-        .skill-preview-markdown a:hover { text-decoration: underline; }
-        .skill-preview-markdown blockquote { border-left: 3px solid ${theme.border.strong}; padding-left: 12px; color: ${theme.text.muted}; margin: 8px 0; }
-        .skill-preview-markdown hr { border: none; border-top: 1px solid ${theme.border.default}; margin: 16px 0; }
-        .skill-preview-markdown strong { color: ${theme.text.primary}; }
-      `}</style>
+
     </div>
   )
 }
@@ -733,7 +718,7 @@ export function ToolsSection({ hideHeaderText = false }: { hideHeaderText?: bool
                   <path d="M2 1l4 3-4 3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
                 </svg>
                 <span style={{ fontSize: fonts.secondarySize, fontWeight: 600, color: theme.text.primary, flex: 1 }}>{cat}</span>
-                <span style={{ fontSize: 10, color: theme.text.disabled, background: theme.surface.panelMuted, padding: '1px 7px', borderRadius: 4 }}>{tools.length}</span>
+                <span style={{ fontSize: fonts.secondarySize, color: theme.text.disabled, background: theme.surface.panelMuted, padding: '1px 7px', borderRadius: 4 }}>{tools.length}</span>
                 {/* Category-level permission toggles */}
                 <div style={{ display: 'flex', gap: 2 }} onClick={e => e.stopPropagation()}>
                   {(['allow', 'ask', 'deny'] as PermLevel[]).map(level => {
@@ -767,7 +752,7 @@ export function ToolsSection({ hideHeaderText = false }: { hideHeaderText?: bool
                     >
                       <div style={{ flex: 1, minWidth: 0 }}>
                         <div style={{ fontSize: fonts.secondarySize, fontWeight: 500, color: theme.text.primary }}>{tool.name}</div>
-                        <div style={{ fontSize: 10, color: theme.text.disabled }}>{tool.description}</div>
+                        <div style={{ fontSize: fonts.secondarySize, color: theme.text.disabled }}>{tool.description}</div>
                       </div>
                       <div style={{ display: 'flex', gap: 2 }}>
                         {(['allow', 'ask', 'deny'] as PermLevel[]).map(level => {
@@ -816,7 +801,7 @@ export function ToolsSection({ hideHeaderText = false }: { hideHeaderText?: bool
             <div style={{ padding: '14px 18px', borderBottom: `1px solid ${theme.border.default}`, display: 'flex', alignItems: 'center', gap: 10 }}>
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><rect x="1" y="4" width="14" height="10" rx="1.5" stroke="currentColor" strokeWidth="1.3" /><path d="M4 4V2.5A1.5 1.5 0 015.5 1h5A1.5 1.5 0 0112 2.5V4" stroke="currentColor" strokeWidth="1.3" /><path d="M1 8h14" stroke="currentColor" strokeWidth="1.3" /><rect x="6" y="6.5" width="4" height="3" rx="0.5" fill="currentColor" /></svg>
               <span style={{ fontSize: fonts.size, fontWeight: 700, color: theme.text.primary, flex: 1 }}>MCP Registry</span>
-              {regTotal > 0 && <span style={{ fontSize: 10, color: theme.text.disabled, background: theme.surface.panelMuted, padding: '2px 8px', borderRadius: 4 }}>{regTotal} servers</span>}
+              {regTotal > 0 && <span style={{ fontSize: fonts.secondarySize, color: theme.text.disabled, background: theme.surface.panelMuted, padding: '2px 8px', borderRadius: 4 }}>{regTotal} servers</span>}
               <button onClick={() => setShowRegistry(false)} style={{ width: 24, height: 24, border: 'none', background: 'transparent', color: theme.text.disabled, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 16 }}>x</button>
             </div>
 
@@ -860,10 +845,10 @@ export function ToolsSection({ hideHeaderText = false }: { hideHeaderText?: bool
                         <div style={{ fontSize: fonts.secondarySize, fontWeight: 600, color: theme.text.primary, fontFamily: fonts.mono }}>{srv.title ?? srv.name}</div>
                         <div style={{ fontSize: fonts.secondarySize, color: theme.text.muted, marginTop: 2, lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{srv.description}</div>
                         <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                          {srv.version && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: theme.surface.panelMuted, color: theme.text.disabled }}>{srv.version}</span>}
-                          {srv.remoteType && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: theme.surface.panelMuted, color: theme.text.disabled }}>{srv.remoteType}</span>}
-                          {srv.source && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: srv.source === 'google' ? 'rgba(53,104,255,0.1)' : 'rgba(192,123,18,0.1)', color: srv.source === 'google' ? theme.accent.base : theme.status.warning }}>{srv.source}</span>}
-                          {srv.stars != null && srv.stars > 0 && <span style={{ fontSize: 9, padding: '1px 6px', borderRadius: 3, background: theme.surface.panelMuted, color: theme.text.disabled }}>
+                          {srv.version && <span style={{ fontSize: fonts.secondarySize - 1, padding: '1px 6px', borderRadius: 3, background: theme.surface.panelMuted, color: theme.text.disabled }}>{srv.version}</span>}
+                          {srv.remoteType && <span style={{ fontSize: fonts.secondarySize - 1, padding: '1px 6px', borderRadius: 3, background: theme.surface.panelMuted, color: theme.text.disabled }}>{srv.remoteType}</span>}
+                          {srv.source && <span style={{ fontSize: fonts.secondarySize - 1, padding: '1px 6px', borderRadius: 3, background: srv.source === 'google' ? 'rgba(53,104,255,0.1)' : 'rgba(192,123,18,0.1)', color: srv.source === 'google' ? theme.accent.base : theme.status.warning }}>{srv.source}</span>}
+                          {srv.stars != null && srv.stars > 0 && <span style={{ fontSize: fonts.secondarySize - 1, padding: '1px 6px', borderRadius: 3, background: theme.surface.panelMuted, color: theme.text.disabled }}>
                             <svg width="8" height="8" viewBox="0 0 14 14" fill="currentColor" style={{ verticalAlign: -1, marginRight: 2 }}><path d="M7 1l1.8 3.6L13 5.2l-3 2.9.7 4.1L7 10.3 3.3 12.2l.7-4.1-3-2.9 4.2-.6L7 1z" /></svg>
                             {srv.stars}
                           </span>}
@@ -878,7 +863,7 @@ export function ToolsSection({ hideHeaderText = false }: { hideHeaderText?: bool
                             : srv.name
                         navigator.clipboard.writeText(cmd)
                       }} style={{
-                        fontSize: 10, padding: '4px 10px', borderRadius: 5, border: `1px solid ${theme.border.default}`,
+                        fontSize: fonts.secondarySize, padding: '4px 10px', borderRadius: 5, border: `1px solid ${theme.border.default}`,
                         background: theme.surface.panelElevated, color: theme.text.secondary, cursor: 'pointer', flexShrink: 0, whiteSpace: 'nowrap',
                       }}
                         onMouseEnter={e => { e.currentTarget.style.background = theme.accent.base; e.currentTarget.style.color = theme.text.inverse; e.currentTarget.style.borderColor = theme.accent.base }}

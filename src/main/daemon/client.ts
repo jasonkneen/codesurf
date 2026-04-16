@@ -1,5 +1,5 @@
 import type { AppSettings, ExecutionHostRecord, ProjectRecord, Workspace } from '../../shared/types'
-import type { AggregatedSessionEntry } from '../session-sources'
+import type { AggregatedSessionEntry } from '../../shared/session-types'
 import { ensureDaemonRunning, getDaemonStatus, invalidateDaemonCache } from './manager'
 
 type RequestOptions = {

@@ -19,6 +19,7 @@ import type { ExtensionRegistry } from './extensions/registry'
 import { getAllNodeTools, getNodeToolSchemaByName } from '../shared/nodeTools'
 import * as peerState from './peer-state'
 import { CONTEX_HOME } from './paths'
+import { loadWorkspaceTileState, saveWorkspaceTileState } from './storage/workspaceArtifacts'
 
 const MCP_TOKEN = randomUUID()
 const MAX_BODY = 1024 * 1024 // 1MB
@@ -1376,10 +1377,8 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
 
       if (!workspace) return 'Workspace not found'
 
-      const stateFile = join(CONTEX_HOME, 'workspaces', workspace.id, '.contex', `tile-state-${tileId}.json`)
       try {
-        const stateRaw = await fs.readFile(stateFile, 'utf8')
-        const state = JSON.parse(stateRaw) as { _context?: Record<string, any> }
+        const state = await loadWorkspaceTileState<{ _context?: Record<string, any> }>(workspace.id, tileId, {})
         const ctx = state._context ?? {}
         const entries = Object.values(ctx)
 
@@ -1430,25 +1429,14 @@ async function handleTool(name: string, args: Record<string, unknown>): Promise<
 
       if (!workspace) return 'Workspace not found'
 
-      const stateDir = join(CONTEX_HOME, 'workspaces', workspace.id, '.contex')
-      const stateFile = join(stateDir, `tile-state-${tileId}.json`)
-
-      // Load existing state
-      let state: { _context?: Record<string, any>; [k: string]: unknown } = {}
-      try {
-        const stateRaw = await fs.readFile(stateFile, 'utf8')
-        state = JSON.parse(stateRaw)
-      } catch {
-        // New tile
-      }
+      const state = await loadWorkspaceTileState<{ _context?: Record<string, any>; [k: string]: unknown }>(workspace.id, tileId, {})
 
       // Update context
       if (!state._context) state._context = {}
       state._context[key] = { key, value, updatedAt: Date.now(), source: tileId }
 
       // Save state
-      await fs.mkdir(stateDir, { recursive: true })
-      await fs.writeFile(stateFile, JSON.stringify(state, null, 2))
+      await saveWorkspaceTileState(workspace.id, tileId, state)
 
       // Publish bus event
       bus.publish({

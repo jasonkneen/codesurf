@@ -87,6 +87,7 @@ export default defineConfig({
               'micromark',
               'unified',
               'extend',
+              'react-jsx-parser',
             ],
             exclude: ['@xterm/xterm', '@xterm/addon-fit', '@monaco-editor/react', 'monaco-editor'],
           }

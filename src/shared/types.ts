@@ -287,15 +287,17 @@ export interface FontSettings {
 
 // ── System font stacks ──────────────────────────────────────────────────────
 
-const SANS_STACK = '-apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-const MONO_STACK = '"FiraCode Nerd Font Mono", "JetBrains Mono", "Menlo", "Monaco", "SF Mono", "Fira Code", monospace'
+const SANS_STACK = '"SF Pro Rounded", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+// Nerd Font variant kept at the front so terminal tiles render PUA icon
+// glyphs. Everything after is main's modernized fallback ordering.
+const MONO_STACK = '"FiraCode Nerd Font Mono", ui-monospace, "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code", monospace'
 
 // ── Default font tokens ─────────────────────────────────────────────────────
 
 export const DEFAULT_FONTS: FontSettings = {
-  primary:   { family: SANS_STACK, size: 13, lineHeight: 1.5, weight: 400 },
-  secondary: { family: SANS_STACK, size: 11, lineHeight: 1.4, weight: 400 },
-  mono:      { family: MONO_STACK, size: 13, lineHeight: 1.5, weight: 400 },
+  primary:   { family: SANS_STACK, size: 14, lineHeight: 1.10, weight: 400 },
+  secondary: { family: SANS_STACK, size: 13, lineHeight: 1.00, weight: 400 },
+  mono:      { family: MONO_STACK, size: 13, lineHeight: 1.00, weight: 500 },
 }
 
 /** Migrate old granular FontSettings to the simplified 3-token shape */

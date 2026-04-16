@@ -1,5 +1,6 @@
 import { contextBridge, ipcRenderer, webUtils, webFrame } from 'electron'
 import { homedir } from 'os'
+import type { AggregatedSessionEntry } from '../shared/session-types'
 
 function channelMatches(pattern: string, channel: string): boolean {
   if (pattern === '*') return true
@@ -92,29 +93,7 @@ contextBridge.exposeInMainWorld('electron', {
     saveTileState: (workspaceId: string, tileId: string, state: any) => ipcRenderer.invoke('canvas:saveTileState', workspaceId, tileId, state),
     clearTileState: (workspaceId: string, tileId: string) => ipcRenderer.invoke('canvas:clearTileState', workspaceId, tileId),
     deleteTileArtifacts: (workspaceId: string, tileId: string) => ipcRenderer.invoke('canvas:deleteTileArtifacts', workspaceId, tileId),
-    listSessions: (workspaceId: string, forceRefresh?: boolean) => ipcRenderer.invoke('canvas:listSessions', workspaceId, forceRefresh === true) as Promise<Array<{
-      id: string
-      source: 'codesurf' | 'claude' | 'codex' | 'cursor' | 'openclaw' | 'opencode'
-      scope: 'workspace' | 'project' | 'user'
-      tileId: string | null
-      sessionId: string | null
-      provider: string
-      model: string
-      messageCount: number
-      lastMessage: string | null
-      updatedAt: number
-      filePath?: string
-      title: string
-      projectPath?: string | null
-      sourceLabel: string
-      sourceDetail?: string
-      canOpenInChat?: boolean
-      canOpenInApp?: boolean
-      resumeBin?: string
-      resumeArgs?: string[]
-      relatedGroupId?: string | null
-      nestingLevel?: number
-    }>>,
+    listSessions: (workspaceId: string, forceRefresh?: boolean) => ipcRenderer.invoke('canvas:listSessions', workspaceId, forceRefresh === true) as Promise<AggregatedSessionEntry[]>,
     onSessionsChanged: (cb: (payload: { workspaceId: string }) => void) => {
       const handler = (_: unknown, payload: { workspaceId: string }) => cb(payload)
       ipcRenderer.on('canvas:sessionsChanged', handler)

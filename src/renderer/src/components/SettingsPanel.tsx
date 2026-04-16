@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useCallback, useRef, lazy } from 'react'
-import type { AppSettings, ExecutionHostRecord, ExecutionMode, FontToken, ToolPermissionGrant } from '../../../shared/types'
+import type { AppSettings, ExecutionHostRecord, ExecutionMode, FontToken, ToolPermissionGrant, Workspace } from '../../../shared/types'
 import { DEFAULT_FONTS, withDefaultSettings } from '../../../shared/types'
 import { Settings, Type, Monitor, FolderOpen, Plus, Trash2, ChevronDown, ChevronRight, FileJson, AlertTriangle, Check, Copy, RotateCcw, FormInput, Code2, Puzzle, RefreshCw, Star, Wrench, Users, FileText, Globe, Eye, EyeOff, PanelRight, Pin, Shield } from 'lucide-react'
 import { useAppFonts } from '../FontContext'
@@ -10,12 +10,6 @@ const LazyPromptsSection = lazy(() => import('./CustomisationTile').then(m => ({
 const LazySkillsSection = lazy(() => import('./CustomisationTile').then(m => ({ default: m.SkillsSection })))
 const LazyToolsSection = lazy(() => import('./CustomisationTile').then(m => ({ default: m.ToolsSection })))
 const LazyAgentsSection = lazy(() => import('./CustomisationTile').then(m => ({ default: m.AgentsSection })))
-
-interface Workspace {
-  id: string
-  name: string
-  path: string
-}
 
 interface Props {
   onClose: () => void
@@ -28,7 +22,7 @@ interface Props {
   systemPrefersDark?: boolean
 }
 
-type BuiltinSection = 'general' | 'daemon' | 'canvas' | 'sidebar' | 'browser' | 'permissions' | 'mcp' | 'extensions' | 'prompts' | 'skills' | 'tools' | 'agents'
+type BuiltinSection = 'general' | 'daemon' | 'canvas' | 'browser' | 'permissions' | 'mcp' | 'extensions' | 'prompts' | 'skills' | 'tools' | 'agents'
 type Section = BuiltinSection | `ext:${string}`
 
 const SECTIONS: { id: Section; label: string; icon: React.ReactNode; description: string; group?: string }[] = [
@@ -37,7 +31,6 @@ const SECTIONS: { id: Section; label: string; icon: React.ReactNode; description
   { id: 'daemon',     label: 'Daemon',     icon: <Settings size={15} />,   description: 'Daemon status, restart controls, execution routing, and remote hosts', group: 'app' },
   { id: 'canvas',     label: 'Canvas',     icon: <Monitor size={15} />,    description: 'Background, grid and snap settings', group: 'app' },
 
-  { id: 'sidebar',    label: 'Sidebar',    icon: <FolderOpen size={15} />, description: 'File tree sort and ignored folders', group: 'app' },
 
   { id: 'browser',    label: 'Browser',    icon: <Globe size={15} />,      description: 'Chrome data sync — cookies, bookmarks, history', group: 'app' },
   { id: 'permissions', label: 'Permissions', icon: <Shield size={15} />,   description: 'Tool approval memory, scoped grants, and reset controls', group: 'app' },
@@ -119,18 +112,18 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
     <div
       onClick={() => onChange(!value)}
       style={{
-        width: 44, height: 26, borderRadius: 13, cursor: 'pointer', flexShrink: 0,
+        width: 32, height: 18, borderRadius: 4, cursor: 'pointer', flexShrink: 0,
         background: value ? theme.accent.base : theme.surface.panelMuted,
-        position: 'relative', transition: 'background 0.2s',
+        border: `1px solid ${value ? theme.accent.base : theme.border.default}`,
+        position: 'relative', transition: 'background 0.15s, border-color 0.15s',
       }}
     >
       <div style={{
         position: 'absolute',
-        top: 3, left: value ? 21 : 3,
-        width: 20, height: 20, borderRadius: '50%',
+        top: 2, left: value ? 16 : 2,
+        width: 12, height: 12, borderRadius: 2,
         background: value ? theme.text.inverse : theme.text.muted,
-        transition: 'left 0.2s, background 0.2s',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.4)'
+        transition: 'left 0.15s, background 0.15s',
       }} />
     </div>
   )
@@ -154,31 +147,30 @@ function NumInput({ value, min, max, step = 1, onChange }: { value: number; min:
 
 function RangeInput({ value, min, max, step = 0.01, onChange, formatValue }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; formatValue?: (v: number) => string }): React.JSX.Element {
   const theme = useTheme()
+  const fonts = useAppFonts()
   const clamped = Math.max(min, Math.min(max, value))
+  const nudge = (delta: number) => onChange(Math.max(min, Math.min(max, +(clamped + delta).toFixed(6))))
+  const display = formatValue ? formatValue(clamped) : `${Math.round(clamped * 100)}%`
+  const btnStyle: React.CSSProperties = {
+    width: 24, height: 24, borderRadius: 6,
+    border: `1px solid ${theme.border.default}`,
+    background: theme.surface.panelElevated,
+    color: theme.text.secondary,
+    cursor: 'pointer', padding: 0, flexShrink: 0,
+    fontSize: fonts.secondarySize, lineHeight: 1,
+  }
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-      <input
-        type="range"
-        value={clamped}
-        min={min}
-        max={max}
-        step={step}
-        onChange={e => onChange(Number(e.target.value))}
-        style={{ width: 160 }}
-      />
+    <div style={{ display: 'grid', gridTemplateColumns: '24px minmax(0, 80px) 24px', gap: 6, alignItems: 'center' }}>
+      <button type="button" onClick={() => nudge(-step)} style={btnStyle}>{'<'}</button>
       <div style={{
-        minWidth: 44,
-        padding: '5px 8px',
-        fontSize: 'inherit',
-        textAlign: 'right',
-        color: theme.text.muted,
-        background: theme.surface.input,
-        border: `1px solid ${theme.border.default}`,
-        borderRadius: 8,
-        fontVariantNumeric: 'tabular-nums'
+        height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
+        borderRadius: 6, border: `1px solid ${theme.border.default}`,
+        background: theme.surface.input, color: theme.text.primary,
+        fontSize: fonts.secondarySize, fontVariantNumeric: 'tabular-nums',
       }}>
-        {formatValue ? formatValue(clamped) : `${Math.round(clamped * 100)}%`}
+        {display}
       </div>
+      <button type="button" onClick={() => nudge(step)} style={btnStyle}>{'>'}</button>
     </div>
   )
 }
@@ -1359,16 +1351,6 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
           </>
         )
 
-      case 'sidebar':
-        return (
-          <>
-            <SectionLabel label="Sidebar" />
-            <SettingRow label="Navigation" description="The sidebar shows workspaces and canvases. Use Files blocks on the canvas for file browsing.">
-              <span style={{ fontSize: fonts.secondarySize, color: theme.text.muted }}>Files block replaces sidebar file browser</span>
-            </SettingRow>
-          </>
-        )
-
       case 'permissions':
         return (
           <>
@@ -1765,7 +1747,7 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
                 <div key={row.label}>
                   <div style={{ fontSize: 10, color: theme.text.muted, marginBottom: 3, letterSpacing: '0.06em', textTransform: 'uppercase' }}>{row.label}</div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <code style={{ fontSize: fonts.secondarySize, color: row.highlight ? '#4a9eff' : '#555', fontFamily: fonts.mono, flex: 1 }}>{row.path}</code>
+                    <code style={{ fontSize: fonts.secondarySize, color: row.highlight ? theme.accent.base : theme.text.muted, fontFamily: fonts.mono, flex: 1 }}>{row.path}</code>
                     <button
                       onClick={() => navigator.clipboard.writeText(row.path)}
                       style={{ fontSize: 10, color: theme.text.disabled, background: 'none', border: 'none', cursor: 'pointer', flexShrink: 0 }}
@@ -2095,28 +2077,6 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
           padding: '20px 0',
           flexShrink: 0
         }}>
-          {/* Close */}
-          <div style={{ padding: '0 16px 16px' }}>
-            <div
-              onClick={onClose}
-              style={{
-                display: 'flex', alignItems: 'center', gap: 8,
-                cursor: 'pointer', color: theme.text.disabled,
-              }}
-              onMouseEnter={e => (e.currentTarget.style.color = theme.text.muted)}
-              onMouseLeave={e => (e.currentTarget.style.color = theme.text.disabled)}
-            >
-              <div style={{
-                width: 22, height: 22, borderRadius: '50%',
-                border: '1.5px solid currentColor',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: fonts.secondarySize, lineHeight: 1
-              }}>
-                ×
-              </div>
-              <span style={{ fontSize: fonts.secondarySize }}>esc</span>
-            </div>
-          </div>
 
           {/* Settings header */}
           <div style={{ padding: '8px 16px 20px', display: 'flex', alignItems: 'center', gap: 10 }}>
@@ -2418,7 +2378,7 @@ function CompactFontRow({ label, description, token, fontOptions, onChange }: {
       </div>
       <div style={{ display: 'grid', gap: 8 }}>
         <FontSelect value={token.family} onChange={family => onChange({ ...token, family })} fonts={fontOptions} />
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, minmax(0, 1fr))', gap: 8 }}>
+        <div style={{ display: 'flex', gap: 8 }}>
           <StepperNumberField value={token.size} min={8} max={32} step={1} onChange={size => onChange({ ...token, size })} />
           <StepperNumberField value={token.weight ?? 400} min={100} max={900} step={100} onChange={weight => onChange({ ...token, weight })} />
           <StepperNumberField value={token.lineHeight} min={0.7} max={2.2} step={0.05} onChange={lineHeight => onChange({ ...token, lineHeight })} format={value => value.toFixed(2)} />
@@ -2635,7 +2595,7 @@ function DisplaySettingsEditor({
           </SettingRow>
           {updateState.result && (
             <div style={{ marginBottom: 8, padding: '12px 16px', background: theme.surface.panel, borderRadius: 10, border: `1px solid ${theme.border.default}` }}>
-              <div style={{ fontSize: fonts.secondarySize, color: updateState.result.ok ? '#777' : '#c77' }}>
+              <div style={{ fontSize: fonts.secondarySize, color: updateState.result.ok ? theme.text.muted : theme.status.danger }}>
                 {updateState.result.updateAvailable
                   ? `Update available${updateState.result.updateInfo?.version ? `: ${updateState.result.updateInfo.version}` : ''}`
                   : updateState.result.status === 'up-to-date'
@@ -2653,11 +2613,11 @@ function DisplaySettingsEditor({
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <Code2 size={14} color="#555" />
+            <Code2 size={14} color={theme.text.muted} />
             <span style={{ fontSize: 10, color: theme.text.disabled, fontFamily: fonts.mono }}>{configPath || 'settings.json'}</span>
-            <span style={{ fontSize: 9, color: '#388bfd', fontFamily: fonts.mono }}>settings.display</span>
+            <span style={{ fontSize: 9, color: theme.accent.base, fontFamily: fonts.mono }}>settings.display</span>
             {jsonError && (
-              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, color: '#ff7b72', fontSize: fonts.secondarySize }}>
+              <span style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 6, color: theme.status.danger, fontSize: fonts.secondarySize }}>
                 <AlertTriangle size={12} />
                 {jsonError}
               </span>
@@ -2670,8 +2630,8 @@ function DisplaySettingsEditor({
             style={{
               width: '100%', minHeight: 520,
               padding: '12px 14px', borderRadius: 10,
-              background: theme.surface.panelMuted, color: jsonError ? '#ff9080' : '#c9d1d9',
-              border: `1px solid ${jsonError ? '#ff7b7244' : theme.surface.panelMuted}`,
+              background: theme.surface.panelMuted, color: jsonError ? theme.status.danger : theme.text.primary,
+              border: `1px solid ${jsonError ? `${theme.status.danger}44` : theme.surface.panelMuted}`,
               outline: 'none', resize: 'vertical',
               fontFamily: fonts.mono, fontSize: fonts.secondarySize, lineHeight: 1.6,
               tabSize: 2, boxSizing: 'border-box',
@@ -2861,7 +2821,7 @@ export function FontTokenEditor({ settings, onSettingsChange }: {
       <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
         <FileJson size={13} color="#555" />
         <span style={{ fontSize: 10, color: theme.text.disabled, fontFamily: monoFont }}>{configPath}</span>
-        <span style={{ fontSize: 9, color: '#388bfd', fontFamily: monoFont }}>settings.fonts</span>
+        <span style={{ fontSize: 9, color: theme.accent.base, fontFamily: monoFont }}>settings.fonts</span>
       </div>
 
       {/* Tab bar */}
@@ -2870,7 +2830,7 @@ export function FontTokenEditor({ settings, onSettingsChange }: {
           <button key={v} onClick={() => setView(v)} style={{
             padding: '6px 14px', fontSize: fonts.secondarySize, border: 'none', cursor: 'pointer', fontFamily: 'inherit',
             background: view === v ? theme.surface.panelMuted : 'transparent',
-            color: view === v ? theme.text.primary : '#555',
+            color: view === v ? theme.text.primary : theme.text.muted,
             borderBottom: view === v ? '2px solid #388bfd' : '2px solid transparent',
           }}>
             {v === 'editor' ? 'JSON Editor' : 'Token Reference'}
@@ -2886,7 +2846,7 @@ export function FontTokenEditor({ settings, onSettingsChange }: {
               style={{
                 padding: '4px 12px', borderRadius: 5, fontSize: 10, cursor: error ? 'not-allowed' : 'pointer',
                 background: error ? theme.surface.panelMuted : saved ? theme.surface.panelElevated : theme.accent.base,
-                color: error ? '#444' : saved ? theme.status.success : '#fff',
+                color: error ? theme.text.muted : saved ? theme.status.success : theme.text.inverse,
                 border: 'none', fontFamily: 'inherit', display: 'flex', alignItems: 'center', gap: 4,
               }}>
               {saved ? <><Check size={10} /> Saved</> : 'Save'}
@@ -2903,7 +2863,7 @@ export function FontTokenEditor({ settings, onSettingsChange }: {
             </button>
             <div style={{ flex: 1 }} />
             {error && (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: '#ff7b72' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 10, color: theme.status.danger }}>
                 <AlertTriangle size={10} />
                 <span style={{ maxWidth: 220, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{error}</span>
               </div>
@@ -2934,8 +2894,8 @@ export function FontTokenEditor({ settings, onSettingsChange }: {
             style={{
               width: '100%', minHeight: 260, maxHeight: 380,
               padding: '12px 14px', borderRadius: 8,
-              background: theme.surface.panelMuted, color: error ? '#ff9080' : '#c9d1d9',
-              border: `1px solid ${error ? '#ff7b7244' : theme.surface.panelMuted}`,
+              background: theme.surface.panelMuted, color: error ? theme.status.danger : theme.text.primary,
+              border: `1px solid ${error ? `${theme.status.danger}44` : theme.surface.panelMuted}`,
               outline: 'none', resize: 'vertical',
               fontFamily: monoFont, fontSize: fonts.secondarySize, lineHeight: 1.6,
               tabSize: 2, boxSizing: 'border-box',
