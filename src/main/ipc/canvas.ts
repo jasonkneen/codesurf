@@ -1,4 +1,4 @@
-import { BrowserWindow, ipcMain } from 'electron'
+import { ipcMain } from 'electron'
 import { promises as fs } from 'fs'
 import { dirname } from 'path'
 import type { AggregatedSessionEntry } from '../../shared/session-types'
@@ -14,6 +14,8 @@ import {
   tileStatePath,
 } from '../storage/workspaceArtifacts'
 import { getWorkspacePathById } from './workspace'
+import { deleteFileIfExists } from '../utils/fs'
+import { broadcastToRenderer } from '../utils/broadcast'
 import { isRelayHostActive } from '../relay/registration'
 import { syncWorkspaceRelayParticipants } from '../relay/service'
 import { daemonClient } from '../daemon/client'
@@ -158,18 +160,7 @@ async function writeTileSessionSummary(storageId: string, tileId: string, state:
 }
 
 function broadcastSessionsChanged(workspaceId: string): void {
-  for (const win of BrowserWindow.getAllWindows()) {
-    if (win.isDestroyed() || win.webContents.isDestroyed()) continue
-    win.webContents.send('canvas:sessionsChanged', { workspaceId })
-  }
-}
-
-async function deleteFileIfExists(path: string): Promise<void> {
-  try {
-    await fs.unlink(path)
-  } catch {
-    // ignore missing files
-  }
+  broadcastToRenderer('canvas:sessionsChanged', { workspaceId })
 }
 
 async function pathExists(path: string): Promise<boolean> {

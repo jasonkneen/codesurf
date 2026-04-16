@@ -1,12 +1,11 @@
 import React, { useState, useRef, useEffect, useCallback } from 'react'
-import { Streamdown } from 'streamdown'
-import { code } from '@streamdown/code'
-import 'streamdown/styles.css'
 import { Brain, ChevronRight, Clock, DollarSign, Check, Wrench, MessageSquare } from 'lucide-react'
 import { useDetectedAgents } from '../hooks/useDetectedAgents'
 import { useMCPServers } from '../hooks/useMCPServers'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
+import { usePatchCodeBlocks, useLinkClickHandler, ensureShimmerStyles, ShimmerText, WorkingDots, streamdownPlugins, ChatMarkdown } from './shared/streamdown-utils'
+import type { ToolBlock, ThinkingBlock, ContentBlock, ChatMessage } from '../../../shared/chat-types'
 import { dispatchOpenLink, findAnchorFromEventTarget } from '../utils/links'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -48,36 +47,7 @@ export interface KanbanCardData {
 interface Comment { id: string; text: string; ts: number }
 interface Attachment { id: string; name: string; path: string }
 
-interface ToolBlock {
-  id: string
-  name: string
-  input: string
-  summary?: string
-  elapsed?: number
-  status: 'running' | 'done' | 'error'
-}
-
-interface ThinkingBlock {
-  content: string
-  done: boolean
-}
-
-type ContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'tool'; toolId: string }
-
-interface CardChatMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: number
-  isStreaming?: boolean
-  thinking?: ThinkingBlock
-  toolBlocks?: ToolBlock[]
-  contentBlocks?: ContentBlock[]
-  cost?: number
-  turns?: number
-}
+type CardChatMessage = ChatMessage
 
 export interface DetectedAgent {
   id: string
@@ -125,122 +95,6 @@ function resolveMcpConfigPath(input: string): string {
 
 type Tab = 'overview' | 'progress' | 'notes'
 
-const streamdownPlugins = { code }
-const SHIMMER_ID = 'kanban-chat-shimmer'
-
-function ensureShimmerStyle(): void {
-  if (document.getElementById(SHIMMER_ID)) return
-  const style = document.createElement('style')
-  style.id = SHIMMER_ID
-  style.textContent = `
-    @keyframes chat-shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-    @keyframes chat-dot-bounce {
-      0%, 80%, 100% { transform: translateY(0); }
-      40% { transform: translateY(-4px); }
-    }
-    @keyframes chat-pulse {
-      0%, 100% { opacity: 0.4; }
-      50% { opacity: 1; }
-    }
-    .chat-md { line-height: 1.55; color: inherit; max-width: 100%; overflow: hidden; }
-    .chat-md > *:first-child { margin-top: 0 !important; }
-    .chat-md > *:last-child { margin-bottom: 0 !important; }
-  `
-  document.head.appendChild(style)
-}
-
-function usePatchCodeBlocks(
-  ref: React.RefObject<HTMLDivElement | null>,
-  theme: ReturnType<typeof useTheme>,
-  fonts: ReturnType<typeof useAppFonts>,
-) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const shellBackground = theme.mode === 'light' ? theme.surface.panel : theme.surface.panelMuted
-    const bodyBackground = theme.mode === 'light' ? theme.surface.panelMuted : '#0f131d'
-    const headerBackground = theme.mode === 'light' ? theme.surface.panel : '#171c28'
-    const blocks = el.querySelectorAll<HTMLElement>('[data-streamdown="code-block"]')
-    blocks.forEach(block => {
-      block.style.cssText = `padding:0!important;gap:0!important;margin:6px 0!important;border-radius:6px!important;overflow:hidden!important;border:1px solid ${theme.border.default}!important;max-width:100%!important;background:${shellBackground}!important;color:${theme.text.primary}!important`
-      const header = block.querySelector<HTMLElement>('[data-streamdown="code-block-header"]')
-      if (header) {
-        header.style.cssText = `height:22px!important;font-size:10px!important;padding:0 8px!important;background:${headerBackground}!important;color:${theme.text.muted}!important;border-bottom:1px solid ${theme.border.subtle}!important`
-      }
-      const actionsWrapper = block.querySelector<HTMLElement>('[data-streamdown="code-block-actions"]')?.parentElement
-      if (actionsWrapper) actionsWrapper.style.cssText = 'margin-top:-22px!important;height:22px!important;pointer-events:none;position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:flex-end'
-      const actions = block.querySelector<HTMLElement>('[data-streamdown="code-block-actions"]')
-      if (actions) {
-        actions.style.cssText = 'padding:1px 4px!important;pointer-events:auto'
-        actions.querySelectorAll<HTMLElement>('button').forEach(btn => { btn.style.cssText = 'width:18px!important;height:18px!important;padding:1px!important' })
-      }
-      const body = block.querySelector<HTMLElement>('[data-streamdown="code-block-body"]')
-      if (body) body.style.cssText = `padding:8px 10px!important;font-size:${Math.max(12, fonts.size - 1)}px!important;border:none!important;border-radius:0!important;background:${bodyBackground}!important;color:${theme.text.primary}!important`
-      block.querySelectorAll<HTMLElement>('pre').forEach(pre => {
-        pre.style.cssText += `;font-size:${Math.max(12, fonts.size - 1)}px!important;line-height:1.5!important;margin:0!important;border-radius:0!important;white-space:pre!important;background:${bodyBackground}!important;color:${theme.text.primary}!important`
-      })
-      block.querySelectorAll<HTMLElement>('pre > code').forEach(code => {
-        code.style.cssText += `;font-size:${Math.max(12, fonts.size - 1)}px!important;line-height:1.5!important;color:${theme.text.primary}!important;background:transparent!important`
-      })
-    })
-  }, [fonts.size, ref, theme.border.default, theme.border.subtle, theme.mode, theme.surface.panel, theme.surface.panelMuted, theme.text.muted, theme.text.primary])
-}
-
-function ChatMarkdown({ text, isStreaming }: { text: string; isStreaming?: boolean }): JSX.Element {
-  const ref = useRef<HTMLDivElement>(null)
-  const theme = useTheme()
-  const fonts = useAppFonts()
-  usePatchCodeBlocks(ref, theme, fonts)
-  useEffect(() => {
-    const root = ref.current
-    if (!root) return
-
-    const handleClick = (event: MouseEvent) => {
-      const anchor = findAnchorFromEventTarget(event)
-      if (!anchor) return
-
-      const href = anchor.getAttribute('href') ?? ''
-      if (!dispatchOpenLink(href)) return
-
-      event.preventDefault()
-      event.stopPropagation()
-    }
-
-    root.addEventListener('click', handleClick, true)
-    return () => root.removeEventListener('click', handleClick, true)
-  }, [])
-  return (
-    <div ref={ref}>
-      <Streamdown className="chat-md" plugins={streamdownPlugins} mode={isStreaming ? 'streaming' : 'static'} shikiTheme={theme.mode === 'light' ? ['github-light', 'github-light'] : ['github-dark', 'github-dark']} controls={{ code: { copy: true, download: false }, table: false, mermaid: false }} lineNumbers={false}>
-        {text}
-      </Streamdown>
-    </div>
-  )
-}
-
-function ShimmerText({ children, style, baseColor = '#888' }: { children: React.ReactNode; style?: React.CSSProperties; baseColor?: string }): JSX.Element {
-  return (
-    <span style={{
-      color: 'transparent',
-      backgroundImage: `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 35%, #fff 50%, ${baseColor} 65%, ${baseColor} 100%)`,
-      backgroundSize: '200% 100%',
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      animation: 'chat-shimmer 1.8s linear infinite',
-      ...style,
-    }}>{children}</span>
-  )
-}
-
-function WorkingDots({ color, size = 5 }: { color?: string; size?: number }): JSX.Element {
-  const theme = useTheme()
-  const fonts = useAppFonts()
-  return <span style={{ display: 'inline-flex', gap: 3, padding: '2px 0' }}>{[0, 1, 2].map(i => <span key={i} style={{ width: size, height: size, borderRadius: '50%', background: color ?? theme.accent.base, animation: `chat-dot-bounce 1.2s ease-in-out ${i * 0.15}s infinite` }} />)}</span>
-}
 
 // ─── Build launch command ─────────────────────────────────────────────────────
 

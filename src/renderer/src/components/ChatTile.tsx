@@ -1,8 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useRef, useCallback, useMemo } from 'react'
 import { createPortal } from 'react-dom'
-import { Streamdown } from 'streamdown'
-import { code } from '@streamdown/code'
-import 'streamdown/styles.css'
 import type {
   AppSettings,
   ExtensionChatModel,
@@ -21,8 +18,16 @@ import {
 import { useMCPServers, type MCPServerEntry } from '../hooks/useMCPServers'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
+import { ensureShimmerStyles, ShimmerText, WorkingDots, ChatMarkdown } from './shared/streamdown-utils'
+import {
+  type BuiltinProvider, type ModelOption, type ModeOption, type ThinkingOption,
+  DEFAULT_MODELS, DEFAULT_PROVIDER_ID, PROVIDER_MODES, EXTENSION_PROVIDER_MODE,
+  THINKING_OPTIONS, PROVIDER_LABELS, isBuiltinProvider, getApproxContextWindowTokens,
+} from '../config/providers'
 import { stripCapabilityPrefix, getAllNodeTools } from '../../../shared/nodeTools'
+import type { ToolBlock, ThinkingBlock, ContentBlock, ChatMessage } from '../../../shared/chat-types'
 import { getChatTileRuntimeState, setChatTileRuntimeState, reviveChatTileRuntimeState, isChatTileRuntimeStateDisposed } from './chatTileRuntimeState'
+import { JSXPreview, JSXPreviewContent, JSXPreviewError } from './ai-elements/JSXPreview'
 
 const CHAT_SLASH_COMMANDS = [
   { value: '/compact', description: 'Compact conversation' },
@@ -167,50 +172,6 @@ function BranchIcon({ size = 13 }: { size?: number }): JSX.Element {
 
 // --- Types -----------------------------------------------------------------------
 
-interface ToolBlock {
-  id: string
-  name: string
-  input: string
-  summary?: string
-  elapsed?: number
-  status: 'running' | 'done' | 'error'
-  fileChanges?: Array<{
-    path: string
-    previousPath?: string
-    changeType: 'add' | 'update' | 'delete' | 'move'
-    additions: number
-    deletions: number
-    diff: string
-  }>
-  commandEntries?: Array<{
-    label: string
-    command?: string
-    output?: string
-    kind?: 'search' | 'read' | 'command'
-  }>
-}
-
-interface ThinkingBlock {
-  content: string
-  done: boolean
-}
-
-type ContentBlock =
-  | { type: 'text'; text: string }
-  | { type: 'tool'; toolId: string }
-
-interface ChatMessage {
-  id: string
-  role: 'user' | 'assistant' | 'system'
-  content: string
-  timestamp: number
-  isStreaming?: boolean
-  thinking?: ThinkingBlock
-  toolBlocks?: ToolBlock[]
-  contentBlocks?: ContentBlock[]
-  cost?: number
-  turns?: number
-}
 
 function shouldRenderToolBlock(block: ToolBlock): boolean {
   return block.status === 'running'
@@ -797,134 +758,362 @@ function getRelativeMentionPath(filePath: string, workspaceDir: string): string 
   return basename(normalizedFilePath)
 }
 
-// --- Markdown renderer for chat bubbles (Streamdown) ------------------------------
 
-// Post-render patch: fix Streamdown's code block layout via direct DOM style overrides
-function usePatchCodeBlocks(
-  ref: React.RefObject<HTMLDivElement | null>,
-  theme: ReturnType<typeof useTheme>,
-  fonts: ReturnType<typeof useAppFonts>,
-) {
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const shellBackground = theme.mode === 'light' ? theme.surface.panel : theme.surface.panelMuted
-    const bodyBackground = theme.mode === 'light' ? theme.surface.panelMuted : '#0f131d'
-    const headerBackground = theme.mode === 'light' ? theme.surface.panel : '#171c28'
-    const headerColor = theme.text.muted
-    const blocks = el.querySelectorAll<HTMLElement>('[data-streamdown="code-block"]')
-    blocks.forEach(block => {
-      // Container: kill padding, gap, margin
-      block.style.cssText = `padding:0!important;gap:0!important;margin:6px 0!important;border-radius:6px!important;overflow:hidden!important;border:1px solid ${theme.border.default}!important;max-width:100%!important;background:${shellBackground}!important;color:${theme.text.primary}!important`
-      // Header: compact
-      const header = block.querySelector<HTMLElement>('[data-streamdown="code-block-header"]')
-      if (header) {
-        header.style.cssText = `height:22px!important;font-size:10px!important;padding:0 8px!important;background:${headerBackground}!important;color:${headerColor}!important;border-bottom:1px solid ${theme.border.subtle}!important`
-      }
-      // Actions wrapper (parent of code-block-actions): same line as header
-      const actionsWrapper = block.querySelector<HTMLElement>('[data-streamdown="code-block-actions"]')?.parentElement
-      if (actionsWrapper) actionsWrapper.style.cssText = 'margin-top:-22px!important;height:22px!important;pointer-events:none;position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:flex-end'
-      // Actions buttons
-      const actions = block.querySelector<HTMLElement>('[data-streamdown="code-block-actions"]')
-      if (actions) {
-        actions.style.cssText = 'padding:1px 4px!important;pointer-events:auto'
-        actions.querySelectorAll<HTMLElement>('button').forEach(btn => {
-          btn.style.cssText = 'width:18px!important;height:18px!important;padding:1px!important'
-        })
-        actions.querySelectorAll<SVGElement>('svg').forEach(svg => {
-          svg.setAttribute('width', '11')
-          svg.setAttribute('height', '11')
-        })
-      }
-      // Code body: compact
-      const body = block.querySelector<HTMLElement>('[data-streamdown="code-block-body"]')
-      if (body) {
-        body.style.cssText = `padding:8px 10px!important;font-size:${Math.max(12, fonts.size - 1)}px!important;border:none!important;border-radius:0!important;background:${bodyBackground}!important;color:${theme.text.primary}!important`
-      }
-      // Pre: small font, preserve whitespace
-      block.querySelectorAll<HTMLElement>('pre').forEach(pre => {
-        pre.style.cssText += `;font-size:${Math.max(12, fonts.size - 1)}px!important;line-height:1.5!important;margin:0!important;border-radius:0!important;white-space:pre!important;background:${bodyBackground}!important;color:${theme.text.primary}!important`
-      })
-      block.querySelectorAll<HTMLElement>('pre > code').forEach(code => {
-        code.style.cssText += `;font-size:${Math.max(12, fonts.size - 1)}px!important;line-height:1.5!important;color:${theme.text.primary}!important;background:transparent!important`
-        // Each direct child span is a line — must be display:block
-        code.querySelectorAll<HTMLElement>(':scope > span').forEach(line => {
-          line.style.display = 'block'
-        })
-      })
-      block.querySelectorAll<HTMLElement>('button').forEach(button => {
-        button.style.color = headerColor
-      })
-    })
-  }, [fonts.size, ref, theme.border.default, theme.border.subtle, theme.mode, theme.surface.panel, theme.surface.panelMuted, theme.text.muted, theme.text.primary])
+type RenderableMessageSegment =
+  | { type: 'markdown'; text: string }
+  | { type: 'jsx'; jsx: string; isStreaming: boolean }
+
+const JSX_FENCE_LANGUAGES = new Set(['jsx', 'tsx', 'react'])
+
+function looksLikeInlineJsxSource(text: string): boolean {
+  const trimmed = text.trim()
+  if (!trimmed || trimmed.startsWith('```')) return false
+
+  const hasJsxTag = /<[A-Za-z][\w:.-]*(\s|>)/.test(trimmed)
+  if (!hasJsxTag) return false
+
+  if (/^<[A-Za-z][\w:.-]*(\s|>)/.test(trimmed)) return true
+
+  return /\b(return\s*\(|export\s+(default\s+)?(const|function)|const\s+[A-Z][\w$]*\s*=|function\s+[A-Z][\w$]*\s*\(|React\.FC|useState\s*\()/m.test(trimmed)
 }
 
-function normalizeChatMarkdownText(text: string): string {
-  return text
-    .replace(/<image name=\[([^\]]+)\]>\s*<\/image>/gms, '\n> Attachment: $1\n')
-    .replace(/<image name=\[([^\]]+)\]>/g, '\n> Attachment: $1\n')
-    .replace(/<\/image>/g, '')
-}
+function splitRenderableMessageSegments(text: string, isStreaming = false): RenderableMessageSegment[] {
+  if (!text.includes('```')) {
+    if (looksLikeInlineJsxSource(text)) {
+      return [{ type: 'jsx', jsx: text, isStreaming }]
+    }
+    return text.trim() ? [{ type: 'markdown', text }] : []
+  }
 
-const ChatMarkdown = React.memo(({ text, isStreaming, className }: {
-  text: string
-  isStreaming?: boolean
-  className?: string
-}) => {
-  const ref = useRef<HTMLDivElement>(null)
-  const theme = useTheme()
-  const fonts = useAppFonts()
-  const normalizedText = useMemo(() => normalizeChatMarkdownText(text), [text])
-  usePatchCodeBlocks(ref, theme, fonts)
+  const segments: RenderableMessageSegment[] = []
+  let cursor = 0
 
-  useEffect(() => {
-    const root = ref.current
-    if (!root) return
+  while (cursor < text.length) {
+    let fenceStart = -1
+    let headerEnd = -1
+    let searchFrom = cursor
 
-    const handleClick = (event: MouseEvent) => {
-      const anchor = findAnchorFromEventTarget(event)
-      if (!anchor) return
+    while (searchFrom < text.length) {
+      const candidateStart = text.indexOf('```', searchFrom)
+      if (candidateStart === -1) break
 
-      const href = anchor.getAttribute('href') ?? ''
-      if (!dispatchOpenLink(href)) return
+      const candidateHeaderEnd = text.indexOf('\n', candidateStart + 3)
+      if (candidateHeaderEnd === -1) break
 
-      event.preventDefault()
-      event.stopPropagation()
+      const header = text.slice(candidateStart + 3, candidateHeaderEnd).trim().toLowerCase()
+      const language = header.split(/\s+/)[0]
+      if (JSX_FENCE_LANGUAGES.has(language)) {
+        fenceStart = candidateStart
+        headerEnd = candidateHeaderEnd
+        break
+      }
+
+      searchFrom = candidateHeaderEnd + 1
     }
 
-    root.addEventListener('click', handleClick, true)
-    return () => root.removeEventListener('click', handleClick, true)
-  }, [])
+    if (fenceStart === -1 || headerEnd === -1) break
+
+    if (fenceStart > cursor) {
+      segments.push({ type: 'markdown', text: text.slice(cursor, fenceStart) })
+    }
+
+    const closingFenceStart = text.indexOf('\n```', headerEnd + 1)
+    if (closingFenceStart === -1) {
+      if (isStreaming) {
+        const jsx = text.slice(headerEnd + 1)
+        if (jsx.trim()) segments.push({ type: 'jsx', jsx, isStreaming: true })
+      } else {
+        segments.push({ type: 'markdown', text: text.slice(fenceStart) })
+      }
+      cursor = text.length
+      break
+    }
+
+    const jsx = text.slice(headerEnd + 1, closingFenceStart)
+    if (jsx.trim()) segments.push({ type: 'jsx', jsx, isStreaming: false })
+
+    cursor = closingFenceStart + 4
+    if (text[cursor] === '\n') cursor += 1
+  }
+
+  if (cursor < text.length) {
+    const trailingText = text.slice(cursor)
+    if (looksLikeInlineJsxSource(trailingText)) {
+      segments.push({ type: 'jsx', jsx: trailingText, isStreaming })
+    } else {
+      segments.push({ type: 'markdown', text: trailingText })
+    }
+  }
+
+  const filtered = segments.filter(segment => segment.type === 'jsx' ? Boolean(segment.jsx.trim()) : Boolean(segment.text.trim()))
+  if (filtered.length === 0 && looksLikeInlineJsxSource(text)) {
+    return [{ type: 'jsx', jsx: text, isStreaming }]
+  }
+  return filtered
+}
+
+function InlineJSXPreviewBlock({ jsx, isStreaming = false }: { jsx: string; isStreaming?: boolean }): JSX.Element {
+  const theme = useTheme()
+  const fonts = useAppFonts()
+
+  const previewComponents = useMemo(() => {
+    const mergeStyle = (style: unknown, defaults: React.CSSProperties): React.CSSProperties => ({
+      ...defaults,
+      ...(style && typeof style === 'object' ? style as React.CSSProperties : {}),
+    })
+
+    const Card = ({ children, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div
+        {...props}
+        style={mergeStyle(style, {
+          borderRadius: 12,
+          border: `1px solid ${theme.border.default}`,
+          background: theme.surface.panel,
+          boxShadow: theme.shadow.panel,
+          padding: 16,
+        })}
+      >
+        {children}
+      </div>
+    )
+
+    const CardHeader = ({ children, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props} style={mergeStyle(style, { display: 'flex', flexDirection: 'column', gap: 6, marginBottom: 12 })}>{children}</div>
+    )
+    const CardTitle = ({ children, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props} style={mergeStyle(style, { fontSize: Math.max(16, fonts.size + 2), fontWeight: 700, color: theme.text.primary })}>{children}</div>
+    )
+    const CardDescription = ({ children, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props} style={mergeStyle(style, { fontSize: Math.max(12, fonts.secondarySize), color: theme.text.muted, lineHeight: 1.5 })}>{children}</div>
+    )
+    const CardContent = ({ children, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props} style={mergeStyle(style, { display: 'flex', flexDirection: 'column', gap: 10 })}>{children}</div>
+    )
+    const CardFooter = ({ children, style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props} style={mergeStyle(style, { display: 'flex', alignItems: 'center', gap: 8, marginTop: 12 })}>{children}</div>
+    )
+    const Button = ({ children, style, ...props }: React.ButtonHTMLAttributes<HTMLButtonElement>) => (
+      <button
+        {...props}
+        type={props.type ?? 'button'}
+        style={mergeStyle(style, {
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          gap: 8,
+          borderRadius: 8,
+          border: `1px solid ${theme.border.default}`,
+          background: theme.accent.base,
+          color: theme.text.inverse,
+          padding: '8px 12px',
+          fontSize: Math.max(12, fonts.size - 1),
+          fontWeight: 600,
+          cursor: 'default',
+        })}
+      >
+        {children}
+      </button>
+    )
+    const Badge = ({ children, style, ...props }: React.HTMLAttributes<HTMLSpanElement>) => (
+      <span
+        {...props}
+        style={mergeStyle(style, {
+          display: 'inline-flex',
+          alignItems: 'center',
+          gap: 6,
+          borderRadius: 999,
+          border: `1px solid ${theme.border.subtle}`,
+          background: theme.surface.panelMuted,
+          color: theme.text.secondary,
+          padding: '3px 8px',
+          fontSize: Math.max(11, fonts.secondarySize - 1),
+          fontWeight: 600,
+        })}
+      >
+        {children}
+      </span>
+    )
+    const Input = ({ style, ...props }: React.InputHTMLAttributes<HTMLInputElement>) => (
+      <input
+        {...props}
+        style={mergeStyle(style, {
+          width: '100%',
+          borderRadius: 8,
+          border: `1px solid ${theme.chat.inputBorder}`,
+          background: theme.chat.input,
+          color: theme.text.primary,
+          padding: '8px 10px',
+          fontSize: Math.max(12, fonts.size - 1),
+        })}
+      />
+    )
+    const Textarea = ({ style, ...props }: React.TextareaHTMLAttributes<HTMLTextAreaElement>) => (
+      <textarea
+        {...props}
+        style={mergeStyle(style, {
+          width: '100%',
+          minHeight: 96,
+          borderRadius: 8,
+          border: `1px solid ${theme.chat.inputBorder}`,
+          background: theme.chat.input,
+          color: theme.text.primary,
+          padding: '8px 10px',
+          fontSize: Math.max(12, fonts.size - 1),
+          resize: 'vertical',
+        })}
+      />
+    )
+    const Separator = ({ style, ...props }: React.HTMLAttributes<HTMLDivElement>) => (
+      <div {...props} style={mergeStyle(style, { width: '100%', height: 1, background: theme.border.subtle })} />
+    )
+    const Stack = ({ children, style, gap = 10, ...props }: React.HTMLAttributes<HTMLDivElement> & { gap?: number }) => (
+      <div {...props} style={mergeStyle(style, { display: 'flex', flexDirection: 'column', gap })}>{children}</div>
+    )
+    const Grid = ({ children, style, columns = 2, gap = 10, ...props }: React.HTMLAttributes<HTMLDivElement> & { columns?: number; gap?: number }) => (
+      <div {...props} style={mergeStyle(style, { display: 'grid', gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap })}>{children}</div>
+    )
+
+    return {
+      Badge,
+      Button,
+      Card,
+      CardContent,
+      CardDescription,
+      CardFooter,
+      CardHeader,
+      CardTitle,
+      Grid,
+      Input,
+      Separator,
+      Stack,
+      Textarea,
+    }
+  }, [fonts.secondarySize, fonts.size, theme.accent.base, theme.border.default, theme.border.subtle, theme.chat.input, theme.chat.inputBorder, theme.shadow.panel, theme.surface.panel, theme.surface.panelMuted, theme.text.inverse, theme.text.muted, theme.text.primary, theme.text.secondary])
+
+  const previewBindings = useMemo(() => ({
+    theme,
+    colors: {
+      accent: theme.accent.base,
+      background: theme.chat.background,
+      border: theme.border.default,
+      muted: theme.text.muted,
+      text: theme.text.primary,
+    },
+  }), [theme])
 
   return (
     <div
-      ref={ref}
       style={{
-        minWidth: 0,
-        maxWidth: '100%',
-        width: '100%',
+        borderRadius: 12,
+        border: `1px solid ${theme.border.default}`,
+        background: theme.surface.panelMuted,
         overflow: 'hidden',
-        ['--chat-link-color' as string]: theme.accent.base,
-        ['--chat-link-hover-color' as string]: theme.accent.hover,
       }}
     >
-      <Streamdown
-        className={`chat-md ${className ?? ''}`}
-        plugins={streamdownPlugins}
-        mode={isStreaming ? 'streaming' : 'static'}
-        shikiTheme={
-          theme.mode === 'light'
-            ? ['github-light', 'github-light']
-            : ['github-dark', 'github-dark']
-        }
-        controls={{ code: { copy: true, download: false }, table: false, mermaid: false }}
-        lineNumbers={false}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          gap: 12,
+          padding: '10px 12px',
+          borderBottom: `1px solid ${theme.border.subtle}`,
+          background: theme.surface.panel,
+        }}
       >
-        {normalizedText}
-      </Streamdown>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+          <div
+            style={{
+              width: 8,
+              height: 8,
+              borderRadius: 999,
+              background: isStreaming ? theme.status.warning : theme.status.success,
+              flexShrink: 0,
+            }}
+          />
+          <div style={{ fontSize: Math.max(11, fonts.secondarySize), fontWeight: 700, color: theme.text.primary, letterSpacing: 0.2 }}>
+            JSX Preview
+          </div>
+        </div>
+        <div style={{ fontSize: Math.max(10, fonts.secondarySize - 1), color: theme.text.muted, flexShrink: 0 }}>
+          {isStreaming ? 'streaming' : 'inline render'}
+        </div>
+      </div>
+
+      <div
+        className="allow-text-selection"
+        style={{
+          padding: 14,
+          background: theme.chat.background,
+          color: theme.text.primary,
+          fontFamily: fonts.primary,
+          fontSize: fonts.size,
+        }}
+      >
+        <JSXPreview
+          jsx={jsx}
+          isStreaming={isStreaming}
+          components={previewComponents}
+          bindings={previewBindings}
+        >
+          <JSXPreviewContent />
+          <JSXPreviewError
+            style={{
+              padding: isStreaming ? '0' : '10px 12px',
+              marginTop: isStreaming ? 0 : 8,
+              borderRadius: isStreaming ? 0 : 8,
+              border: isStreaming ? 'none' : `1px solid ${theme.border.subtle}`,
+              background: isStreaming ? 'transparent' : theme.surface.panel,
+              color: theme.text.muted,
+              fontSize: Math.max(11, fonts.secondarySize),
+              whiteSpace: 'pre-wrap',
+            }}
+          >
+            {(error) => isStreaming
+              ? <div style={{ color: theme.text.muted, fontSize: Math.max(11, fonts.secondarySize) }}>Waiting for valid JSX…</div>
+              : `Could not render JSX preview: ${error.message}`}
+          </JSXPreviewError>
+        </JSXPreview>
+      </div>
+
+      <details style={{ borderTop: `1px solid ${theme.border.subtle}` }}>
+        <summary
+          style={{
+            cursor: 'pointer',
+            listStyle: 'none',
+            padding: '10px 12px',
+            fontSize: Math.max(11, fonts.secondarySize),
+            color: theme.text.muted,
+            userSelect: 'none',
+          }}
+        >
+          Show JSX
+        </summary>
+        <div style={{ padding: '0 12px 12px' }}>
+          <pre
+            className="allow-text-selection"
+            style={{
+              margin: 0,
+              borderRadius: 8,
+              border: `1px solid ${theme.border.subtle}`,
+              background: theme.surface.panel,
+              color: theme.text.primary,
+              padding: 12,
+              overflowX: 'auto',
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'IBM Plex Mono, JetBrains Mono, monospace',
+              fontSize: Math.max(11, fonts.size - 1),
+              lineHeight: 1.55,
+            }}
+          >
+            <code>{jsx.trim()}</code>
+          </pre>
+        </div>
+      </details>
     </div>
   )
-})
+}
 
 const ChatMessageContent = React.memo(({
   text,
@@ -940,6 +1129,7 @@ const ChatMessageContent = React.memo(({
   const theme = useTheme()
   const fonts = useAppFonts()
   const { bodyText, attachmentPaths } = useMemo(() => splitMessageAttachmentPaths(text), [text])
+  const bodySegments = useMemo(() => splitRenderableMessageSegments(bodyText, isStreaming), [bodyText, isStreaming])
   const chipBackground = isUser
     ? 'rgba(255,255,255,0.1)'
     : theme.surface.panelMuted
@@ -954,9 +1144,15 @@ const ChatMessageContent = React.memo(({
     : theme.text.disabled
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: bodyText && attachmentPaths.length > 0 ? 12 : 0, minWidth: 0, width: '100%' }}>
-      {bodyText ? (
-        <ChatMarkdown text={bodyText} isStreaming={isStreaming} className={className} />
+    <div style={{ display: 'flex', flexDirection: 'column', gap: bodySegments.length > 0 && attachmentPaths.length > 0 ? 12 : 0, minWidth: 0, width: '100%' }}>
+      {bodySegments.length > 0 ? (
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 12, minWidth: 0, width: '100%' }}>
+          {bodySegments.map((segment, index) => (
+            segment.type === 'jsx'
+              ? <InlineJSXPreviewBlock key={`jsx-${index}`} jsx={segment.jsx} isStreaming={segment.isStreaming} />
+              : <ChatMarkdown key={`md-${index}`} text={segment.text} isStreaming={isStreaming && index === bodySegments.length - 1} className={className} />
+          ))}
+        </div>
       ) : null}
       {attachmentPaths.length > 0 ? (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8, minWidth: 0 }}>
@@ -1016,14 +1212,6 @@ const ChatMessageContent = React.memo(({
 
 // --- Provider / Model config -----------------------------------------------------
 
-type BuiltinProvider = 'claude' | 'codex' | 'opencode' | 'openclaw' | 'hermes'
-
-interface ModelOption {
-  id: string
-  label: string
-  description?: string
-}
-
 interface ProviderEntry {
   id: string
   label: string
@@ -1035,95 +1223,6 @@ interface ProviderEntry {
   transport?: ExtensionChatTransportConfig | null
 }
 
-const DEFAULT_MODELS: Record<BuiltinProvider, ModelOption[]> = {
-  claude: [
-    { id: 'claude-opus-4-6', label: 'Opus 4.6' },
-    { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-    { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet 4.5' },
-    { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
-  ],
-  codex: [
-    { id: 'gpt-5.4', label: 'GPT-5.4' },
-    { id: 'gpt-5.1-codex-mini', label: 'Codex Mini' },
-    { id: 'gpt-5.3-codex', label: 'Codex 5.3' },
-    { id: 'o4-mini', label: 'o4-mini' },
-    { id: 'o3', label: 'o3' },
-    { id: 'o3-mini', label: 'o3-mini' },
-  ],
-  opencode: [
-    { id: 'anthropic/claude-sonnet-4-6', label: 'Sonnet 4.6' },
-    { id: 'anthropic/claude-opus-4-6', label: 'Opus 4.6' },
-    { id: 'openai/gpt-5.4', label: 'GPT-5.4' },
-    { id: 'openai/o4-mini', label: 'o4-mini' },
-    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-  ],
-  openclaw: [
-    { id: 'main', label: 'Main (default)', description: 'Configured default OpenClaw agent' },
-  ],
-  hermes: [
-    { id: 'anthropic/claude-opus-4-6', label: 'Opus 4.6' },
-    { id: 'anthropic/claude-sonnet-4-6', label: 'Sonnet 4.6' },
-    { id: 'openai/gpt-5.4', label: 'GPT-5.4' },
-    { id: 'openai/o4-mini', label: 'o4-mini' },
-    { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
-  ],
-}
-
-const DEFAULT_PROVIDER_ID: BuiltinProvider = 'claude'
-
-// --- Safety mode config (per-provider, matching Paseo) ---------------------------
-
-interface ModeOption { id: string; label: string; description: string; color: string }
-
-const PROVIDER_MODES: Record<BuiltinProvider, ModeOption[]> = {
-  claude: [
-    { id: 'bypassPermissions', label: 'Bypass', description: 'Full auto, no approval', color: '#e54d2e' },
-    { id: 'acceptEdits', label: 'Accept Edits', description: 'Auto-approve file edits', color: '#ffb432' },
-    { id: 'default', label: 'Default', description: 'Ask before risky actions', color: '#3fb950' },
-    { id: 'plan', label: 'Plan', description: 'Plan only, no execution', color: '#58a6ff' },
-  ],
-  codex: [
-    { id: 'full-access', label: 'Full Access', description: 'Full auto, no approval', color: '#e54d2e' },
-    { id: 'auto', label: 'Auto', description: 'Auto-approve safe actions', color: '#ffb432' },
-    { id: 'read-only', label: 'Read Only', description: 'No file modifications', color: '#58a6ff' },
-  ],
-  opencode: [
-    { id: 'plan', label: 'Plan', description: 'Plan only, no execution', color: '#58a6ff' },
-    { id: 'build', label: 'Build', description: 'Execute and build code', color: '#ffb432' },
-  ],
-  openclaw: [
-    { id: 'full-auto', label: 'Full Auto', description: 'Full auto, no approval', color: '#e54d2e' },
-    { id: 'auto', label: 'Auto', description: 'Auto-approve safe actions', color: '#ffb432' },
-    { id: 'default', label: 'Default', description: 'Ask before risky actions', color: '#3fb950' },
-    { id: 'plan', label: 'Plan', description: 'Plan only, no execution', color: '#58a6ff' },
-  ],
-  hermes: [
-    { id: 'full', label: 'Full', description: 'All toolsets enabled', color: '#e54d2e' },
-    { id: 'terminal', label: 'Terminal', description: 'Terminal + file tools', color: '#ffb432' },
-    { id: 'web', label: 'Web', description: 'Web + browser tools', color: '#3fb950' },
-    { id: 'query', label: 'Query', description: 'No tools, query only', color: '#58a6ff' },
-  ],
-}
-
-const EXTENSION_PROVIDER_MODE: ModeOption = {
-  id: 'proxy',
-  label: 'Proxy',
-  description: 'Connected extension transport',
-  color: '#58a6ff',
-}
-
-// --- Thinking budget config (Claude only) ----------------------------------------
-
-interface ThinkingOption { id: string; label: string; description: string }
-
-const THINKING_OPTIONS: ThinkingOption[] = [
-  { id: 'adaptive', label: 'Adaptive', description: 'Model decides when to think' },
-  { id: 'none', label: 'Off', description: 'No extended thinking' },
-  { id: 'low', label: 'Low', description: '~2K tokens budget' },
-  { id: 'medium', label: 'Medium', description: '~8K tokens budget' },
-  { id: 'high', label: 'High', description: '~32K tokens budget' },
-  { id: 'max', label: 'Max', description: '~128K tokens budget' },
-]
 
 const PROVIDER_ICON: Record<BuiltinProvider, React.ReactNode> = {
   claude: <ClaudeIcon size={TOOLBAR_PILL_ICON_SIZE} />,
@@ -1133,32 +1232,6 @@ const PROVIDER_ICON: Record<BuiltinProvider, React.ReactNode> = {
   hermes: <HermesIcon size={TOOLBAR_PILL_ICON_SIZE} />,
 }
 
-const PROVIDER_LABELS: Record<BuiltinProvider, string> = {
-  claude: 'Claude',
-  codex: 'Codex',
-  opencode: 'OpenCode',
-  openclaw: 'OpenClaw',
-  hermes: 'Hermes',
-}
-
-function getApproxContextWindowTokens(providerId: string, modelId: string): number {
-  const normalizedModel = modelId.toLowerCase()
-  const normalizedProvider = providerId.toLowerCase()
-
-  if (normalizedModel.includes('gpt-5.4')) return 258_000
-  if (normalizedModel.includes('o3') || normalizedModel.includes('o4')) return 200_000
-  if (normalizedProvider === 'claude' || normalizedModel.includes('claude')) return 200_000
-  if (normalizedProvider === 'codex') return 258_000
-  return 128_000
-}
-
-function isBuiltinProvider(providerId: string): providerId is BuiltinProvider {
-  return providerId === 'claude'
-    || providerId === 'codex'
-    || providerId === 'opencode'
-    || providerId === 'openclaw'
-    || providerId === 'hermes'
-}
 
 function getExtensionProviderIcon(icon: ExtensionChatProviderConfig['icon'] | undefined): React.ReactNode {
   switch (icon) {
@@ -1240,33 +1313,13 @@ function relativeTime(ts: number): string {
   return `${days}d ago`
 }
 
-function ensureShimmerStyle(theme: ReturnType<typeof useTheme>): void {
+function ensureChatMdStyle(): void {
   if (document.getElementById(SHIMMER_ID)) return
+  ensureShimmerStyles()
   const style = document.createElement('style')
   style.id = SHIMMER_ID
   style.textContent = `
-    @keyframes chat-shimmer {
-      0% { background-position: -200% 0; }
-      100% { background-position: 200% 0; }
-    }
-    @keyframes chat-shimmer-text {
-      0% { background-position: var(--shimmer-start, -100px) 0; }
-      100% { background-position: var(--shimmer-end, 200px) 0; }
-    }
-    @keyframes chat-dot-bounce {
-      0%, 80%, 100% { transform: translateY(0); }
-      40% { transform: translateY(-4px); }
-    }
-    @keyframes chat-spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    @keyframes chat-pulse {
-      0%, 100% { opacity: 0.4; }
-      50% { opacity: 1; }
-    }
-
-    /* Chat markdown styles (Streamdown overrides for dark theme) */
+    /* Chat markdown styles (Streamdown overrides) */
     .chat-md { line-height: 1.55; color: inherit; max-width: 100%; overflow: hidden; }
     .chat-md, .chat-md * { min-width: 0; }
     .chat-md > * { max-width: 100%; }
@@ -1309,52 +1362,6 @@ function ensureShimmerStyle(theme: ReturnType<typeof useTheme>): void {
   document.head.appendChild(style)
 }
 
-// --- Streamdown plugins (singleton) ------------------------------------------------
-const streamdownPlugins = { code }
-
-// --- Shimmer text helper (Paseo technique) ---------------------------------------
-// Uses background-clip: text with a sweeping white gradient to create
-// a shimmer effect on text labels while loading.
-
-function ShimmerText({ children, style, baseColor = '#888' }: {
-  children: React.ReactNode
-  style?: React.CSSProperties
-  baseColor?: string
-}): JSX.Element {
-  return (
-    <span style={{
-      display: 'block',
-      minWidth: 0,
-      flexShrink: 1,
-      color: 'transparent',
-      backgroundImage: `linear-gradient(90deg, ${baseColor} 0%, ${baseColor} 35%, #fff 50%, ${baseColor} 65%, ${baseColor} 100%)`,
-      backgroundSize: '200% 100%',
-      backgroundClip: 'text',
-      WebkitBackgroundClip: 'text',
-      WebkitTextFillColor: 'transparent',
-      animation: 'chat-shimmer 1.8s linear infinite',
-      ...style,
-    }}>
-      {children}
-    </span>
-  )
-}
-
-// --- Working dots ----------------------------------------------------------------
-
-function WorkingDots({ color, size = 5 }: { color?: string; size?: number }): JSX.Element {
-  const theme = useTheme()
-  return (
-    <span style={{ display: 'inline-flex', gap: 3, padding: '2px 0' }}>
-      {[0, 1, 2].map(i => (
-        <span key={i} style={{
-          width: size, height: size, borderRadius: '50%', background: color ?? theme.accent.base,
-          animation: `chat-dot-bounce 1.2s ease-in-out ${i * 0.15}s infinite`,
-        }} />
-      ))}
-    </span>
-  )
-}
 
 // --- Component -------------------------------------------------------------------
 
@@ -1740,7 +1747,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     setAcIndex(i => Math.min(i, Math.max(0, acItems.length - 1)))
   }, [acItems.length])
 
-  useEffect(() => { ensureShimmerStyle(theme) }, [])
+  useEffect(() => { ensureChatMdStyle() }, [])
 
   useEffect(() => {
     let cancelled = false
