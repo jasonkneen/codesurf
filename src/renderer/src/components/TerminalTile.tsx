@@ -33,6 +33,9 @@ export function TerminalTile({ tileId, workspaceDir, width, height, fontSize = 1
   const fitRef = useRef<FitAddon | null>(null)
   const cleanupRef = useRef<(() => void) | null>(null)
   const mountedRef = useRef(false)
+  // Track fontSize in a ref so the async font-load path reads the current
+  // value (not the mount-time prop captured by the effect closure).
+  const fontSizeRef = useRef(fontSize)
   const [isDropTarget, setIsDropTarget] = useState(false)
 
   const doFit = () => {
@@ -90,14 +93,14 @@ export function TerminalTile({ tileId, workspaceDir, width, height, fontSize = 1
           overviewRulerBorder: theme.terminal.background,
         },
         overviewRuler: {
-          width: 10
+          width: 10,
         },
         fontFamily: resolvedFont,
-        fontSize,
+        fontSize: fontSizeRef.current,
         lineHeight: 1,
         cursorBlink: true,
         allowProposedApi: true,
-        scrollback: 5000
+        scrollback: 5000,
       })
 
       const fitAddon = new FitAddon()
@@ -183,7 +186,10 @@ export function TerminalTile({ tileId, workspaceDir, width, height, fontSize = 1
   }, [width, height])
 
   // Apply fontSize prop changes without remounting the Terminal.
+  // Also keep fontSizeRef current so the mount effect's async font-load
+  // path (which may complete well after this) picks up the latest value.
   useEffect(() => {
+    fontSizeRef.current = fontSize
     if (!termRef.current) return
     termRef.current.options.fontSize = fontSize
     doFit()

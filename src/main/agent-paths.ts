@@ -118,11 +118,13 @@ export function whichSync(cmd: string): string | null {
   }
 }
 
-/** Check if a file exists and is executable */
+/** Check if a file exists and is executable.
+ *  POSIX enforces the execute bit via X_OK; Windows has no such concept, so
+ *  existence (F_OK) is the best we can ask for there. */
 async function isExecutable(filePath: string): Promise<boolean> {
-  // Try the exact path first
+  const mode = process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK
   try {
-    await fs.access(filePath)
+    await fs.access(filePath, mode)
     return true
   } catch { /* continue */ }
 
@@ -130,7 +132,7 @@ async function isExecutable(filePath: string): Promise<boolean> {
   if (process.platform === 'win32' && !/\.\w+$/.test(filePath)) {
     for (const ext of ['.exe', '.cmd', '.bat', '.ps1']) {
       try {
-        await fs.access(filePath + ext)
+        await fs.access(filePath + ext, fs.constants.F_OK)
         return true
       } catch { /* continue */ }
     }
@@ -300,7 +302,10 @@ export async function initializeAgentPathsCache(): Promise<AgentPathsConfig | nu
     const resolved = await resolveExecutablePath(entry.path)
     let best = resolved && resolved !== entry.path ? resolved : null
 
-    if (process.platform === 'win32' && (!resolved || !/\.exe$/i.test(resolved))) {
+    // On Windows, resolveExecutablePath only returns .exe or null — so the
+    // only case where we need to re-query PATH is when it returned null
+    // (saved path is a .cmd/.bat shim or no longer exists).
+    if (process.platform === 'win32' && !resolved) {
       const fromWhich = whichSync(key)
       if (fromWhich && /\.exe$/i.test(fromWhich)) best = fromWhich
     }
