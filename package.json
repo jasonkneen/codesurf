@@ -103,6 +103,10 @@
       "node_modules/node-pty/**",
       "node_modules/sharp/**"
     ],
+    "extraResources": [
+      { "from": "examples/extensions/agent-kanban", "to": "bundled-extensions/agent-kanban" },
+      { "from": "bundled-extensions/livekit-rooms", "to": "bundled-extensions/livekit-rooms" }
+    ],
     "beforeBuild": "scripts/before-build.js",
     "icon": "resources/icon.png",
     "mac": {
