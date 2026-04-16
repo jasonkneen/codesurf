@@ -4,7 +4,6 @@ import { useAppFonts } from '../FontContext'
 import { useLayoutTemplates } from '../hooks/useLayoutTemplates'
 import type { LayoutTemplate, LayoutTemplateNode, LayoutTemplateSlot, TileType } from '../../../shared/types'
 
-const APP_ICON_URL = new URL('../../../../resources/icon.png', import.meta.url).href
 
 // ─── Tile definitions ────────────────────────────────────────────────────────
 
@@ -530,24 +529,6 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
     }}>
       <div style={{ width: '100%', maxWidth: 960, display: 'flex', flexDirection: 'column', gap: 12, alignItems: 'center' }}>
 
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8, userSelect: 'none' }}>
-          <img
-            src={APP_ICON_URL}
-            alt="CodeSurf"
-            style={{
-              width: 76,
-              height: 76,
-              borderRadius: 18,
-              border: `1px solid ${theme.text.disabled}`,
-              boxShadow: theme.shadow.panel,
-              background: `${theme.surface.panelElevated}cc`,
-            }}
-            draggable={false}
-          />
-          <span style={{ fontSize: Math.max(18, fonts.size + 5), fontWeight: 700, color: theme.text.secondary, letterSpacing: 1.8, textTransform: 'uppercase' }}>
-            CodeSurf
-          </span>
-        </div>
 
         <div style={{
           display: 'grid',
@@ -616,6 +597,20 @@ export function LayoutBuilder({ onAddTile, onLaunchTemplate }: Props): JSX.Eleme
                   )}
                   {!isEmpty && (
                     <>
+                      <button onClick={() => { if (onLaunchTemplate) onLaunchTemplate({ id: `launch-${Date.now()}`, name: card.name.trim() || `Layout ${cardIdx + 1}`, created_at: new Date().toISOString(), tree: card.tree! }) }} title="Load" style={{
+                        padding: '2px 8px', borderRadius: 4, border: `1px solid ${theme.border.default}`,
+                        background: theme.surface.panelElevated, color: theme.text.secondary,
+                        cursor: 'pointer', fontSize: Math.max(9, fonts.secondarySize - 2), fontWeight: 600,
+                        opacity: hoveredLayoutCard === cardIdx ? 1 : 0,
+                        pointerEvents: hoveredLayoutCard === cardIdx ? 'auto' : 'none',
+                        transition: 'opacity 0.12s ease',
+                        letterSpacing: 0.3, textTransform: 'uppercase',
+                      }}
+                        onMouseEnter={e => { e.currentTarget.style.background = theme.accent.base; e.currentTarget.style.color = theme.text.inverse; e.currentTarget.style.borderColor = theme.accent.base }}
+                        onMouseLeave={e => { e.currentTarget.style.background = theme.surface.panelElevated; e.currentTarget.style.color = theme.text.secondary; e.currentTarget.style.borderColor = theme.border.default }}
+                      >
+                        Load
+                      </button>
                       <button onClick={() => clearCard(cardIdx)} title="Delete" style={{
                         width: 18, height: 18, borderRadius: 4, border: 'none', background: 'transparent',
                         color: theme.text.disabled, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
