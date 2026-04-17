@@ -1,7 +1,9 @@
 import React from 'react'
 import { useEffect, useMemo, useRef, useState } from 'react'
+import { Cpu, Activity } from 'lucide-react'
 import { useAppFonts } from '../FontContext'
 import { useTheme } from '../ThemeContext'
+import { Tooltip } from './Tooltip'
 
 type MemoryStats = {
   rss: number
@@ -138,9 +140,12 @@ function summarizeDaemonTaskRows(items: DaemonSummary['jobs']['recent']): Daemon
 
 interface MainStatusBarProps {
   onOpenDaemonTask?: (task: DaemonSummary['jobs']['recent'][number]) => void
+  /** 'compact' (default) shows a dot + HEALTH label with hover detail.
+   *  'verbose' renders the full heap bar + numbers inline. */
+  health?: 'compact' | 'verbose'
 }
 
-export function MainStatusBar({ onOpenDaemonTask }: MainStatusBarProps): React.JSX.Element {
+export function MainStatusBar({ onOpenDaemonTask, health = 'compact' }: MainStatusBarProps): React.JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
   const [stats, setStats] = useState<MemoryStats | null>(null)
@@ -296,7 +301,7 @@ export function MainStatusBar({ onOpenDaemonTask }: MainStatusBarProps): React.J
         style={{
           display: 'flex',
           alignItems: 'center',
-          gap: 16,
+          gap: 4,
           minWidth: 0,
           width: 'min(760px, 100%)',
           justifyContent: 'flex-end',
@@ -356,11 +361,14 @@ export function MainStatusBar({ onOpenDaemonTask }: MainStatusBarProps): React.J
                 flexShrink: 0,
               }}
             />
-            <span style={{ color: daemonStatusTextColor, fontWeight: 700, letterSpacing: 0.5 }}>
-              {daemonStatusLabel}
-            </span>
+            <Cpu
+              size={13}
+              strokeWidth={2}
+              aria-label={daemonTitle}
+              style={{ color: daemonStatusTextColor, flexShrink: 0 }}
+            />
             {daemonStatusDetail && (
-              <span style={{ color: theme.text.secondary, fontWeight: 600, letterSpacing: 0.3 }}>
+              <span style={{ color: theme.text.secondary, fontWeight: 600, letterSpacing: 0.3, fontSize: Math.max(9, fonts.secondarySize - 3) }}>
                 {daemonStatusDetail}
               </span>
             )}
@@ -521,53 +529,140 @@ export function MainStatusBar({ onOpenDaemonTask }: MainStatusBarProps): React.J
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, maxWidth: 240, overflow: 'hidden' }}>
-          <div
-            style={{
-              position: 'relative',
-              flex: 1,
-              height: 8,
-              borderRadius: 999,
-              overflow: 'hidden',
-              background: barBackground,
-              minWidth: 90,
-            }}
-          >
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${usage.committedRatio * 100}%`,
-                background: theme.border.strong,
-                opacity: 0.35,
-              }}
-            />
-            <div
-              style={{
-                position: 'absolute',
-                left: 0,
-                top: 0,
-                bottom: 0,
-                width: `${usage.ratio * 100}%`,
-                background: fillColor,
-                boxShadow: `0 0 10px ${fillColor}55`,
-              }}
-            />
+        {health === 'verbose' ? (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, flex: 1, maxWidth: 240, overflow: 'hidden' }}>
+              <div
+                style={{
+                  position: 'relative',
+                  flex: 1,
+                  height: 8,
+                  borderRadius: 999,
+                  overflow: 'hidden',
+                  background: barBackground,
+                  minWidth: 90,
+                }}
+              >
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${usage.committedRatio * 100}%`,
+                    background: theme.border.strong,
+                    opacity: 0.35,
+                  }}
+                />
+                <div
+                  style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: 0,
+                    bottom: 0,
+                    width: `${usage.ratio * 100}%`,
+                    background: fillColor,
+                    boxShadow: `0 0 10px ${fillColor}55`,
+                  }}
+                />
+              </div>
+              <span style={{ whiteSpace: 'nowrap', color: usage.ratio >= 0.85 ? theme.status.danger : theme.text.secondary }}>
+                {formatBytes(usage.heapUsed)} / {formatBytes(usage.heapLimit || usage.heapTotal)}
+              </span>
+            </div>
+
+            <span style={{ whiteSpace: 'nowrap', color: theme.text.secondary }}>
+              RSS {formatBytes(stats?.rss ?? 0)}
+            </span>
+
+            <span style={{ whiteSpace: 'nowrap', color: theme.text.secondary }}>
+              {Math.round(usage.ratio * 100)}%
+            </span>
+          </>
+        ) : (
+          <div style={{ pointerEvents: 'auto' }}>
+            <Tooltip
+              side="top"
+              align="end"
+              maxWidth={320}
+              delay={150}
+              content={
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 220 }}>
+                  <div style={{ fontWeight: 700, letterSpacing: 0.5, color: '#fff' }}>MEMORY HEALTH</div>
+                  <div
+                    style={{
+                      position: 'relative',
+                      height: 6,
+                      borderRadius: 999,
+                      overflow: 'hidden',
+                      background: 'rgba(255,255,255,0.08)',
+                    }}
+                  >
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${usage.committedRatio * 100}%`,
+                        background: 'rgba(255,255,255,0.18)',
+                      }}
+                    />
+                    <div
+                      style={{
+                        position: 'absolute',
+                        left: 0,
+                        top: 0,
+                        bottom: 0,
+                        width: `${usage.ratio * 100}%`,
+                        background: fillColor,
+                      }}
+                    />
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: 10, rowGap: 2, fontVariantNumeric: 'tabular-nums' }}>
+                    <span style={{ color: '#888' }}>Heap</span>
+                    <span>{formatBytes(usage.heapUsed)} / {formatBytes(usage.heapLimit || usage.heapTotal)} ({Math.round(usage.ratio * 100)}%)</span>
+                    <span style={{ color: '#888' }}>Committed</span>
+                    <span>{formatBytes(usage.heapTotal)}</span>
+                    <span style={{ color: '#888' }}>RSS</span>
+                    <span>{formatBytes(stats?.rss ?? 0)}</span>
+                    <span style={{ color: '#888' }}>External</span>
+                    <span>{formatBytes(stats?.external ?? 0)}</span>
+                  </div>
+                </div>
+              }
+            >
+              <div
+                role="status"
+                aria-label={`Memory health ${Math.round(usage.ratio * 100)} percent, resident ${formatBytes(stats?.rss ?? 0)}`}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8,
+                  whiteSpace: 'nowrap',
+                  background: 'transparent',
+                  border: `1px solid transparent`,
+                  borderRadius: 999,
+                  padding: '4px 8px',
+                  color: theme.text.secondary,
+                  cursor: 'default',
+                }}
+              >
+                <span
+                  style={{
+                    width: 7,
+                    height: 7,
+                    borderRadius: '50%',
+                    background: fillColor,
+                    boxShadow: `0 0 6px ${fillColor}88`,
+                    flexShrink: 0,
+                  }}
+                />
+                <Activity size={13} strokeWidth={2} style={{ color: theme.text.secondary, flexShrink: 0 }} />
+              </div>
+            </Tooltip>
           </div>
-          <span style={{ whiteSpace: 'nowrap', color: usage.ratio >= 0.85 ? theme.status.danger : theme.text.secondary }}>
-            {formatBytes(usage.heapUsed)} / {formatBytes(usage.heapLimit || usage.heapTotal)}
-          </span>
-        </div>
-
-        <span style={{ whiteSpace: 'nowrap', color: theme.text.secondary }}>
-          RSS {formatBytes(stats?.rss ?? 0)}
-        </span>
-
-        <span style={{ whiteSpace: 'nowrap', color: theme.text.secondary }}>
-          {Math.round(usage.ratio * 100)}%
-        </span>
+        )}
       </div>
     </div>
   )

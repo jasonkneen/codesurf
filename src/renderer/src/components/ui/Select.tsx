@@ -25,7 +25,7 @@ export function Select({ size = 'md', fullWidth, children, style, ...rest }: Sel
         background: theme.surface.input,
         color: theme.text.primary,
         fontSize: fonts.secondarySize,
-        fontFamily: fonts.primary,
+        fontFamily: fonts.secondary,
         outline: 'none',
         width: fullWidth ? '100%' : undefined,
         minWidth: 0,

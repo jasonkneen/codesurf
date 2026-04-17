@@ -36,6 +36,7 @@ const LazyMCPPanel = React.lazy(() => import('./components/MCPPanel').then(m => 
 const LazyArrangeToolbar = React.lazy(() => import('./components/ArrangeToolbar').then(m => ({ default: m.ArrangeToolbar })))
 const LazyMinimap = React.lazy(() => import('./components/Minimap').then(m => ({ default: m.Minimap })))
 const LazySettingsPanel = React.lazy(() => import('./components/SettingsPanel').then(m => ({ default: m.SettingsPanel })))
+const LazyExtensionsGallery = React.lazy(() => import('./components/ExtensionsGallery').then(m => ({ default: m.ExtensionsGallery })))
 const LazyTerminalTile = React.lazy(() => import('./components/TerminalTile').then(m => ({ default: m.TerminalTile })))
 const LazyCodeTile = React.lazy(() => import('./components/CodeTile').then(m => ({ default: m.CodeTile })))
 const LazyNoteTile = React.lazy(() => import('./components/NoteTile').then(m => ({ default: m.NoteTile })))
@@ -731,6 +732,7 @@ function App(): JSX.Element {
   const [dragState, setDragState] = useState<DragState>({ type: null })
   const [showMCP, setShowMCP] = useState(false)
   const [showSettings, setShowSettings] = useState<string | false>(false)
+  const [showExtensionsGallery, setShowExtensionsGallery] = useState(false)
   const [showMinimap, setShowMinimap] = useState(false)
   const [expandedTileId, setExpandedTileId] = useState<string | null>(null)
   const [panelLayout, setPanelLayout] = useState<PanelNode | null>(null)
@@ -3828,12 +3830,14 @@ function App(): JSX.Element {
           position: 'absolute',
           left: sidebarCollapsed ? 0 : sidebarFooterLeft,
           bottom: sidebarFooterBottom,
-          width: sidebarCollapsed ? 48 : sidebarWidth,
+          // Toolbar persists above canvas and spills past the sidebar edge when
+          // content is wider than the sidebar (e.g. Get Extensions + tile icons).
+          // Width is always intrinsic so the icons never stack vertically.
           height: sidebarFooterHeight,
-          zIndex: 110,
+          zIndex: 140,
           pointerEvents: 'auto',
-          transition: 'width 0.15s ease, left 0.15s ease',
-          overflow: 'hidden',
+          transition: 'left 0.15s ease',
+          overflow: 'visible',
         }}
       >
         <Suspense fallback={null}>
@@ -3847,6 +3851,8 @@ function App(): JSX.Element {
             extensionTiles={settings.extensionsDisabled ? [] : extensionTiles.filter(e => e.type !== 'ext:md-preview' && !(settings.hiddenFromSidebarExtIds ?? []).includes(e.extId))}
             onAddExtensionTile={(type) => addTile(type as TileType)}
             collapsed={sidebarCollapsed}
+            galleryEnabled={settings.extensionsGalleryEnabled !== false}
+            onOpenGallery={() => setShowExtensionsGallery(true)}
           />
         </Suspense>
       </div>
@@ -3864,7 +3870,7 @@ function App(): JSX.Element {
           transition: 'left 0.15s ease',
         }}
       >
-        <MainStatusBar onOpenDaemonTask={openDaemonTask} />
+        <MainStatusBar onOpenDaemonTask={openDaemonTask} health={settings.statusBarHealth ?? 'compact'} />
       </div>
 
       {/* Main area — toolbar overlays top, canvas fills entire window */}
@@ -5268,6 +5274,11 @@ function App(): JSX.Element {
       {showSettings && (
         <Suspense fallback={null}>
           <LazySettingsPanel settings={settings} onClose={() => setShowSettings(false)} onSettingsChange={s => setSettings(withDefaultSettings(s))} workspaces={workspaces} workspacePath={workspace?.path} initialSection={typeof showSettings === 'string' ? showSettings as any : undefined} systemPrefersDark={systemPrefersDark} />
+        </Suspense>
+      )}
+      {showExtensionsGallery && (
+        <Suspense fallback={null}>
+          <LazyExtensionsGallery onClose={() => setShowExtensionsGallery(false)} workspacePath={workspace?.path ?? null} />
         </Suspense>
       )}
       {ctxMenu && (

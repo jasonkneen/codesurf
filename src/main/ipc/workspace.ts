@@ -22,7 +22,7 @@ type LegacyConfigDocument = {
   settings?: Partial<AppSettings>
 }
 
-function extractWorkspacePrimaryPath(workspace: Workspace | null | undefined): string | null {
+export function extractWorkspacePrimaryPath(workspace: Workspace | null | undefined): string | null {
   if (!workspace) return null
   const projectPath = Array.isArray(workspace.projectPaths) && workspace.projectPaths.length > 0
     ? workspace.projectPaths[0]

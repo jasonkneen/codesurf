@@ -104,6 +104,17 @@ contextBridge.exposeInMainWorld('electron', {
     renameSession: (workspaceId: string, sessionEntryId: string, title: string) => ipcRenderer.invoke('canvas:renameSession', workspaceId, sessionEntryId, title),
   },
 
+  // Thread index diagnostics + manual reseed (phase 2 local-SQLite index).
+  threads: {
+    indexStatus: () => ipcRenderer.invoke('threads:indexStatus'),
+    reindex: (workspaceId: string) => ipcRenderer.invoke('threads:reindex', workspaceId),
+    onIndexUpdated: (cb: (payload: { workspacePath: string | null; count: number; tombstoned: number; durationMs: number }) => void) => {
+      const handler = (_: unknown, payload: { workspacePath: string | null; count: number; tombstoned: number; durationMs: number }) => cb(payload)
+      ipcRenderer.on('threads:indexUpdated', handler)
+      return () => ipcRenderer.removeListener('threads:indexUpdated', handler)
+    },
+  },
+
   // Kanban board state persistence
   kanban: {
     load: (workspaceId: string, tileId: string) => ipcRenderer.invoke('kanban:load', workspaceId, tileId),
@@ -452,6 +463,12 @@ contextBridge.exposeInMainWorld('electron', {
       ipcRenderer.on('bus:event', handler)
       return () => ipcRenderer.removeListener('bus:event', handler)
     }
+  },
+
+  // Local SQLite diagnostics (phase 0 harness; no feature code reads/writes it yet).
+  db: {
+    status: () => ipcRenderer.invoke('db:status'),
+    reset: () => ipcRenderer.invoke('db:reset'),
   },
 
   // System memory + lifecycle

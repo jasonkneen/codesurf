@@ -7,6 +7,7 @@ import { removeTile as removePeerTile } from '../peer-state'
 import { getDaemonStatus, restartDaemon } from '../daemon/manager'
 import { daemonClient } from '../daemon/client'
 import { CONTEX_HOME } from '../paths'
+import { getDb, getDbStatus, resetDatabase } from '../db'
 
 // Debounce GC — if cleanupTile is called many times in quick succession we don't
 // want to hammer global.gc(). Runs ~1s after the last cleanup.
@@ -195,6 +196,22 @@ function readDaemonJobSummary(): {
 }
 
 export function registerSystemIPC(): void {
+  // Local SQLite diagnostics / reset (phase 0 harness; no feature code yet uses the DB).
+  ipcMain.handle('db:status', () => {
+    try { return { ok: true, status: getDbStatus() } }
+    catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) } }
+  })
+  ipcMain.handle('db:reset', () => {
+    try {
+      const { backupPath } = resetDatabase()
+      // Reopen immediately so the next feature call doesn't race.
+      getDb()
+      return { ok: true, backupPath }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
+  })
+
   ipcMain.handle('system:cleanupTile', (_, tileId: string) => {
     if (!tileId || typeof tileId !== 'string') return { ok: false }
     // 1. Drop all bus history pinned to this tile

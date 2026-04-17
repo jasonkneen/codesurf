@@ -169,11 +169,22 @@ export const RESOURCE_ITEMS = [
   { id: 'agents', label: 'Agents', icon: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><circle cx="7" cy="4.5" r="2.5" stroke="currentColor" strokeWidth="1.2" /><path d="M2.5 12.5c0-2.5 2-4.5 4.5-4.5s4.5 2 4.5 4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /></svg> },
 ] as const
 
+// Use the shared brand icons (same set the ChatTile provider menu renders)
+// so the sidebar, dropdowns, and pills stay visually consistent.
+import {
+  ClaudeIcon,
+  CodeSurfIcon,
+  CodexIcon,
+  CursorIcon,
+  OpenClawIcon,
+  OpenCodeIcon,
+} from '../icons/providerIcons'
+
 export const SESSION_SOURCE_ICONS: Record<string, React.JSX.Element> = {
-  codesurf: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="1.5" y="1.5" width="11" height="11" rx="2.5" stroke="currentColor" strokeWidth="1.2" /><path d="M4 4.5h6M4 7h6M4 9.5h4" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></svg>,
-  claude: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M3 7c0-2.2 1.8-4 4-4 1.5 0 2.8.8 3.5 2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><path d="M11 7c0 2.2-1.8 4-4 4-1.5 0-2.8-.8-3.5-2" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><circle cx="7" cy="7" r="1" fill="currentColor" /></svg>,
-  codex: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M5 2.5 1.8 7 5 11.5M9 2.5 12.2 7 9 11.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /><path d="M6.3 12 7.7 2" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" /></svg>,
-  cursor: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M3 3h8v8H3z" stroke="currentColor" strokeWidth="1.2" /><path d="M5 5h4v4H5z" stroke="currentColor" strokeWidth="1.2" opacity="0.55" /></svg>,
-  openclaw: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><path d="M3 5c0-1.4 1-2.5 2.2-2.5.7 0 1 .4 1.8.4s1.1-.4 1.8-.4C10 2.5 11 3.6 11 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><path d="M2.5 7.5c0 1.7 1.4 3 3 3h3c1.6 0 3-1.3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" /><circle cx="5" cy="7" r=".8" fill="currentColor" /><circle cx="9" cy="7" r=".8" fill="currentColor" /></svg>,
-  opencode: <svg width="16" height="16" viewBox="0 0 14 14" fill="none"><rect x="2" y="2" width="10" height="10" rx="2" stroke="currentColor" strokeWidth="1.2" /><path d="M4.5 9.5 7 4.5l2.5 5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" /></svg>,
+  codesurf: <CodeSurfIcon size={14} />,
+  claude:   <ClaudeIcon size={14} />,
+  codex:    <CodexIcon size={14} />,
+  cursor:   <CursorIcon size={14} />,
+  openclaw: <OpenClawIcon size={14} />,
+  opencode: <OpenCodeIcon size={14} />,
 }

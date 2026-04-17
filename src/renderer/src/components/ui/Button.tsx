@@ -73,7 +73,7 @@ export function Button({
         color: palette.fg,
         fontSize: fonts.secondarySize,
         fontWeight: 500,
-        fontFamily: fonts.primary,
+        fontFamily: fonts.secondary,
         cursor: isDisabled ? 'not-allowed' : 'pointer',
         opacity: isDisabled ? 0.5 : 1,
         transition: 'background 0.12s ease, color 0.12s ease, border-color 0.12s ease',

@@ -261,6 +261,15 @@ export function Sidebar({
 
   useEffect(() => {
     const unsubscribe = window.electron.canvas.onSessionsChanged(({ workspaceId }) => {
+      // Wildcard '*' (or missing) → refresh every loaded workspace. Used by
+      // the thread indexer when a reseed affects rows across workspaces.
+      if (!workspaceId || workspaceId === '*') {
+        for (const loadedId of loadedSessionWorkspaceIdSet) {
+          const entry = workspaceById.get(loadedId)
+          if (entry) void loadWorkspaceSessions(entry, false)
+        }
+        return
+      }
       const workspaceEntry = workspaceById.get(workspaceId)
       if (!workspaceEntry || !loadedSessionWorkspaceIdSet.has(workspaceEntry.id)) return
       void loadWorkspaceSessions(workspaceEntry, true)
@@ -441,13 +450,43 @@ const visibleSessions = useMemo(() => {
     return buildNestedSessionList(filtered, threadSortMode)
   }, [sessions, showCronSessions, showSubagentSessions, threadOrganizeMode, threadSortMode])
 
+  // Chronological mode uses a single flat list with one paginator.
+  // Project mode paginates per-project (see projectVisibleCounts below).
   useEffect(() => {
     setVisibleSessionCount(SESSION_PAGE_SIZE)
-  }, [workspace?.id, showCronSessions, showSubagentSessions, threadOrganizeMode, threadSortMode, sessions.length])
+  }, [workspace?.id, showCronSessions, showSubagentSessions, threadOrganizeMode, threadSortMode])
 
   const displayedSessions = useMemo(() => {
+    if (threadOrganizeMode !== 'chronological') return visibleSessions
     return visibleSessions.slice(0, visibleSessionCount)
-  }, [visibleSessions, visibleSessionCount])
+  }, [visibleSessions, visibleSessionCount, threadOrganizeMode])
+
+  // Per-project pagination — each project keeps its own "show more" count.
+  // Keyed by projectId; entries persist across refetches.
+  const [projectVisibleCounts, setProjectVisibleCounts] = useState<Record<string, number>>({})
+  const getProjectCount = useCallback((projectId: string): number => {
+    return projectVisibleCounts[projectId] ?? SESSION_PAGE_SIZE
+  }, [projectVisibleCounts])
+  const bumpProjectCount = useCallback((projectId: string) => {
+    setProjectVisibleCounts(prev => ({
+      ...prev,
+      [projectId]: (prev[projectId] ?? SESSION_PAGE_SIZE) + SESSION_PAGE_SIZE,
+    }))
+  }, [])
+  // Track full per-project counts so each group can render its own "More".
+  const projectSessionTotals = useMemo(() => {
+    const totals: Record<string, number> = {}
+    for (const projectEntry of projectEntries) {
+      const projectPath = normalizeSidebarPath(projectEntry.path)
+      const workspaceIdSet = new Set(projectEntry.workspaceIds)
+      totals[projectEntry.id] = visibleSessions.filter(session => {
+        const sessionProjectPath = normalizeSidebarPath(session.projectPath ?? session.workspacePath)
+        if (sessionProjectPath) return sessionProjectPath === projectPath
+        return workspaceIdSet.has(session.workspaceId)
+      }).length
+    }
+    return totals
+  }, [visibleSessions, projectEntries])
 
   const displayedSessionGroups = useMemo<SessionProjectGroup[]>(() => {
     if (threadOrganizeMode === 'chronological') {
@@ -464,21 +503,22 @@ const visibleSessions = useMemo(() => {
       .map(projectEntry => {
         const projectPath = normalizeSidebarPath(projectEntry.path)
         const workspaceIdSet = new Set(projectEntry.workspaceIds)
-        const workspaceSessions = displayedSessions.filter(session => {
+        const allWorkspaceSessions = visibleSessions.filter(session => {
           const sessionProjectPath = normalizeSidebarPath(session.projectPath ?? session.workspacePath)
           if (sessionProjectPath) return sessionProjectPath === projectPath
           return workspaceIdSet.has(session.workspaceId)
         })
+        const count = getProjectCount(projectEntry.id)
         return {
           projectId: projectEntry.id,
           projectPath: projectEntry.path,
           representativeWorkspaceId: projectEntry.representativeWorkspaceId,
           key: projectEntry.id,
           label: getProjectDisplayLabel(projectEntry),
-          sessions: workspaceSessions,
+          sessions: allWorkspaceSessions.slice(0, count),
         }
       })
-  }, [displayedSessions, projectEntries, threadOrganizeMode])
+  }, [visibleSessions, displayedSessions, projectEntries, threadOrganizeMode, getProjectCount])
 
   const filteredSessionGroups = useMemo(() => {
     const q = projectSearch.trim().toLowerCase()
@@ -494,7 +534,9 @@ const visibleSessions = useMemo(() => {
       .filter(Boolean) as typeof displayedSessionGroups
   }, [displayedSessionGroups, projectSearch])
 
-  const hasMoreSessions = displayedSessions.length < visibleSessions.length
+  const hasMoreSessions = threadOrganizeMode === 'chronological'
+    ? displayedSessions.length < visibleSessions.length
+    : false
 
   const armDeleteSession = useCallback((sessionId: string) => {
     if (deleteConfirmTimerRef.current) window.clearTimeout(deleteConfirmTimerRef.current)
@@ -612,17 +654,6 @@ const visibleSessions = useMemo(() => {
             </>
           )
         })()}
-
-        <div style={{ paddingBottom: 6 }}>
-          {RESOURCE_ITEMS.map(item => (
-            <SidebarItem
-              key={item.id}
-              label={item.label}
-              icon={item.icon}
-              onClick={() => onOpenSettings(item.id)}
-            />
-          ))}
-        </div>
 
         <div style={{ padding: '8px 12px 10px', fontSize: fonts.secondarySize, fontWeight: fonts.secondaryWeight, lineHeight: fonts.secondaryLineHeight }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 8 }}>
@@ -864,7 +895,8 @@ const visibleSessions = useMemo(() => {
                       label={session.title.length > 44 ? `${session.title.slice(0, 44)}...` : session.title}
                       icon={SESSION_SOURCE_ICONS[session.source]}
                       indent={Math.max(1, session.displayIndent + 1)}
-                      extraWidth={132}
+                      extraWidth={24}
+                      title={`${session.title}\n${session.sourceLabel}${session.messageCount > 0 ? ` · ${session.messageCount} msg` : ''}`}
                       onClick={() => {
                         if (session.tileId && openTileIdSet.has(session.tileId)) {
                           onFocusTile(session.tileId)
@@ -878,14 +910,6 @@ const visibleSessions = useMemo(() => {
                       }}
                       extra={
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                          <span style={{
-                            fontSize: fonts.secondarySize - 1,
-                            color: theme.text.disabled,
-                            whiteSpace: 'nowrap',
-                            flexShrink: 0,
-                          }}>
-                            {session.sourceLabel}{session.messageCount > 0 ? ` · ${session.messageCount} msg` : ''}
-                          </span>
                           <button
                             title={pendingDeleteSessionId === session.id ? 'Click again to confirm delete' : 'Delete session'}
                             onClick={e => {
@@ -936,6 +960,34 @@ const visibleSessions = useMemo(() => {
                     >
                       No threads yet
                     </div>
+                  )}
+
+                  {/* Per-project "show more". Only renders when this specific
+                      project has more threads than currently displayed. */}
+                  {threadOrganizeMode === 'project'
+                    && !isThreadGroupCollapsed(group)
+                    && (projectSessionTotals[group.projectId] ?? 0) > group.sessions.length && (
+                    <button
+                      type="button"
+                      onClick={() => bumpProjectCount(group.projectId)}
+                      style={{
+                        marginLeft: 36,
+                        marginTop: 2,
+                        padding: '2px 6px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: theme.text.disabled,
+                        cursor: 'pointer',
+                        fontSize: fonts.secondarySize,
+                        fontFamily: 'inherit',
+                        textAlign: 'left',
+                        alignSelf: 'flex-start',
+                      }}
+                      onMouseEnter={e => { e.currentTarget.style.color = theme.text.secondary }}
+                      onMouseLeave={e => { e.currentTarget.style.color = theme.text.disabled }}
+                    >
+                      More ({(projectSessionTotals[group.projectId] ?? 0) - group.sessions.length})
+                    </button>
                   )}
                 </div>
               ))}
@@ -1221,6 +1273,25 @@ const visibleSessions = useMemo(() => {
           </>
         )}
         </div>
+      </div>
+
+      {/* Static footer list — resources (Prompts / Skills / Tools / Agents)
+          live between the scrollable projects panel and the icon toolbar. */}
+      <div
+        style={{
+          padding: '6px 0 4px',
+          borderTop: `1px solid ${theme.border.subtle}`,
+          flexShrink: 0,
+        }}
+      >
+        {RESOURCE_ITEMS.map(item => (
+          <SidebarItem
+            key={item.id}
+            label={item.label}
+            icon={item.icon}
+            onClick={() => onOpenSettings(item.id)}
+          />
+        ))}
       </div>
 
       {showFooter && (

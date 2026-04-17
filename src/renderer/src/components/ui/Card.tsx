@@ -63,6 +63,7 @@ export function SectionLabel({ label, style, ...rest }: SectionLabelProps): JSX.
     <div
       {...rest}
       style={{
+        fontFamily: fonts.secondary,
         fontSize: Math.max(10, fonts.secondarySize - 1),
         fontWeight: 700,
         color: theme.text.disabled,

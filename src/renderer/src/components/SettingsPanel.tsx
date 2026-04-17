@@ -579,7 +579,7 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
         const appearanceMode = settings.appearance ?? 'dark'
         return (
           <>
-            <SectionLabel label="Appearance" />
+            <SectionLabel label="Theme" />
             <SettingRow label="Mode" description="Dark uses the palette below. Light uses the Paper Light theme. System follows your OS dark/light setting.">
               <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
                 {(['dark', 'light', 'system'] as const).map(mode => (
@@ -604,7 +604,6 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
                 ))}
               </div>
             </SettingRow>
-            <SectionLabel label="Theme" />
             <SettingRow label="Preset" description="Changes block chrome, terminal colours, shell surfaces, and resets the canvas palette to the preset defaults. Presets match the current light or dark mode.">
               <select
                 value={resolvedThemeId}
@@ -1723,7 +1722,13 @@ export function SettingsPanel({ onClose, settings: initialSettings, onSettingsCh
           {/* Nav items — grouped */}
           <div style={{ flex: 1, overflowY: 'auto' }}>
             {(['app', 'customise', 'system'] as const).map(group => {
-              const groupSections = SECTIONS.filter(s => s.group === group)
+              // When the extensions gallery is enabled, hide the legacy
+              // Settings > Extensions nav entry. Section code is kept intact
+              // so we can restore instantly by flipping the flag off.
+              const galleryEnabled = settings.extensionsGalleryEnabled !== false
+              const groupSections = SECTIONS
+                .filter(s => s.group === group)
+                .filter(s => !(galleryEnabled && s.id === 'extensions'))
               const groupLabel = group === 'app' ? 'App' : group === 'customise' ? 'Customise' : 'System'
               return (
                 <div key={group}>

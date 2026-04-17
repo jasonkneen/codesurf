@@ -6,6 +6,10 @@ import { useAppFonts } from '../../FontContext'
 import { useTheme } from '../../ThemeContext'
 import { CompactFontRow, MONO_FONTS, SANS_FONTS, SectionLabel, SettingRow } from './controls'
 
+// The in-panel JSON editor is hidden: users can edit settings.json directly.
+// Flip to `true` to restore the Display / JSON tab switcher + raw editor.
+const SHOW_JSON_EDITOR = false
+
 function buildDisplayJson(settings: AppSettings): string {
   return JSON.stringify({
     appearance: settings.appearance,
@@ -129,6 +133,7 @@ export function DisplaySettingsEditor({
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+      {SHOW_JSON_EDITOR && (
       <div style={{ display: 'flex', gap: 4, borderBottom: `1px solid ${theme.border.default}`, paddingBottom: 8 }}>
         {[
           { id: 'display' as const, label: 'Display', icon: <FormInput size={14} /> },
@@ -175,8 +180,9 @@ export function DisplaySettingsEditor({
           )
         })}
       </div>
+      )}
 
-      {view === 'display' ? (
+      {(!SHOW_JSON_EDITOR || view === 'display') ? (
         <>
           <SectionLabel label="Fonts" />
           <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>

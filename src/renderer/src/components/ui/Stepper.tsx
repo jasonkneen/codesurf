@@ -60,6 +60,7 @@ export function Stepper({
     background: theme.surface.panelElevated,
     color: theme.text.secondary,
     cursor: 'pointer', padding: 0, flexShrink: 0,
+    fontFamily: fonts.secondary,
     fontSize: fonts.secondarySize, lineHeight: 1,
   }
 
@@ -78,6 +79,7 @@ export function Stepper({
           height: 24, display: 'flex', alignItems: 'center', justifyContent: 'center',
           borderRadius: 6, border: `1px solid ${theme.border.default}`,
           background: theme.surface.input, color: theme.text.primary,
+          fontFamily: fonts.secondary,
           fontSize: fonts.secondarySize, fontVariantNumeric: 'tabular-nums',
         }}>
           {display}
@@ -104,6 +106,7 @@ export function Stepper({
             background: theme.surface.input,
             color: theme.text.primary,
             outline: 'none',
+            fontFamily: fonts.secondary,
             fontSize: fonts.secondarySize,
             textAlign: 'center',
             fontVariantNumeric: 'tabular-nums',

@@ -19,7 +19,7 @@ export function SectionHeader({ label, collapsed, onToggle, extra }: { label: st
         <svg width="8" height="8" viewBox="0 0 8 8" style={{ transition: 'transform 0.15s ease', transform: collapsed ? 'rotate(0deg)' : 'rotate(90deg)', opacity: 0.5, flexShrink: 0 }}>
           <path d="M2 1l4 3-4 3" stroke="currentColor" strokeWidth="1.4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
         </svg>
-        <span style={{ fontSize: fonts.secondarySize - 2, fontWeight: 700, color: theme.text.disabled, letterSpacing: 1.2, textTransform: 'uppercase' }}>
+        <span style={{ fontFamily: fonts.secondary, fontSize: fonts.secondarySize - 2, fontWeight: 700, color: theme.text.disabled, letterSpacing: 1.2, textTransform: 'uppercase' }}>
           {label}
         </span>
       </div>
@@ -32,7 +32,7 @@ export function ThreadMenuSectionLabel({ children }: { children: React.ReactNode
   const theme = useTheme()
   const fonts = useAppFonts()
   return (
-    <div style={{ padding: '6px 12px 4px', fontSize: Math.max(11, fonts.secondarySize + 1), fontWeight: 500, color: theme.text.disabled, userSelect: 'none', WebkitUserSelect: 'none' }}>
+    <div style={{ padding: '6px 12px 4px', fontFamily: fonts.secondary, fontSize: Math.max(11, fonts.secondarySize + 1), fontWeight: 500, color: theme.text.disabled, userSelect: 'none', WebkitUserSelect: 'none' }}>
       {children}
     </div>
   )
@@ -102,7 +102,7 @@ export function SidebarMenuPortal({ anchorRef, children }: { anchorRef: React.Re
   )
 }
 
-export function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, indent = 0, extra, extraAlwaysVisible = false, extraWidth }: {
+export function SidebarItem({ label, icon, active, muted, onClick, onContextMenu, indent = 0, extra, extraAlwaysVisible = false, extraWidth, title }: {
   label: string
   icon?: React.ReactNode
   active?: boolean
@@ -113,12 +113,15 @@ export function SidebarItem({ label, icon, active, muted, onClick, onContextMenu
   extra?: React.ReactNode
   extraAlwaysVisible?: boolean
   extraWidth?: number
+  /** Native tooltip (shown after OS delay) — useful for truncated labels / metadata. */
+  title?: string
 }): React.JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
   const [hovered, setHovered] = useState(false)
   return (
     <div
+      title={title}
       onClick={onClick}
       onContextMenu={onContextMenu}
       onMouseEnter={() => setHovered(true)}

@@ -227,12 +227,36 @@ export function CompactFontRow({ label, description, token, fontOptions, onChang
 }): React.JSX.Element {
   const theme = useTheme()
   const fonts = useAppFonts()
+
+  const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v))
+
+  const microFieldStyle: React.CSSProperties = {
+    width: 56, height: 28,
+    padding: '0 6px', borderRadius: 6,
+    border: `1px solid ${theme.border.default}`,
+    background: theme.surface.input,
+    color: theme.text.primary,
+    outline: 'none',
+    fontSize: fonts.secondarySize,
+    textAlign: 'center',
+    fontVariantNumeric: 'tabular-nums',
+    MozAppearance: 'textfield',
+  }
+  const microLabelStyle: React.CSSProperties = {
+    fontSize: Math.max(9, fonts.secondarySize - 2),
+    color: theme.text.disabled,
+    textTransform: 'uppercase',
+    letterSpacing: 0.6,
+    marginBottom: 2,
+    textAlign: 'center',
+  }
+
   return (
     <div style={{
       display: 'grid',
       gridTemplateColumns: 'minmax(120px, 130px) 1fr',
       gap: 12,
-      alignItems: 'start',
+      alignItems: 'center',
       padding: '10px 12px',
       background: theme.surface.panelMuted,
       border: `1px solid ${theme.border.subtle}`,
@@ -242,12 +266,55 @@ export function CompactFontRow({ label, description, token, fontOptions, onChang
         <div style={{ fontSize: fonts.size, color: theme.text.primary, fontWeight: 600 }}>{label}</div>
         <div style={{ fontSize: fonts.secondarySize, color: theme.text.disabled, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{description}</div>
       </div>
-      <div style={{ display: 'grid', gap: 8 }}>
-        <FontSelect value={token.family} onChange={family => onChange({ ...token, family })} fonts={fontOptions} />
-        <div style={{ display: 'flex', gap: 8 }}>
-          <StepperNumberField value={token.size} min={8} max={32} step={1} onChange={size => onChange({ ...token, size })} />
-          <StepperNumberField value={token.weight ?? 400} min={100} max={900} step={100} onChange={weight => onChange({ ...token, weight })} />
-          <StepperNumberField value={token.lineHeight} min={0.7} max={2.2} step={0.05} onChange={lineHeight => onChange({ ...token, lineHeight })} format={value => value.toFixed(2)} />
+      <div style={{ display: 'flex', gap: 10, alignItems: 'flex-end' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={microLabelStyle}>Family</div>
+          <FontSelect value={token.family} onChange={family => onChange({ ...token, family })} fonts={fontOptions} />
+        </div>
+        <div>
+          <div style={microLabelStyle}>Size</div>
+          <input
+            type="number"
+            min={8}
+            max={32}
+            step={1}
+            value={token.size}
+            onChange={e => {
+              const n = Number(e.target.value)
+              if (Number.isFinite(n)) onChange({ ...token, size: clamp(n, 8, 32) })
+            }}
+            style={microFieldStyle}
+          />
+        </div>
+        <div>
+          <div style={microLabelStyle}>Weight</div>
+          <input
+            type="number"
+            min={100}
+            max={900}
+            step={100}
+            value={token.weight ?? 400}
+            onChange={e => {
+              const n = Number(e.target.value)
+              if (Number.isFinite(n)) onChange({ ...token, weight: clamp(Math.round(n / 100) * 100, 100, 900) })
+            }}
+            style={microFieldStyle}
+          />
+        </div>
+        <div>
+          <div style={microLabelStyle}>Line</div>
+          <input
+            type="number"
+            min={0.7}
+            max={2.2}
+            step={0.05}
+            value={Number(token.lineHeight.toFixed(2))}
+            onChange={e => {
+              const n = Number(e.target.value)
+              if (Number.isFinite(n)) onChange({ ...token, lineHeight: clamp(n, 0.7, 2.2) })
+            }}
+            style={microFieldStyle}
+          />
         </div>
       </div>
     </div>
