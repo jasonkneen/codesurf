@@ -264,6 +264,23 @@ interface ElectronAPI {
     onEvent(callback: (event: import('../../shared/types').BusEvent) => void): () => void
   }
   getPathForFile(file: File): string
+  /** Local SQLite diagnostics. */
+  db: {
+    status(): Promise<
+      | { ok: true; status: { path: string; deviceId: string; schemaVersion: number; tables: string[] } }
+      | { ok: false; error: string }
+    >
+    reset(): Promise<{ ok: true; backupPath: string | null } | { ok: false; error: string }>
+  }
+  /** Thread index (phase 2). Powers the sidebar via SQLite instead of filesystem walks. */
+  threads: {
+    indexStatus(): Promise<
+      | { ok: true; status: { workspacePath: string | null; seedingInFlight: boolean; lastSeedStartedAt: number; lastSeedFinishedAt: number; lastSeedDurationMs: number; lastSeedCount: number; totalRows: number; lastError: string | null; watcherCount: number } }
+      | { ok: false; error: string }
+    >
+    reindex(workspaceId: string): Promise<{ ok: true; durationMs: number; count: number; tombstoned: number } | { ok: false; error: string }>
+    onIndexUpdated(callback: (payload: { workspacePath: string | null; count: number; tombstoned: number; durationMs: number }) => void): () => void
+  }
   system: {
     cleanupTile(tileId: string): Promise<{ ok: boolean; channelsDropped?: number }>
     gc(): Promise<{ ok: boolean; exposed: boolean }>

@@ -49,7 +49,7 @@ export function SidebarFooter({
   }, [extensionTiles])
 
   return (
-    <div style={{ padding: '11px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: collapsed ? 6 : 10, flexDirection: 'row', width: 'fit-content' }}>
+    <div style={{ padding: '14px 8px 2px', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', gap: collapsed ? 6 : 10, flexDirection: 'row', width: 'fit-content' }}>
       {galleryEnabled && onOpenGallery && !collapsed && (
         <button
           onClick={onOpenGallery}

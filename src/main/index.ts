@@ -30,6 +30,10 @@ import { registerLocalProxyIPC } from './ipc/localProxy'
 import { applyWindowAppearance, getWindowAppearanceOptions } from './windowAppearance'
 import { migrateLegacyStorage } from './migration'
 import { APP_ID, APP_NAME, CONTEX_HOME } from './paths'
+import { closeDb, getDb, getDbStatus } from './db'
+import { initThreadIndexerForWorkspace, stopThreadWatchers } from './db/thread-indexer'
+import { daemonClient as rootDaemonClient } from './daemon/client'
+import { extractWorkspacePrimaryPath } from './ipc/workspace'
 import { stopAllRelayServices } from './relay/service'
 // browserTile BrowserView IPC was removed — renderer uses <webview> tag directly
 
@@ -249,6 +253,34 @@ app.whenReady().then(async () => {
   })
 
   await migrateLegacyStorage()
+
+  // Open (or create) the local SQLite database and apply pending schema
+  // migrations. Phase 2 uses this DB for the threads index; the UI always
+  // has a legacy-walker fallback behind the `storage.threadIndex` flag.
+  try {
+    getDb()
+    const status = getDbStatus()
+    // eslint-disable-next-line no-console
+    console.log(`[db] Ready at ${status.path} (schema v${status.schemaVersion}, tables: ${status.tables.join(', ') || '—'})`)
+  } catch (err) {
+    // eslint-disable-next-line no-console
+    console.error('[db] Failed to initialise local database:', err)
+  }
+
+  // Kick off the thread indexer in the background with whatever workspace the
+  // daemon currently considers active. The indexer seeds asynchronously so
+  // the UI can render immediately from the existing DB rows (or an empty set
+  // on the very first launch). Failures here must not block boot.
+  void (async () => {
+    try {
+      const active = await rootDaemonClient.getActiveWorkspace().catch(() => null)
+      const workspacePath = extractWorkspacePrimaryPath(active)
+      initThreadIndexerForWorkspace(workspacePath)
+    } catch (err) {
+      // eslint-disable-next-line no-console
+      console.warn('[threads] Indexer init failed:', err)
+    }
+  })()
 
   // Init workspace dirs + register all IPC handlers
   await initWorkspaces()
@@ -664,6 +696,8 @@ app.on('before-quit', () => {
   stopAllCollabWatchers()
   extensionRegistry?.deactivateAll()
   stopAllRelayServices()
+  stopThreadWatchers()
+  closeDb()
 })
 
 app.on('window-all-closed', () => {

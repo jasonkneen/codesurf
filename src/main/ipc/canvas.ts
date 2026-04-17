@@ -19,6 +19,9 @@ import { broadcastToRenderer } from '../utils/broadcast'
 import { isRelayHostActive } from '../relay/registration'
 import { syncWorkspaceRelayParticipants } from '../relay/service'
 import { daemonClient } from '../daemon/client'
+import { readSettingsSync } from './workspace'
+import { ensureThreadIndexer, getIndexerStatus, listThreadsFromDb, seedThreadsIndex } from '../db/thread-indexer'
+import { getExternalSessionChatState } from '../session-sources'
 
 interface TileSessionSummary {
   version: 1
@@ -159,7 +162,51 @@ async function writeTileSessionSummary(storageId: string, tileId: string, state:
   return { changed: true, summary: summaryToWrite }
 }
 
-function broadcastSessionsChanged(workspaceId: string): void {
+// Track the last-seen summary signature per tile so we only broadcast
+// sessionsChanged when something user-visible actually changes (not every
+// token during a streaming turn).
+const sessionSummarySignatures = new Map<string, string>()
+
+// Debounce sessionsChanged broadcasts per workspace. Chat tiles save their
+// state often (per turn, per keystroke during draft input, ...); each save
+// may legitimately change the session summary, but broadcasting that to the
+// sidebar every time causes a refetch storm. Coalesce rapid calls into a
+// single broadcast. 3s is long enough to absorb bursts of activity (typing +
+// streaming) but short enough that list still feels live after a conversation
+// pauses.
+const SESSIONS_CHANGED_DEBOUNCE_MS = 3000
+const sessionsChangedTimers = new Map<string, NodeJS.Timeout>()
+const sessionsChangedCallCounts = new Map<string, number>()
+
+function broadcastSessionsChanged(workspaceId: string, reason: string = 'unknown'): void {
+  const key = workspaceId || '*'
+  const existing = sessionsChangedTimers.get(key)
+  const callCount = (sessionsChangedCallCounts.get(key) ?? 0) + 1
+  sessionsChangedCallCounts.set(key, callCount)
+  if (existing) clearTimeout(existing)
+  const timer = setTimeout(() => {
+    sessionsChangedTimers.delete(key)
+    const count = sessionsChangedCallCounts.get(key) ?? 1
+    sessionsChangedCallCounts.delete(key)
+    // eslint-disable-next-line no-console
+    console.log(`[sessions] broadcast workspaceId=${workspaceId || '(empty)'} reason=${reason} coalesced=${count}`)
+    broadcastToRenderer('canvas:sessionsChanged', { workspaceId })
+  }, SESSIONS_CHANGED_DEBOUNCE_MS)
+  if (typeof timer.unref === 'function') timer.unref()
+  sessionsChangedTimers.set(key, timer)
+}
+
+/** Immediate-fire variant: use when the event MUST land before a response
+ *  (e.g. after delete/rename IPC replies so the renderer sees the result). */
+function broadcastSessionsChangedNow(workspaceId: string, reason: string = 'explicit'): void {
+  const existing = sessionsChangedTimers.get(workspaceId || '*')
+  if (existing) {
+    clearTimeout(existing)
+    sessionsChangedTimers.delete(workspaceId || '*')
+  }
+  sessionsChangedCallCounts.delete(workspaceId || '*')
+  // eslint-disable-next-line no-console
+  console.log(`[sessions] broadcast(now) workspaceId=${workspaceId || '(empty)'} reason=${reason}`)
   broadcastToRenderer('canvas:sessionsChanged', { workspaceId })
 }
 
@@ -232,9 +279,25 @@ export function registerCanvasIPC(): void {
   ipcMain.handle('canvas:saveTileState', async (_, workspaceId: string, tileId: string, state: unknown) => {
     const { storageId } = await saveWorkspaceTileState(workspaceId, tileId, state)
 
-    const { changed } = await writeTileSessionSummary(storageId, tileId, state)
-    if (changed && (!(state && typeof state === 'object') || (state as { isStreaming?: boolean }).isStreaming !== true)) {
-      broadcastSessionsChanged(workspaceId)
+    const { changed, summary } = await writeTileSessionSummary(storageId, tileId, state)
+    const isStreaming = state && typeof state === 'object' && (state as { isStreaming?: boolean }).isStreaming === true
+    // Previously we broadcasted on ANY summary change, which fires every time
+    // a chat message is appended (dozens of times during a streaming turn
+    // even with isStreaming=true gating). That nuked sidebar stability.
+    //
+    // Instead: only broadcast when something the sidebar actually renders has
+    // meaningfully changed vs what's already in the cache — i.e. the title
+    // changed (rename or first message sets it) or this is the first save.
+    const prevKey = sessionSummarySignatures.get(`${storageId}:${tileId}`) ?? null
+    const nextKey = summary ? `${summary.title}|${summary.messageCount}` : null
+    const titleOrFirstSaveChanged = prevKey === null
+      ? nextKey !== null
+      : nextKey !== null && prevKey.split('|')[0] !== nextKey.split('|')[0]
+    if (summary) sessionSummarySignatures.set(`${storageId}:${tileId}`, nextKey!)
+    else sessionSummarySignatures.delete(`${storageId}:${tileId}`)
+
+    if (changed && !isStreaming && titleOrFirstSaveChanged) {
+      broadcastSessionsChanged(workspaceId, 'saveTileState/title')
     }
   })
 
@@ -255,13 +318,60 @@ export function registerCanvasIPC(): void {
   ipcMain.handle('canvas:listSessions', async (_, workspaceId: string, forceRefresh = false) => {
     assertSafeWorkspaceArtifactId(workspaceId)
     const workspacePath = await getWorkspacePathById(workspaceId)
-    const sessions: AggregatedSessionEntry[] = await daemonClient.listLocalSessions(workspaceId).catch(() => [])
-    for (const session of sessions) {
+    const useIndex = readSettingsSync().storage?.threadIndex !== false
+
+    // Local (daemon-owned) sessions always come straight from the daemon.
+    const localSessions: AggregatedSessionEntry[] = await daemonClient.listLocalSessions(workspaceId).catch(() => [])
+    for (const session of localSessions) {
       if (!session.projectPath) session.projectPath = workspacePath
     }
-    sessions.push(...await daemonClient.listExternalSessions(workspacePath, forceRefresh).catch(() => []))
-    sessions.sort((a, b) => b.updatedAt - a.updatedAt)
-    return sessions
+
+    if (useIndex) {
+      // Fast path: read the external-source index from SQLite. First call
+      // for a workspace also kicks off a background (re)seed + watchers.
+      const indexerStartedAt = Date.now()
+      ensureThreadIndexer(workspacePath)
+
+      // If a force refresh is requested, reseed and wait for fresh data.
+      if (forceRefresh) {
+        await seedThreadsIndex(workspacePath)
+        const fresh = listThreadsFromDb(workspacePath)
+        console.log(`[threads] listSessions(force) returned ${fresh.length + localSessions.length} rows in ${Date.now() - indexerStartedAt}ms`)
+        return [...localSessions, ...fresh].sort((a, b) => b.updatedAt - a.updatedAt)
+      }
+
+      const indexed = listThreadsFromDb(workspacePath)
+      const status = getIndexerStatus()
+      // If the DB is empty and no seed has ever completed, kick one off in
+      // the background. Do NOT await — the renderer will refresh via the
+      // wildcard canvas:sessionsChanged broadcast once the seed finishes.
+      if (indexed.length === 0 && status.lastSeedFinishedAt === 0 && !status.seedingInFlight) {
+        void seedThreadsIndex(workspacePath)
+      }
+      const elapsed = Date.now() - indexerStartedAt
+      console.log(`[threads] listSessions returned ${indexed.length + localSessions.length} rows in ${elapsed}ms (db=${indexed.length}, local=${localSessions.length}, seeding=${status.seedingInFlight}, lastSeedAt=${status.lastSeedFinishedAt}, ws=${workspacePath ?? 'null'})`)
+      return [...localSessions, ...indexed].sort((a, b) => b.updatedAt - a.updatedAt)
+    }
+
+    // Slow (legacy) fallback: walk the five filesystem trees synchronously.
+    console.log('[threads] listSessions using LEGACY walker (storage.threadIndex = false)')
+    const external = await daemonClient.listExternalSessions(workspacePath, forceRefresh).catch(() => [])
+    return [...localSessions, ...external].sort((a, b) => b.updatedAt - a.updatedAt)
+  })
+
+  ipcMain.handle('threads:indexStatus', () => {
+    try { return { ok: true, status: getIndexerStatus() } }
+    catch (err) { return { ok: false, error: err instanceof Error ? err.message : String(err) } }
+  })
+
+  ipcMain.handle('threads:reindex', async (_, workspaceId: string) => {
+    try {
+      const workspacePath = await getWorkspacePathById(workspaceId)
+      const result = await seedThreadsIndex(workspacePath)
+      return { ok: true, ...result }
+    } catch (err) {
+      return { ok: false, error: err instanceof Error ? err.message : String(err) }
+    }
   })
 
   ipcMain.handle('canvas:getSessionState', async (_, workspaceId: string, sessionEntryId: string) => {
@@ -271,6 +381,15 @@ export function registerCanvasIPC(): void {
       return await daemonClient.getLocalSessionState(workspaceId, sessionEntryId).catch(() => null)
     }
 
+    // For external sessions (claude, codex, cursor, openclaw, opencode) parse
+    // directly in the main process — the daemon's HTTP path returns null when
+    // its own walker cache misses the file, which falls back to opening the
+    // raw JSONL. Parsing locally avoids the round-trip entirely and always
+    // uses fresh data from disk.
+    const local = await getExternalSessionChatState(workspacePath, sessionEntryId).catch(() => null)
+    if (local) return local
+    // Keep daemon as last-resort fallback in case a provider type is only
+    // supported there (e.g. future cloud-only sources).
     return await daemonClient.getExternalSessionState(workspacePath, sessionEntryId).catch(() => null)
   })
 
@@ -283,7 +402,7 @@ export function registerCanvasIPC(): void {
         ok: false,
         error: error instanceof Error ? error.message : String(error),
       }))
-      if (result.ok) broadcastSessionsChanged(workspaceId)
+      if (result.ok) broadcastSessionsChangedNow(workspaceId)
       return result
     }
 
@@ -291,7 +410,7 @@ export function registerCanvasIPC(): void {
       ok: false,
       error: error instanceof Error ? error.message : String(error),
     }))
-    if (result.ok) broadcastSessionsChanged(workspaceId)
+    if (result.ok) broadcastSessionsChangedNow(workspaceId)
     return result
   })
 
@@ -309,7 +428,7 @@ export function registerCanvasIPC(): void {
           error: error instanceof Error ? error.message : String(error),
         }))
 
-    if (result.ok) broadcastSessionsChanged(workspaceId)
+    if (result.ok) broadcastSessionsChangedNow(workspaceId)
     return result
   })
 

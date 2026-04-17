@@ -373,6 +373,12 @@ export interface AppSettings {
   // that opens the gallery modal, and legacy extension entry points (sidebar
   // flyout, Settings > Extensions nav) are hidden. Flip to false to restore.
   extensionsGalleryEnabled: boolean
+  // Local-first storage feature flags. Phase 2 uses `threadIndex` to read
+  // aggregated sessions from the SQLite `threads` table instead of walking
+  // five filesystem trees on every sidebar refresh.
+  storage: {
+    threadIndex: boolean
+  }
 }
 
 export type ToolPermissionDecisionScope = 'once' | 'session' | 'today' | 'forever'
@@ -443,6 +449,9 @@ export const DEFAULT_SETTINGS: AppSettings = {
   extensionsDisabled: false,
   statusBarHealth: 'compact',
   extensionsGalleryEnabled: true,
+  storage: {
+    threadIndex: true,
+  },
 }
 
 /** Deep-merge a single font token with its default */
@@ -494,6 +503,10 @@ export function withDefaultSettings(input: Partial<AppSettings> | null | undefin
     defaultTileSizes: {
       ...DEFAULT_SETTINGS.defaultTileSizes,
       ...(settings.defaultTileSizes ?? {})
+    },
+    storage: {
+      ...DEFAULT_SETTINGS.storage,
+      ...(settings.storage ?? {}),
     },
     // Resolve fonts: new 3-token system, with legacy migration
     fonts: resolveFonts(

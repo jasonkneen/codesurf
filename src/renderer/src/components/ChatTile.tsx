@@ -4328,7 +4328,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
                     </div>
                     <DropdownItem
                       icon={<LocalProjectIcon size={11} />}
-                      label="Local project"
+                      label={remoteHosts.length > 0 ? 'Local' : 'Instant'}
                       sublabel={normalizedRepoRoot || undefined}
                       active={executionTarget === 'local'}
                       onClick={() => { setExecutionTarget('local'); setShowLocationMenu(false) }}

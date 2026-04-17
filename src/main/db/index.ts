@@ -20,15 +20,16 @@ import { randomUUID } from 'crypto'
 import { DB_BACKUPS_DIR, DB_DIR, DB_PATH, dbBackupPath } from './paths'
 import { runMigrations, type Migration } from './migrations'
 import { migration001Bootstrap } from './migrations/001_bootstrap'
+import { migration002Threads } from './migrations/002_threads'
 
 type DBHandle = ReturnType<typeof DatabaseCtor>
 
 const ALL_MIGRATIONS: Migration[] = [
   migration001Bootstrap,
+  migration002Threads,
   // Future phases append here:
-  //   migration002Projects,
-  //   migration003Workspaces,
-  //   migration004Threads,
+  //   migration003Canvas,
+  //   migration004Kanban,
   //   ...
 ]
 
