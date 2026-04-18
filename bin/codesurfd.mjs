@@ -1437,7 +1437,7 @@ function deleteExternalSession(codesurfHome, workspacePath, sessionEntryId) {
     if (entry.source === 'openclaw') {
       const [, agentId, ...keyParts] = sessionEntryId.split(':')
       const sessionKey = keyParts.join(':')
-      const indexPath = join(process.env.HOME || '', '.openclaw', 'agents', agentId, 'sessions', 'sessions.json')
+      const indexPath = join(process.env.HOME || process.env.USERPROFILE || homedir(), '.openclaw', 'agents', agentId, 'sessions', 'sessions.json')
       if (agentId && sessionKey && pathExists(indexPath)) {
         try {
           const raw = readFileSync(indexPath, 'utf8')

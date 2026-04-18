@@ -12,6 +12,9 @@ import { setTerminalNotifier, updateLinks, removeTile as removePeerTile, getLink
 import { readSettingsSync } from './workspace'
 
 function ensureNodePtySpawnHelperExecutable(): void {
+  // On Windows, node-pty uses conpty (no spawn-helper needed)
+  if (process.platform === 'win32') return
+
   const candidates = [
     join(__dirname, '../../node_modules/node-pty/build/Release/spawn-helper'),
     join(__dirname, '../../node_modules/node-pty/prebuilds/darwin-arm64/spawn-helper'),
@@ -49,8 +52,21 @@ const ALLOWED_SHELLS = new Set([
   '/opt/homebrew/bin/bash', '/opt/homebrew/bin/zsh', '/opt/homebrew/bin/fish',
 ])
 
+// Windows shells
+if (process.platform === 'win32') {
+  ALLOWED_SHELLS.add('powershell.exe')
+  ALLOWED_SHELLS.add('pwsh.exe')
+  ALLOWED_SHELLS.add('cmd.exe')
+  const sysRoot = process.env.SystemRoot || 'C:\\Windows'
+  ALLOWED_SHELLS.add(`${sysRoot}\\System32\\cmd.exe`)
+  ALLOWED_SHELLS.add(`${sysRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`)
+  // Add pwsh if installed
+  const programFiles = process.env.ProgramFiles || 'C:\\Program Files'
+  ALLOWED_SHELLS.add(`${programFiles}\\PowerShell\\7\\pwsh.exe`)
+}
+
 // Also allow the user's default shell
-const userShell = process.env.SHELL
+const userShell = process.env.SHELL || (process.platform === 'win32' ? process.env.COMSPEC : undefined)
 if (userShell) ALLOWED_SHELLS.add(userShell)
 
 // Known agent CLIs that are allowed to be spawned directly
@@ -59,8 +75,9 @@ const ALLOWED_AGENT_BINS = ['claude', 'codex', 'aider', 'opencode', 'openclaw', 
 function isAllowedBinary(bin: string): boolean {
   // Allow known shells
   if (ALLOWED_SHELLS.has(bin)) return true
-  // Allow known agent CLIs (matched by basename)
-  const base = bin.split('/').pop() || ''
+  // Allow known agent CLIs (matched by basename, handle both / and \ separators,
+  // strip any Windows shim extension so .exe / .cmd / .bat / .ps1 all match)
+  const base = (bin.split(/[/\\]/).pop() || '').replace(/\.(exe|cmd|bat|ps1)$/i, '')
   if (ALLOWED_AGENT_BINS.includes(base)) return true
   return false
 }
@@ -94,6 +111,11 @@ function expandHome(arg: string): string {
 let _tmuxPath: string | null = null
 function getTmuxPath(): string | null {
   if (_tmuxPath !== null) return _tmuxPath || null
+  // tmux is not available on Windows
+  if (process.platform === 'win32') {
+    _tmuxPath = ''
+    return null
+  }
   // Search common paths directly instead of using shell
   const candidates = [
     '/opt/homebrew/bin/tmux',
@@ -199,6 +221,7 @@ function tmuxNewSessionArgs(
   env: Record<string, string>
 ): string[] {
   const tmuxArgs = [
+    '-u',  // Force UTF-8 so Nerd Font / Unicode glyphs are not stripped
     '-f', CONTEX_TMUX_CONF,
     'new-session', '-d',
     '-s', sessionName,
@@ -208,9 +231,15 @@ function tmuxNewSessionArgs(
   // Inject env vars via -e (tmux 3.2+)
   for (const [k, v] of Object.entries(env)) {
     if (k === 'PATH' || k === 'HOME' || k === 'SHELL' || k === 'TERM') continue
-    if (k.startsWith('CONTEX_') || k.startsWith('COLLAB_') || k === 'CARD_ID') {
+    if (k.startsWith('CONTEX_') || k.startsWith('COLLAB_') || k === 'CARD_ID'
+      || k === 'LANG' || k === 'LC_ALL' || k === 'LC_CTYPE') {
       tmuxArgs.push('-e', `${k}=${v}`)
     }
+  }
+  // Ensure UTF-8 locale is set so tmux doesn't strip Unicode (Nerd Font glyphs, etc.)
+  const hasLang = Object.keys(env).some(k => k === 'LANG' || k === 'LC_ALL' || k === 'LC_CTYPE')
+  if (!hasLang) {
+    tmuxArgs.splice(tmuxArgs.indexOf('new-session') + 1, 0, '-e', 'LANG=en_US.UTF-8')
   }
   tmuxArgs.push(bin, ...args)
   return tmuxArgs
@@ -228,6 +257,7 @@ interface TerminalSession {
   listeners: Set<WebContents>
   buffer: string
   tmuxSession?: string // tmux session name if backed by tmux
+  shell: string // absolute shell binary used to spawn this pty (for cd syntax)
 }
 
 const terminals = new Map<string, TerminalSession>()
@@ -295,7 +325,10 @@ export function registerTerminalIPC(): void {
     }
 
     // If a binary is specified, spawn it directly (no shell wrapper)
-    const bin = launchBin || process.env.SHELL || '/bin/zsh'
+    const defaultShell = process.platform === 'win32'
+      ? (process.env.COMSPEC || 'cmd.exe')
+      : (process.env.SHELL || '/bin/zsh')
+    const bin = launchBin || defaultShell
     const args = launchBin ? (launchArgs ?? []).map(expandHome) : []
 
     // Check if we should inject MCP config for agent CLIs
@@ -450,7 +483,7 @@ export function registerTerminalIPC(): void {
     let term: PtyInstance
     if (useTmux && tmux) {
       // Attach to the tmux session via node-pty
-      term = pty.spawn(tmux, ['-f', CONTEX_TMUX_CONF, 'attach-session', '-t', sessName], {
+      term = pty.spawn(tmux, ['-u', '-f', CONTEX_TMUX_CONF, 'attach-session', '-t', sessName], {
         name: 'xterm-256color',
         cols: 80,
         rows: 24,
@@ -473,6 +506,7 @@ export function registerTerminalIPC(): void {
       listeners: new Set([event.sender]),
       buffer: '',
       tmuxSession: useTmux ? sessName : undefined,
+      shell: bin,
     }
     terminals.set(tileId, session)
     trackTerminalSender(event.sender, tileId)
@@ -522,8 +556,23 @@ export function registerTerminalIPC(): void {
   ipcMain.handle('terminal:cd', (_, tileId: string, dirPath: string) => {
     const session = terminals.get(tileId)
     if (!session) return
-    // \x15 = Ctrl-U (clear line), then cd, then \r (enter)
-    session.pty.write(`\x15cd ${dirPath.replace(/'/g, "'\\''")}\r`)
+    const shellBase = (session.shell.split(/[/\\]/).pop() || '').toLowerCase()
+    // \x15 = Ctrl-U (clear current input line), then the platform-appropriate
+    // cd syntax, then \r (enter)
+    let cdLine: string
+    if (shellBase === 'cmd.exe') {
+      // cmd needs `/d` to switch drives (e.g. C:\ → G:\) and double-quoting
+      cdLine = `cd /d "${dirPath.replace(/"/g, '""')}"`
+    } else if (shellBase === 'powershell.exe' || shellBase === 'pwsh.exe') {
+      // -LiteralPath avoids wildcard interpretation; single quotes are safe
+      // when we escape embedded single quotes by doubling them
+      cdLine = `Set-Location -LiteralPath '${dirPath.replace(/'/g, "''")}'`
+    } else {
+      // POSIX shells: bash/zsh/fish all accept `cd "PATH"`. Escape single
+      // quotes the bash way since we wrap in single quotes below.
+      cdLine = `cd '${dirPath.replace(/'/g, "'\\''")}'`
+    }
+    session.pty.write(`\x15${cdLine}\r`)
   })
 
   ipcMain.handle('terminal:resize', (_, tileId: string, cols: number, rows: number) => {

@@ -5,6 +5,12 @@ let cachedPassword: string | null = null
 export function getChromeKeychainPassword(): Promise<string> {
   if (cachedPassword) return Promise.resolve(cachedPassword)
 
+  if (process.platform !== 'darwin') {
+    // On Windows/Linux, Chrome uses DPAPI/gnome-keyring respectively.
+    // The macOS `security` command is not available.
+    return Promise.reject(new Error('Chrome keychain access is only supported on macOS'))
+  }
+
   return new Promise((resolve, reject) => {
     execFile('security', [
       'find-generic-password',

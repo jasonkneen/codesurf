@@ -1321,12 +1321,25 @@ function App(): JSX.Element {
     }
   }, [])
 
-  // ─── Cmd+0 reset zoom ─────────────────────────────────────────────────────
+  // ─── Cmd+0 reset zoom, Cmd+=/- UI zoom ─────────────────────────────────────
+  // We drive UI zoom via webFrame directly (exposed in preload) because
+  // Electron's menu-role accelerators for zoomIn/zoomOut/resetZoom don't
+  // fire reliably on macOS under our key listener setup — Cmd+Minus in
+  // particular was a no-op, and resetZoom only cleared the canvas viewport
+  // without touching the window UI zoom level.
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === '0') {
+      if (!(e.metaKey || e.ctrlKey)) return
+      if (e.key === '0') {
         e.preventDefault()
         setViewport(prev => ({ ...prev, zoom: 1 }))
+        window.electron.zoom.setLevel(0)
+      } else if (e.key === '=' || e.key === '+') {
+        e.preventDefault()
+        window.electron.zoom.setLevel(window.electron.zoom.getLevel() + 0.5)
+      } else if (e.key === '-') {
+        e.preventDefault()
+        window.electron.zoom.setLevel(window.electron.zoom.getLevel() - 0.5)
       }
     }
     window.addEventListener('keydown', onKey)

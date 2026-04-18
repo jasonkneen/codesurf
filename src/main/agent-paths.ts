@@ -7,7 +7,7 @@
  */
 
 import { ipcMain } from 'electron'
-import { execFileSync, execSync } from 'child_process'
+import { execFileSync } from 'child_process'
 import { promises as fs } from 'fs'
 import { join } from 'path'
 import { homedir } from 'os'
@@ -37,31 +37,48 @@ let cachedPaths: AgentPathsConfig | null = null
 
 /** Get the user's real shell PATH (packaged Electron gets a minimal one) */
 function resolveShellPath(): string {
-  try {
-    const shell = process.env.SHELL || '/bin/zsh'
-    // -ilc loads the user's full login profile
-    return execFileSync(shell, ['-ilc', 'echo -n "$PATH"'], {
-      timeout: 5000,
-      encoding: 'utf8',
-      stdio: ['pipe', 'pipe', 'pipe'],
-    }).trim()
-  } catch {
-    // Assemble a reasonable fallback
-    return [
-      '/usr/local/bin',
-      '/opt/homebrew/bin',
-      '/usr/bin',
-      '/bin',
-      '/usr/sbin',
-      '/sbin',
-      `${homedir()}/.bun/bin`,
-      `${homedir()}/.npm-global/bin`,
-      `${homedir()}/.local/bin`,
-      `${homedir()}/.nvm/versions/node`,
-      `${homedir()}/go/bin`,
-      `${homedir()}/.yarn/bin`,
-    ].join(':')
+  const isWin = process.platform === 'win32'
+
+  if (!isWin) {
+    try {
+      const shell = process.env.SHELL || '/bin/zsh'
+      // -ilc loads the user's full login profile
+      return execFileSync(shell, ['-ilc', 'echo -n "$PATH"'], {
+        timeout: 5000,
+        encoding: 'utf8',
+        stdio: ['pipe', 'pipe', 'pipe'],
+      }).trim()
+    } catch { /* fall through to fallback */ }
   }
+
+  if (isWin) {
+    // On Windows, process.env.PATH is usually already correct
+    if (process.env.PATH) return process.env.PATH
+    const home = homedir()
+    return [
+      join(home, 'AppData', 'Roaming', 'npm'),
+      join(home, '.bun', 'bin'),
+      join(home, 'go', 'bin'),
+      join(home, '.cargo', 'bin'),
+      'C:\\Program Files\\nodejs',
+    ].join(';')
+  }
+
+  // Unix fallback
+  return [
+    '/usr/local/bin',
+    '/opt/homebrew/bin',
+    '/usr/bin',
+    '/bin',
+    '/usr/sbin',
+    '/sbin',
+    `${homedir()}/.bun/bin`,
+    `${homedir()}/.npm-global/bin`,
+    `${homedir()}/.local/bin`,
+    `${homedir()}/.nvm/versions/node`,
+    `${homedir()}/go/bin`,
+    `${homedir()}/.yarn/bin`,
+  ].join(':')
 }
 
 // Cache the resolved PATH once
@@ -71,29 +88,91 @@ function getShellPath(): string {
   return _shellPath
 }
 
-/** Simple `which` using the real shell PATH */
-function whichSync(cmd: string): string | null {
+/** Simple `which`/`where` using the real shell PATH */
+export function whichSync(cmd: string): string | null {
+  // Use execFileSync, not execSync — execSync goes through a shell where an
+  // unescaped `cmd` could be interpreted (shell-injection surface) and fails
+  // if the name contains spaces.
   try {
-    const result = execSync(`which ${cmd}`, {
+    const prog = process.platform === 'win32' ? 'where.exe' : 'which'
+    const result = execFileSync(prog, [cmd], {
       timeout: 3000,
       encoding: 'utf8',
       env: { ...process.env, PATH: getShellPath() },
       stdio: ['pipe', 'pipe', 'pipe'],
     }).trim()
-    return result && !result.includes('not found') ? result : null
+    if (!result || result.includes('not found') || result.includes('Could not find')) return null
+    const lines = result.split(/\r?\n/).map(line => line.trim()).filter(Boolean)
+    if (lines.length === 0) return null
+    // `where` on Windows returns all PATH matches. Prefer a native .exe (which
+    // Node's spawn() can execute directly) over .cmd/.bat shims or extensionless
+    // shell scripts. npm-global installs via Volta create all of these side by
+    // side in the same directory, and the shim was winning as "first match".
+    if (process.platform === 'win32') {
+      const exeMatch = lines.find(line => /\.exe$/i.test(line))
+      if (exeMatch) return exeMatch
+    }
+    return lines[0] || null
   } catch {
     return null
   }
 }
 
-/** Check if a file exists and is executable */
-async function isExecutable(path: string): Promise<boolean> {
+/** Check if a file exists and is executable.
+ *  POSIX enforces the execute bit via X_OK; Windows has no such concept, so
+ *  existence (F_OK) is the best we can ask for there. */
+async function isExecutable(filePath: string): Promise<boolean> {
+  const mode = process.platform === 'win32' ? fs.constants.F_OK : fs.constants.X_OK
   try {
-    await fs.access(path, 0o1) // X_OK
+    await fs.access(filePath, mode)
     return true
-  } catch {
-    return false
+  } catch { /* continue */ }
+
+  // On Windows, try common executable extensions if no extension provided
+  if (process.platform === 'win32' && !/\.\w+$/.test(filePath)) {
+    for (const ext of ['.exe', '.cmd', '.bat', '.ps1']) {
+      try {
+        await fs.access(filePath + ext, fs.constants.F_OK)
+        return true
+      } catch { /* continue */ }
+    }
   }
+
+  return false
+}
+
+/** Resolve a path to a spawnable native binary.
+ *
+ * On Windows we only accept `.exe` — Node's spawn() can't execute `.cmd`
+ * or `.bat` shims directly (needs shell:true, which the Claude SDK doesn't
+ * set, producing EINVAL). Callers that need a shim should spawn it through
+ * a shell themselves; the default detection pipeline persists only paths
+ * that real consumers can spawn.
+ */
+async function resolveExecutablePath(filePath: string): Promise<string | null> {
+  if (process.platform === 'win32') {
+    const hasExt = /\.\w+$/i.test(filePath)
+    if (hasExt) {
+      if (!/\.exe$/i.test(filePath)) return null
+      try {
+        await fs.access(filePath)
+        return filePath
+      } catch { return null }
+    }
+    // bare name — probe only for .exe
+    const candidate = filePath + '.exe'
+    try {
+      await fs.access(candidate)
+      return candidate
+    } catch { return null }
+  }
+
+  try {
+    await fs.access(filePath)
+    return filePath
+  } catch { /* continue */ }
+
+  return null
 }
 
 /** Walk nvm versions dir to find a binary */
@@ -125,45 +204,43 @@ function getVersionSync(binPath: string): string | null {
   }
 }
 
-// Fallback paths if `which` fails
+// Fallback paths if `which`/`where` fails. On Windows these must be `.exe` —
+// `.cmd` shims can't be spawned directly by Node, so resolveExecutablePath
+// would reject them anyway.
+const isWin = process.platform === 'win32'
+
+function buildFallbackPaths(cmd: string, extras: string[] = []): string[] {
+  const home = homedir()
+  if (isWin) {
+    return [
+      join(home, 'AppData', 'Roaming', 'npm', `${cmd}.exe`),
+      join(home, '.bun', 'bin', `${cmd}.exe`),
+      join(home, '.local', 'bin', `${cmd}.exe`),
+      join(home, 'go', 'bin', `${cmd}.exe`),
+      join(home, '.cargo', 'bin', `${cmd}.exe`),
+      ...extras,
+    ]
+  }
+  return [
+    `/usr/local/bin/${cmd}`,
+    `/opt/homebrew/bin/${cmd}`,
+    `${home}/.bun/bin/${cmd}`,
+    `${home}/.npm-global/bin/${cmd}`,
+    `${home}/.local/bin/${cmd}`,
+    `${home}/.yarn/bin/${cmd}`,
+    ...extras,
+  ]
+}
+
 const FALLBACK_PATHS: Record<string, string[]> = {
-  claude: [
-    '/usr/local/bin/claude',
-    '/opt/homebrew/bin/claude',
-    `${homedir()}/.bun/bin/claude`,
-    `${homedir()}/.npm-global/bin/claude`,
-    `${homedir()}/.local/bin/claude`,
-    `${homedir()}/.yarn/bin/claude`,
-  ],
-  codex: [
-    '/usr/local/bin/codex',
-    '/opt/homebrew/bin/codex',
-    `${homedir()}/.bun/bin/codex`,
-    `${homedir()}/.npm-global/bin/codex`,
-    `${homedir()}/.local/bin/codex`,
-    `${homedir()}/.yarn/bin/codex`,
-  ],
-  opencode: [
-    '/usr/local/bin/opencode',
-    '/opt/homebrew/bin/opencode',
-    `${homedir()}/.bun/bin/opencode`,
-    `${homedir()}/go/bin/opencode`,
-    `${homedir()}/.local/bin/opencode`,
-  ],
-  openclaw: [
-    '/usr/local/bin/openclaw',
-    '/opt/homebrew/bin/openclaw',
-    `${homedir()}/.local/bin/openclaw`,
-    `${homedir()}/.cargo/bin/openclaw`,
-    `${homedir()}/.bun/bin/openclaw`,
-    `${homedir()}/.npm-global/bin/openclaw`,
-  ],
-  hermes: [
-    '/usr/local/bin/hermes',
-    `${homedir()}/.local/bin/hermes`,
-    `${homedir()}/.hermes/bin/hermes`,
-    `${homedir()}/Documents/GitHub/hermes-agent/hermes`,
-  ],
+  claude: buildFallbackPaths('claude'),
+  codex: buildFallbackPaths('codex'),
+  opencode: buildFallbackPaths('opencode', isWin ? [] : [`${homedir()}/go/bin/opencode`]),
+  openclaw: buildFallbackPaths('openclaw', isWin ? [] : [`${homedir()}/.cargo/bin/openclaw`]),
+  hermes: buildFallbackPaths('hermes', [
+    ...(isWin ? [] : [`${homedir()}/.hermes/bin/hermes`]),
+    join(homedir(), 'Documents', 'GitHub', 'hermes-agent', isWin ? 'hermes.exe' : 'hermes'),
+  ]),
 }
 
 /** Detect a single agent binary */
@@ -186,9 +263,10 @@ async function detectBinary(agentId: string): Promise<AgentPathEntry> {
 
   // 3. Hardcoded fallback paths
   for (const p of FALLBACK_PATHS[agentId] ?? []) {
-    if (await isExecutable(p)) {
-      const version = getVersionSync(p)
-      return { path: p, version, detectedAt: now, confirmed: false }
+    const resolved = await resolveExecutablePath(p)
+    if (resolved) {
+      const version = getVersionSync(resolved)
+      return { path: resolved, version, detectedAt: now, confirmed: false }
     }
   }
 
@@ -208,7 +286,38 @@ async function loadSavedPaths(): Promise<AgentPathsConfig | null> {
 /** Prime in-memory cache from disk without probing binaries or shell PATH */
 export async function initializeAgentPathsCache(): Promise<AgentPathsConfig | null> {
   if (cachedPaths) return cachedPaths
-  cachedPaths = await loadSavedPaths()
+  const saved = await loadSavedPaths()
+  if (!saved) return null
+
+  // Re-resolve each saved path so stale entries (e.g. a Windows npm shim) get
+  // promoted to a spawn-able native binary on the next app launch. Node's
+  // spawn() on Windows can only execute a native .exe directly; .cmd/.bat
+  // require shell:true, which most SDKs (e.g. Claude) don't set — so if the
+  // saved path isn't already an .exe, re-query PATH to look for one.
+  let mutated = false
+  for (const key of ['claude', 'codex', 'opencode', 'openclaw', 'hermes'] as const) {
+    const entry = saved[key]
+    if (!entry?.path) continue
+
+    const resolved = await resolveExecutablePath(entry.path)
+    let best = resolved && resolved !== entry.path ? resolved : null
+
+    // On Windows, resolveExecutablePath only returns .exe or null — so the
+    // only case where we need to re-query PATH is when it returned null
+    // (saved path is a .cmd/.bat shim or no longer exists).
+    if (process.platform === 'win32' && !resolved) {
+      const fromWhich = whichSync(key)
+      if (fromWhich && /\.exe$/i.test(fromWhich)) best = fromWhich
+    }
+
+    if (best && best !== entry.path) {
+      entry.path = best
+      mutated = true
+    }
+  }
+
+  cachedPaths = saved
+  if (mutated) await savePaths(saved).catch(() => { /* best-effort */ })
   return cachedPaths
 }
 
@@ -256,9 +365,13 @@ export async function detectAllAgents(): Promise<AgentPathsConfig> {
   for (const key of ['claude', 'codex', 'opencode', 'openclaw', 'hermes'] as const) {
     const entry = config[key]
     if (entry.path && entry.confirmed) {
-      if (!(await isExecutable(entry.path))) {
+      const resolved = await resolveExecutablePath(entry.path)
+      if (!resolved) {
         console.log(`[AgentPaths] Previously confirmed ${key} at ${entry.path} no longer exists, re-detecting`)
         config[key] = await detectBinary(key)
+      } else if (resolved !== entry.path) {
+        // Update path if it resolved to a different name (e.g. added .exe)
+        entry.path = resolved
       }
     }
   }
@@ -298,21 +411,30 @@ export function registerAgentPathsIPC(): void {
 
   ipcMain.handle('agentPaths:detect', async () => detectAllAgents())
 
-  ipcMain.handle('agentPaths:set', async (_, agentId: string, path: string | null) => {
+  ipcMain.handle('agentPaths:set', async (_, agentId: string, inputPath: string | null) => {
     if (!cachedPaths) return null
-    const key = agentId as 'claude' | 'codex' | 'opencode' | 'openclaw' | 'hermes'
-    if (!(key in cachedPaths)) return null
+    // Allowlist — cachedPaths also contains shellPath/updatedAt keys, which
+    // must never be overwritten via this IPC. Validate before casting so a
+    // malicious or buggy caller can't stomp on unrelated config.
+    const AGENT_KEYS = ['claude', 'codex', 'opencode', 'openclaw', 'hermes'] as const
+    type AgentKey = typeof AGENT_KEYS[number]
+    if (!(AGENT_KEYS as readonly string[]).includes(agentId)) return null
+    const key = agentId as AgentKey
 
+    let resolvedPath: string | null = null
     let version: string | null = null
-    if (path) {
-      if (!(await isExecutable(path))) {
-        return { error: `Not executable: ${path}` }
+    if (inputPath) {
+      // Normalize path separators
+      const normalized = inputPath.replace(/\//g, process.platform === 'win32' ? '\\' : '/')
+      resolvedPath = await resolveExecutablePath(normalized)
+      if (!resolvedPath) {
+        return { error: `Not found: ${inputPath}` }
       }
-      version = getVersionSync(path)
+      version = getVersionSync(resolvedPath)
     }
 
     cachedPaths[key] = {
-      path,
+      path: resolvedPath,
       version,
       detectedAt: new Date().toISOString(),
       confirmed: true,

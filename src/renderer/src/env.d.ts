@@ -253,6 +253,7 @@ interface ElectronAPI {
     searchHistory(profileDir: string, query: string, limit?: number): Promise<Array<{ url: string; title: string; visitCount: number; lastVisitTime: number }>>
   }
   homedir: string
+  platform: NodeJS.Platform
   bus: {
     publish(channel: string, type: string, source: string, payload: Record<string, unknown>): Promise<import('../../shared/types').BusEvent>
     subscribe(channel: string, subscriberId: string, callback: (event: import('../../shared/types').BusEvent) => void): () => void
@@ -262,6 +263,10 @@ interface ElectronAPI {
     unreadCount(channel: string, subscriberId: string): Promise<number>
     markRead(channel: string, subscriberId: string): Promise<void>
     onEvent(callback: (event: import('../../shared/types').BusEvent) => void): () => void
+  }
+  zoom: {
+    getLevel(): number
+    setLevel(level: number): Promise<void>
   }
   getPathForFile(file: File): string
   /** Local SQLite diagnostics. */

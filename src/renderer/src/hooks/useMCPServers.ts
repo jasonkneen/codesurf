@@ -18,7 +18,7 @@ function notify(servers: MCPServerEntry[]) {
 
 export async function loadMCPServers(): Promise<MCPServerEntry[]> {
   try {
-    const home = (window as any).process?.env?.HOME ?? ''
+    const home = (window as any).__HOME__ ?? (window as any).process?.env?.HOME ?? (window as any).process?.env?.USERPROFILE ?? ''
     const path = `${home}/.contex/mcp-server.json`
     const raw = await window.electron.fs.readFile(path)
     const cfg = JSON.parse(raw)

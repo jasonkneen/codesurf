@@ -19,18 +19,21 @@
   "scripts": {
     "test": "npm run test:daemon",
     "test:daemon": "node --test test/daemon/*.test.mjs",
-    "dev": "electron-vite dev -- --js-flags=\"--expose-gc --max-old-space-size=${CODESURF_MAX_OLD_SPACE_SIZE_MB:-8192}\"",
-    "build:main": "EV_BUILD_TARGET=main electron-vite build",
-    "build:preload": "EV_BUILD_TARGET=preload electron-vite build",
-    "build:renderer": "EV_BUILD_TARGET=renderer electron-vite build",
-    "build": "EV_BUILD_TARGET=main electron-vite build && EV_BUILD_TARGET=preload electron-vite build && EV_BUILD_TARGET=renderer electron-vite build",
+    "dev": "node scripts/dev.js",
+    "build:main": "cross-env EV_BUILD_TARGET=main electron-vite build",
+    "build:preload": "cross-env EV_BUILD_TARGET=preload electron-vite build",
+    "build:renderer": "cross-env EV_BUILD_TARGET=renderer electron-vite build",
+    "build": "cross-env EV_BUILD_TARGET=main electron-vite build && cross-env EV_BUILD_TARGET=preload electron-vite build && cross-env EV_BUILD_TARGET=renderer electron-vite build",
     "build:npm": "bun run scripts/build-npm-package.mjs",
     "dist:mac": "npm run build && electron-builder --mac dmg zip",
+    "dist:windows": "npm run build && electron-builder --win nsis portable",
+    "dist:linux": "npm run build && electron-builder --linux AppImage deb",
+    "build:icon": "node scripts/create-ico.js",
     "release:github": "npm run build && electron-builder --mac dmg zip --publish always",
     "dogfood": "electron-vite build && electron-vite preview",
     "preview": "electron-vite preview",
-    "rebuild": "electron-rebuild -f -w node-pty,better-sqlite3",
-    "postinstall": "electron-rebuild -f -w node-pty,better-sqlite3"
+    "rebuild": "node scripts/patch-node-pty-win.js && electron-rebuild -f -o better-sqlite3 && electron-rebuild -f -o node-pty",
+    "postinstall": "node scripts/patch-node-pty-win.js && electron-rebuild -f -o better-sqlite3 && electron-rebuild -f -o node-pty"
   },
   "keywords": [],
   "author": "Jason",
@@ -46,6 +49,7 @@
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^4.7.0",
     "autoprefixer": "^10.4.27",
+    "cross-env": "^10.1.0",
     "electron": "^40.8.2",
     "electron-builder": "^26.8.1",
     "electron-vite": "^5.0.0",
@@ -63,6 +67,8 @@
     "@streamdown/code": "^1.1.1",
     "@types/better-sqlite3": "^7.6.13",
     "@xterm/addon-fit": "^0.11.0",
+    "@xterm/addon-unicode11": "^0.9.0",
+    "@xterm/addon-webgl": "^0.19.0",
     "@xterm/xterm": "^6.0.0",
     "better-sqlite3": "^12.8.0",
     "chokidar": "^5.0.0",
@@ -70,16 +76,13 @@
     "elkjs": "^0.11.1",
     "lucide-react": "^0.468.0",
     "morphcloud": "^0.0.20",
-    "node-pty": "^1.1.0",
+    "node-pty": "1.1.0",
     "react-file-icon": "^1.5.0",
     "react-jsx-parser": "^2.4.1",
     "sharp": "^0.34.5",
     "streamdown": "^2.5.0",
     "web-worker": "^1.3.0",
     "xterm": "^5.3.0"
-  },
-  "optionalDependencies": {
-    "cluso-widget": "file:../agentation-real"
   },
   "build": {
     "appId": "com.huggiapps.codesurf",
@@ -95,6 +98,16 @@
       "resources/**/*"
     ],
     "asar": true,
+    "asarUnpack": [
+      "node_modules/better-sqlite3/**",
+      "node_modules/node-pty/**",
+      "node_modules/sharp/**"
+    ],
+    "extraResources": [
+      { "from": "examples/extensions/agent-kanban", "to": "bundled-extensions/agent-kanban" },
+      { "from": "bundled-extensions/livekit-rooms", "to": "bundled-extensions/livekit-rooms" }
+    ],
+    "beforeBuild": "scripts/before-build.js",
     "icon": "resources/icon.png",
     "mac": {
       "category": "public.app-category.developer-tools",
@@ -105,7 +118,20 @@
       "icon": "resources/icon.png"
     },
     "win": {
-      "icon": "resources/icon.png"
+      "icon": "resources/icon.ico",
+      "target": [
+        "nsis",
+        "portable"
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "resources/icon.ico",
+      "uninstallerIcon": "resources/icon.ico"
+    },
+    "portable": {
+      "artifactName": "${productName}-${version}-portable.exe"
     },
     "linux": {
       "category": "Development",

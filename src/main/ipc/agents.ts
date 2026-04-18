@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
-import { exec } from 'child_process'
+import { execFile } from 'child_process'
 import { promises as fs } from 'fs'
-import { join } from 'path'
 import { homedir } from 'os'
+import { whichSync } from '../agent-paths'
 
 export interface AgentInfo {
   id: string
@@ -99,8 +99,10 @@ const AGENTS_TO_DETECT: Array<Omit<AgentInfo, 'available' | 'path' | 'version'> 
   {
     id: 'shell',
     label: 'Shell',
-    cmd: process.env.SHELL ?? '/bin/zsh',
-    bins: [process.env.SHELL ?? '/bin/zsh'],
+    cmd: process.platform === 'win32' ? (process.env.COMSPEC ?? 'cmd.exe') : (process.env.SHELL ?? '/bin/zsh'),
+    bins: process.platform === 'win32'
+      ? [process.env.COMSPEC ?? 'cmd.exe', 'powershell.exe', 'pwsh.exe']
+      : [process.env.SHELL ?? '/bin/zsh'],
     versionFlag: '--version'
   }
 ]
@@ -109,39 +111,56 @@ async function fileExists(path: string): Promise<boolean> {
   try { await fs.access(path); return true } catch { return false }
 }
 
-function runCmd(cmd: string): Promise<string> {
+/** Run a program with literal args — no shell, so agent names can't be
+ *  interpreted as shell metacharacters. */
+function runExec(prog: string, args: string[]): Promise<string> {
   return new Promise(resolve => {
-    exec(cmd, { timeout: 3000 }, (err, stdout, stderr) => {
-      resolve(err ? '' : (stdout || stderr).trim())
+    execFile(prog, args, { timeout: 3000 }, (err, stdout, stderr) => {
+      resolve(err ? '' : (stdout || stderr).toString().trim())
     })
   })
 }
 
+function extractVersion(out: string): string | undefined {
+  const match = out.match(/[\d]+\.[\d]+[\d.]*/)
+  if (match) return match[0]
+  const firstLine = out.split('\n')[0]?.trim()
+  return firstLine ? firstLine.substring(0, 30) : undefined
+}
+
 async function detectAgent(agent: typeof AGENTS_TO_DETECT[0]): Promise<AgentInfo> {
-  // Try each bin path
+  // The shell agent's --version flag yields meaningless output on Windows
+  // (cmd.exe/powershell don't implement it), so we skip version probing
+  // for it entirely. The UI just displays its label.
+  const probeVersion = agent.id !== 'shell' && !!agent.versionFlag
+
+  // Try each bin path. Bare names (no path separator) fall through to a
+  // PATH lookup via whichSync — important on Windows where bins like
+  // `powershell.exe` / `pwsh.exe` aren't locatable by fileExists alone.
   for (const bin of agent.bins) {
-    const exists = await fileExists(bin).catch(() => false)
-    if (exists) {
-      let version: string | undefined
-      if (agent.versionFlag) {
-        const out = await runCmd(`"${bin}" ${agent.versionFlag} 2>&1`)
-        const match = out.match(/[\d]+\.[\d]+[\d.]*/)
-        version = match ? match[0] : out.split('\n')[0].substring(0, 30)
-      }
-      return { id: agent.id, label: agent.label, cmd: bin, path: bin, version, available: true }
+    let resolved: string | null = null
+    if (await fileExists(bin).catch(() => false)) {
+      resolved = bin
+    } else if (!/[\\/]/.test(bin)) {
+      resolved = whichSync(bin)
+    }
+    if (resolved) {
+      const version = probeVersion
+        ? extractVersion(await runExec(resolved, [agent.versionFlag!]))
+        : undefined
+      return { id: agent.id, label: agent.label, cmd: resolved, path: resolved, version, available: true }
     }
   }
 
-  // Try which as fallback
-  const whichResult = await runCmd(`which ${agent.cmd} 2>/dev/null`)
-  if (whichResult && !whichResult.includes('not found')) {
-    let version: string | undefined
-    if (agent.versionFlag) {
-      const out = await runCmd(`${agent.cmd} ${agent.versionFlag} 2>&1`)
-      const match = out.match(/[\d]+\.[\d]+[\d.]*/)
-      version = match ? match[0] : undefined
-    }
-    return { id: agent.id, label: agent.label, cmd: whichResult.trim(), path: whichResult.trim(), version, available: true }
+  // Final fallback: whichSync on agent.cmd — uses the hydrated shell PATH
+  // (critical for packaged GUI launches where process.env.PATH is minimal)
+  // and prefers a native .exe over .cmd/.bat shims on Windows.
+  const resolved = whichSync(agent.cmd)
+  if (resolved) {
+    const version = probeVersion
+      ? extractVersion(await runExec(resolved, [agent.versionFlag!]))
+      : undefined
+    return { id: agent.id, label: agent.label, cmd: resolved, path: resolved, version, available: true }
   }
 
   return { id: agent.id, label: agent.label, cmd: agent.cmd, available: false }

@@ -1,4 +1,4 @@
-import { contextBridge, ipcRenderer, webUtils } from 'electron'
+import { contextBridge, ipcRenderer, webUtils, webFrame } from 'electron'
 import { homedir } from 'os'
 import type { AggregatedSessionEntry } from '../shared/session-types'
 
@@ -499,6 +499,7 @@ contextBridge.exposeInMainWorld('electron', {
 
   // OS utilities
   homedir: homedir(),
+  platform: process.platform,
 
   // File path extraction for drag/drop — replaces the old File.path field that
   // Electron removed in v32. Must be called in the renderer (which is where the
@@ -509,5 +510,16 @@ contextBridge.exposeInMainWorld('electron', {
     } catch {
       return ''
     }
+  },
+
+  // UI zoom — routed through main so the chosen level persists to
+  // ~/.codesurf/ui-state.json and is restored on the next app launch.
+  // getLevel reads what main currently has applied (via webFrame, so it
+  // reflects the live zoom state immediately after setLevel resolves).
+  zoom: {
+    getLevel: () => webFrame.getZoomLevel(),
+    setLevel: async (level: number) => {
+      await ipcRenderer.invoke('ui:setZoomLevel', level)
+    },
   },
 })

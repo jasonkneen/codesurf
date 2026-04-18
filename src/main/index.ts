@@ -19,6 +19,7 @@ import { registerTileContextIPC } from './ipc/tile-context'
 import { registerSystemIPC } from './ipc/system'
 import { registerExecutionIPC } from './ipc/execution'
 import { registerPermissionsIPC } from './ipc/permissions'
+import { getSavedZoomLevel, registerUIIPC } from './ipc/ui'
 import { registerFileProtocol } from './file-protocol'
 import { flushAll as flushActivityStore } from './activity-store'
 import { initializeAgentPathsCache, registerAgentPathsIPC } from './agent-paths'
@@ -63,11 +64,16 @@ function resolveBundledExtensionDirs(): string[] {
 }
 
 function resolveAppIconPath(): string | null {
+  const iconName = process.platform === 'win32' ? 'icon.ico' : 'icon.png'
   const candidates = [
+    join(process.resourcesPath, iconName),
+    join(process.resourcesPath, 'resources', iconName),
+    join(app.getAppPath(), 'resources', iconName),
+    join(app.getAppPath(), '..', 'resources', iconName),
+    join(__dirname, `../../resources/${iconName}`),
+    // Fallback to PNG on any platform
     join(process.resourcesPath, 'icon.png'),
-    join(process.resourcesPath, 'resources', 'icon.png'),
     join(app.getAppPath(), 'resources', 'icon.png'),
-    join(app.getAppPath(), '..', 'resources', 'icon.png'),
     join(__dirname, '../../resources/icon.png'),
   ]
 
@@ -118,7 +124,11 @@ function broadcastWindowList(): void {
     focused: w.webContents.id === focusedId,
   }))
   for (const w of wins) {
-    w.webContents.send('window:list-changed', list)
+    try {
+      w.webContents.send('window:list-changed', list)
+    } catch {
+      // Window's render frame may be disposed during focus transitions
+    }
   }
 }
 
@@ -187,7 +197,8 @@ function createWindow(opts?: { fresh?: boolean }): BrowserWindow {
     minHeight: 600,
     show: false,
     autoHideMenuBar: true,
-    titleBarStyle: 'hiddenInset',
+    titleBarStyle: process.platform === 'darwin' ? 'hiddenInset' : 'default',
+    frame: process.platform !== 'darwin',
     ...(iconPath ? { icon: iconPath } : {}),
     ...getWindowAppearanceOptions(),
     webPreferences: {
@@ -206,6 +217,17 @@ function createWindow(opts?: { fresh?: boolean }): BrowserWindow {
     win.setTitle('') // hide native title text; our pill tabs show workspace name
     win.show()
     broadcastWindowList()
+  })
+
+  // Electron's built-in per-origin zoom restore is unreliable in practice —
+  // users were opening to a drastically zoomed UI even after Cmd+0. Restore
+  // the zoom level ourselves from ~/.codesurf/ui-state.json on every load
+  // so the choice persists deterministically across launches.
+  win.webContents.on('did-finish-load', async () => {
+    if (win.isDestroyed() || win.webContents.isDestroyed()) return
+    const level = await getSavedZoomLevel()
+    if (win.isDestroyed() || win.webContents.isDestroyed()) return
+    win.webContents.setZoomLevel(level)
   })
 
   win.on('focus', () => broadcastWindowList())
@@ -290,6 +312,7 @@ app.whenReady().then(async () => {
   registerSystemIPC()
   registerExecutionIPC()
   registerPermissionsIPC()
+  registerUIIPC()
   registerFileProtocol()
   registerAgentPathsIPC()
   registerChromeSyncIPC()

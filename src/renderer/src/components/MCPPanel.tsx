@@ -114,9 +114,10 @@ export function MCPPanel({ onClose }: Props): JSX.Element {
         }
       } catch { /**/ }
 
-      const path = `${(window as any).process?.env?.HOME ?? '~'}/.contex/mcp-server.json`
+      const home = (window as any).__HOME__ ?? (window as any).process?.env?.HOME ?? (window as any).process?.env?.USERPROFILE ?? ''
+      const path = `${home}/.contex/mcp-server.json`
       try {
-        const raw = await window.electron.fs.readFile(path.replace('~', (window as any).__HOME__ ?? '/Users/' + ((window as any).process?.env?.USER ?? '')))
+        const raw = await window.electron.fs.readFile(path)
         applyConfig(JSON.parse(raw) as MCPConfig)
       } catch {
         setLoading(false)
@@ -152,7 +153,7 @@ export function MCPPanel({ onClose }: Props): JSX.Element {
         mcpServers[name] = entry as MCPConfig['mcpServers'][string]
       }
       updatedCfg = { ...config, mcpServers, updatedAt: new Date().toISOString() }
-      const home = (window as any).process?.env?.HOME ?? ''
+      const home = (window as any).__HOME__ ?? (window as any).process?.env?.HOME ?? (window as any).process?.env?.USERPROFILE ?? ''
       await window.electron.fs.writeFile(`${home}/.contex/mcp-server.json`, JSON.stringify(updatedCfg, null, 2))
     }
 

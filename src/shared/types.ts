@@ -288,7 +288,9 @@ export interface FontSettings {
 // ── System font stacks ──────────────────────────────────────────────────────
 
 const SANS_STACK = '"SF Pro Rounded", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
-const MONO_STACK = 'ui-monospace, "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code", monospace'
+// Nerd Font variant kept at the front so terminal tiles render PUA icon
+// glyphs. Everything after is main's modernized fallback ordering.
+const MONO_STACK = '"FiraCode Nerd Font Mono", ui-monospace, "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code", monospace'
 
 // ── Default font tokens ─────────────────────────────────────────────────────
 
