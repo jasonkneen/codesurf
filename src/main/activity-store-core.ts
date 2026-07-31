@@ -20,6 +20,7 @@ import {
   MAX_ACTIVITY_FILE_BYTES,
   MAX_ACTIVITY_QUERY_LIMIT,
   MAX_ACTIVITY_QUERY_RESPONSE_BYTES,
+  validateActivityMetadata,
   validateActivityId,
   validateActivityQuery,
   validateActivityTileId,
@@ -527,7 +528,9 @@ export class ActivityStore {
       let candidateDocumentBytes = state.documentBytes
       if (index >= 0) {
         const existing = state.records[index]
-        const metadata = mergeMetadata(existing.metadata, data.metadata)
+        const metadata = validateActivityMetadata(
+          mergeMetadata(existing.metadata, data.metadata),
+        )
         record = {
           ...existing,
           status: data.status ?? existing.status,

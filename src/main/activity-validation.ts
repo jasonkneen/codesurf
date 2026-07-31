@@ -133,7 +133,7 @@ function validateActivityStatus(value: unknown): ActivityStatus {
   return value as ActivityStatus
 }
 
-function validateMetadata(value: unknown): ActivityMetadata | undefined {
+export function validateActivityMetadata(value: unknown): ActivityMetadata | undefined {
   if (value === undefined) return undefined
   if (!isPlainObject(value)) fail('invalid_metadata', 'metadata must be an object')
   const rawEntries = Object.entries(value)
@@ -187,7 +187,7 @@ export function validateActivityUpsertInput(value: unknown): ActivityUpsertInput
     { allowEmpty: true },
   )
   const agent = optionalBoundedString(data.agent, 'agent', MAX_ACTIVITY_AGENT_LENGTH)
-  const metadata = validateMetadata(data.metadata)
+  const metadata = validateActivityMetadata(data.metadata)
 
   return {
     ...(id === undefined ? {} : { id }),
@@ -270,7 +270,7 @@ export function validateActivityRecord(value: unknown, workspaceId: string): Act
     MAX_ACTIVITY_DETAIL_LENGTH,
     { allowEmpty: true },
   )
-  const metadata = validateMetadata(record.metadata)
+  const metadata = validateActivityMetadata(record.metadata)
   const agent = optionalBoundedString(record.agent, 'agent', MAX_ACTIVITY_AGENT_LENGTH)
   return {
     id: validateActivityId(record.id),

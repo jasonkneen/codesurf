@@ -259,6 +259,31 @@ describe('ActivityStore identity and query behavior', () => {
     assert.equal(measurements - afterLoad, 1)
     await store.flushAll()
   })
+
+  test('rejects metadata patches whose merged record exceeds metadata limits', async () => {
+    const persistence = new MemoryPersistence()
+    persistence.data.set('workspace-1', [
+      activity('bounded', {
+        metadata: Object.fromEntries(
+          Array.from({ length: 16 }, (_, index) => [`existing${index}`, index]),
+        ),
+      }),
+    ])
+    const store = new ActivityStore({ persistence })
+
+    await assert.rejects(
+      store.upsert('workspace-1', {
+        ...upsertInput('tile-1', 'bounded', 'Rejected update'),
+        metadata: { extra: true },
+      }),
+      /metadata exceeds 16 fields/,
+    )
+    const [record] = await store.byTile('workspace-1', 'tile-1')
+    assert.equal(record.title, 'Activity bounded')
+    assert.equal(Object.hasOwn(record.metadata!, 'extra'), false)
+    await store.flushAll()
+    assert.equal(persistence.saves.length, 0)
+  })
 })
 
 describe('ActivityStore concurrency and lifecycle', () => {
