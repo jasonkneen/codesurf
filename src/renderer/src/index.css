@@ -18,6 +18,15 @@
   font-display: swap;
 }
 
+/* Default primary + secondary UI font. Variable across opsz, wdth and wght. */
+@font-face {
+  font-family: 'Bricolage Grotesque';
+  src: url('./assets/fonts/BricolageGrotesque-VariableFont_opsz,wdth,wght.ttf') format('truetype');
+  font-style: normal;
+  font-weight: 200 800;
+  font-display: swap;
+}
+
 @font-face {
   font-family: 'Datatype';
   src: url('./assets/fonts/Datatype-VariableFont_wdth,wght.ttf') format('truetype');

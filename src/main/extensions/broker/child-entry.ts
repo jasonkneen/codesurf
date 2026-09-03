@@ -69,6 +69,12 @@ let storeSnapshot: Record<string, unknown> = {}
 
 // Registered local callbacks — keyed by the id returned to the child proxy.
 const busSubscriptions = new Map<string, (event: unknown) => void>()
+// Store subscribers are tracked separately from bus subscribers because the
+// host pushes them over a different method (broker.storeUpdate, which carries
+// no subscriptionId). Previously these were registered in busSubscriptions,
+// where nothing ever dispatched them — so ctx.store.subscribe() silently never
+// fired under the broker while working fine in the bundled path.
+const storeSubscriptions = new Map<string, (state: Record<string, unknown>) => void>()
 const mcpToolHandlers = new Map<string, (args: Record<string, unknown>) => Promise<string>>()
 const ipcHandlers = new Map<string, (...args: unknown[]) => unknown>()
 
@@ -111,7 +117,18 @@ function buildPeer(writeLine: (line: string) => void) {
 
       case 'broker.storeUpdate': {
         const p = params as { extensionId?: string; state?: Record<string, unknown> }
-        if (p.state) storeSnapshot = p.state
+        if (p.state) {
+          storeSnapshot = p.state
+          // Fan out to ctx.store.subscribe() callbacks. Without this the
+          // snapshot updated but no extension was ever told.
+          for (const cb of storeSubscriptions.values()) {
+            try {
+              cb({ ...storeSnapshot })
+            } catch (err) {
+              console.error('[broker-child] store subscriber threw:', err)
+            }
+          }
+        }
         return { ok: true }
       }
 
@@ -138,7 +155,7 @@ async function handleActivate(
   peer: JsonRpcPeer,
   params: ActivateParams,
 ): Promise<JsonValue> {
-  const { extensionId, entryPath, settings, storeState } = params
+  const { extensionId, entryPath, settings, storeState, workspacePath } = params
 
   // Seed local snapshots
   settingsSnapshot = settings ?? {}
@@ -153,15 +170,35 @@ async function handleActivate(
     throw new Error(`Extension "${extensionId}" has no activate() export in ${entryPath}`)
   }
 
+  const pendingCapabilityCalls: Promise<unknown>[] = []
   const proxyCtx = createCtxProxy(
-    (capability, method, args) => peer.call<JsonValue>('broker.capability', { capability, method, args }),
+    (capability, method, args) => {
+      const pending = peer.call<JsonValue>('broker.capability', { capability, method, args })
+      // Track a rejection-safe view for the settle barrier below. The original
+      // `pending` is what the extension gets, so its own error handling is
+      // unaffected; this copy exists only so the barrier can't see a rejection
+      // the extension already dealt with.
+      pendingCapabilityCalls.push(pending.catch(() => undefined))
+      return pending
+    },
     extensionId,
+    { workspacePath: typeof workspacePath === 'string' ? workspacePath : null },
   )
 
   const result = await mod.activate(proxyCtx)
   if (typeof result === 'function') {
     extensionCleanup = result
   }
+  // activate() often registers ipc.handle synchronously via fire-and-forget.
+  // Wait for those round-trips so ipcMain handlers exist before the host
+  // reports activated:true (otherwise the tile's first invoke 404s).
+  //
+  // Settle, don't collect: a DENIED capability call is a normal outcome that
+  // the extension is expected to catch itself (see the chat-only-ext fixture,
+  // which try/catches ctx.relayHost.install()). Using Promise.all here made
+  // any denial during activate() fail the whole activation, reporting
+  // activated:false for an extension that had already handled the error.
+  await Promise.all(pendingCapabilityCalls)
 
   return { activated: true }
 }
@@ -202,11 +239,13 @@ async function handleDeactivate(): Promise<JsonValue> {
 export function createCtxProxy(
   call: (capability: string, method: string, args: JsonValue[]) => Promise<JsonValue>,
   extensionId: string,
+  options?: { workspacePath?: string | null },
 ): Record<string, unknown> {
   let subCounter = 0
   const nextId = (prefix: string) => `${prefix}_${extensionId}_${++subCounter}`
 
   return {
+    workspacePath: options?.workspacePath ?? null,
     log: (msg: string) => console.log(`[Ext:${extensionId}] ${msg}`),
 
     settings: {
@@ -234,13 +273,10 @@ set: (patch: Record<string, unknown>) => {
       },
       subscribe: (cb: (state: Record<string, unknown>) => void) => {
         const id = nextId('storeSub')
-        busSubscriptions.set(id, (evt) => {
-          const payload = (evt as { payload?: { state?: Record<string, unknown> } })?.payload
-          cb(payload?.state ?? {})
-        })
+        storeSubscriptions.set(id, cb)
         fireAndReport(call('store', 'subscribe', [id]), 'store.subscribe')
         return () => {
-          busSubscriptions.delete(id)
+          storeSubscriptions.delete(id)
           fireAndReport(call('store', 'unsubscribe', [id]), 'store.unsubscribe')
         }
       },

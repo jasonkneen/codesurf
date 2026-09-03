@@ -199,7 +199,10 @@ test('CI and release jobs exercise the declared minimum Node runtime', async () 
   assert.match(ciWorkflow, /npm --prefix apps\/chat-app run build/)
 
   const manifest = await readJson(resolve(ROOT_DIR, 'package.json'))
-  assert.match(manifest.scripts?.['test:unit:core'] ?? '', /node --experimental-strip-types --test/)
+  assert.match(
+    manifest.scripts?.['test:unit:core'] ?? '',
+    /node --experimental-strip-types --experimental-test-module-mocks --test/,
+  )
   assert.equal(
     manifest.scripts?.['test:npm-package'],
     'npm run build:npm && node scripts/smoke-npm-package.mjs',

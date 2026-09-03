@@ -16,6 +16,7 @@ export const BUILTIN_CHAT_PROVIDER_IDS = Object.freeze([
   'hermes',
   'omnigent',
   'csagent',
+  'gateway',
 ] as const)
 
 const BUILTIN_PROVIDER_SET = new Set<string>(BUILTIN_CHAT_PROVIDER_IDS)

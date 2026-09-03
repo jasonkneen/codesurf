@@ -1,8 +1,8 @@
 {
   "id": "source-control",
-  "name": "Git Review Workbench",
+  "name": "Source Control",
   "version": "1.0.0",
-  "description": "Safe Git graph and review workbench for CodeSurf. Compares branches, summarizes changed-file graphs, generates review handoff markdown, and exposes MCP-readable git state.",
+  "description": "Git source control panel — branches, staging, commits, stash, and history — plus a review workbench for branch compare, changed-file graphs, and review handoff markdown.",
   "author": "contex",
   "tier": "power",
   "ui": { "mode": "native" },
@@ -11,18 +11,28 @@
     "tiles": [
       {
         "type": "source-control-panel",
-        "label": "Git Review",
+        "label": "Source Control",
         "icon": "git-branch",
         "entry": "tile/index.html",
+        "defaultSize": { "w": 420, "h": 700 },
+        "minSize": { "w": 320, "h": 500 }
+      },
+      {
+        "type": "git-review-panel",
+        "label": "Git Review",
+        "icon": "git-branch",
+        "entry": "tile/review.html",
         "defaultSize": { "w": 860, "h": 640 },
         "minSize": { "w": 500, "h": 380 }
       }
     ],
     "contextMenu": [
-      { "label": "New Git Review", "action": "createTile", "tileType": "ext:source-control-panel" }
+      { "label": "New Source Control", "action": "createTile", "tileType": "ext:source-control-panel" },
+      { "label": "New Git Review", "action": "createTile", "tileType": "ext:git-review-panel" }
     ],
     "context": {
       "produces": [
+        "ctx:git:branch",
         "ctx:git:state",
         "ctx:git:branch_compare",
         "ctx:git:changed_file_graph",
@@ -33,12 +43,28 @@
       "consumes": ["ctx:workspace", "ctx:code-index:repo_map", "ctx:test-loop:last_run"]
     },
     "actions": [
+      { "name": "refresh", "description": "Refresh git status, branches, and history" },
+      { "name": "getStatus", "description": "Get current git status as JSON. Params: { workspacePath: string }" },
+      { "name": "getBranches", "description": "List git branches. Params: { workspacePath: string }" },
+      { "name": "getLog", "description": "Get commit history. Params: { workspacePath: string, max?: number }" },
+      { "name": "getStashes", "description": "List stashes. Params: { workspacePath: string }" },
+      { "name": "commit", "description": "Create a commit. Params: { workspacePath: string, message: string }" },
+      { "name": "stageFile", "description": "Stage a file. Params: { workspacePath: string, path: string }" },
+      { "name": "unstageFile", "description": "Unstage a file. Params: { workspacePath: string, path: string }" },
+      { "name": "stageAll", "description": "Stage all changed files. Params: { workspacePath: string }" },
+      { "name": "unstageAll", "description": "Unstage all files. Params: { workspacePath: string }" },
+      { "name": "checkoutBranch", "description": "Switch branch. Params: { workspacePath: string, branch: string }" },
+      { "name": "createBranch", "description": "Create new branch. Params: { workspacePath: string, name: string }" },
+      { "name": "pull", "description": "Git pull from remote. Params: { workspacePath: string }" },
+      { "name": "push", "description": "Git push to remote. Params: { workspacePath: string }" },
+      { "name": "stash", "description": "Stash current changes. Params: { workspacePath: string, message?: string }" },
+      { "name": "stashPop", "description": "Pop latest stash. Params: { workspacePath: string }" },
       { "name": "getGitState", "description": "Return current branch, upstream/ahead-behind, working-tree status, recent history, compare summary, and changed-file graph. Params: { workspacePath: string, baseRef?: string, headRef?: string }" },
       { "name": "compareBranches", "description": "Compare two refs without switching branches. Params: { workspacePath: string, baseRef: string, headRef?: string }" },
       { "name": "getChangedFileGraph", "description": "Return graph nodes/edges for files changed between refs. Params: { workspacePath: string, baseRef: string, headRef?: string }" },
       { "name": "generateReviewHandoff", "description": "Generate markdown review handoff without writing files. Params: { workspacePath: string, baseRef?: string, headRef?: string }" },
       { "name": "writeReviewHandoff", "description": "Write review handoff markdown under .codesurf/reviews. Params: { workspacePath: string, baseRef?: string, headRef?: string }" },
-      { "name": "getFileDiff", "description": "Return bounded diff for a file between refs. Params: { workspacePath: string, path: string, baseRef?: string, headRef?: string }" }
+      { "name": "getFileDiff", "description": "Return bounded diff for a file between refs or the working tree. Params: { workspacePath: string, path: string, staged?: boolean, baseRef?: string, headRef?: string }" }
     ],
     "mcpTools": [
       {

@@ -3667,6 +3667,12 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    if (method === 'GET' && url.pathname === '/chat/gateway-models') {
+      const { fetchGatewayModels } = await import('./gateway-provider.mjs')
+      sendJson(res, 200, await fetchGatewayModels())
+      return
+    }
+
     if (method === 'GET' && url.pathname === '/chat/job/state') {
       const jobId = String(url.searchParams.get('jobId') ?? '').trim()
       if (!jobId) {

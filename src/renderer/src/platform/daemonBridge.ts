@@ -477,6 +477,8 @@ export function createDaemonBackedElectronApi(): typeof window.electron {
     },
 
     chat: {
+      gatewayModels: async () =>
+        daemonFetch<{ models: Array<{ id: string; label: string; description?: string }>; source?: string; error?: string }>('/chat/gateway-models'),
       send: async (req: unknown) => {
         const state = await daemonFetch<{ id?: string; jobId?: string }>('/chat/job/start', {
           method: 'POST',

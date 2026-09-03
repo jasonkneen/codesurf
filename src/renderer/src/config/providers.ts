@@ -1,6 +1,6 @@
 /** Chat provider/model/mode configuration — extracted from ChatTile for reuse. */
 
-export type BuiltinProvider = 'claude' | 'codex' | 'opencode' | 'openclaw' | 'hermes' | 'omnigent' | 'csagent'
+export type BuiltinProvider = 'claude' | 'codex' | 'opencode' | 'openclaw' | 'hermes' | 'omnigent' | 'csagent' | 'gateway'
 
 export interface ModelOption {
   id: string
@@ -87,6 +87,20 @@ export const DEFAULT_MODELS: Record<BuiltinProvider, ModelOption[]> = {
   csagent: [
     { id: 'anthropic/claude-sonnet-4-6', label: 'Sonnet 4.6' },
   ],
+  gateway: [
+    { id: 'anthropic/claude-opus-5', label: 'Opus 5' },
+    { id: 'anthropic/claude-sonnet-4-6', label: 'Sonnet 4.6' },
+    { id: 'anthropic/claude-haiku-4-5', label: 'Haiku 4.5' },
+    { id: 'openai/gpt-5.6-sol', label: 'GPT-5.6 Sol' },
+    { id: 'openai/gpt-5.4', label: 'GPT-5.4' },
+    { id: 'openai/o4-mini', label: 'o4-mini' },
+    { id: 'google/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
+    { id: 'google/gemini-3-flash-preview', label: 'Gemini 3 Flash' },
+    { id: 'xai/grok-4.6', label: 'Grok 4.6' },
+    { id: 'moonshotai/kimi-k2.6', label: 'Kimi K2.6' },
+    { id: 'deepseek/deepseek-v4-pro', label: 'DeepSeek V4 Pro' },
+    { id: 'zai/glm-5', label: 'GLM-5' },
+  ],
 }
 
 export const DEFAULT_PROVIDER_ID: BuiltinProvider = 'claude'
@@ -128,6 +142,9 @@ export const PROVIDER_MODES: Record<BuiltinProvider, ModeOption[]> = {
     { id: 'default', label: 'Default', description: 'Ask before risky actions', color: '#3fb950' },
     { id: 'bypass', label: 'Bypass', description: 'Full auto, no approval', color: '#e54d2e' },
   ],
+  gateway: [
+    { id: 'default', label: 'Chat', description: 'Streaming chat with canvas tools', color: '#3fb950' },
+  ],
 }
 
 export const EXTENSION_PROVIDER_MODE: ModeOption = {
@@ -168,6 +185,7 @@ export const PROVIDER_LABELS: Record<BuiltinProvider, string> = {
   hermes: 'Hermes',
   omnigent: 'Omnigent',
   csagent: 'Pi',
+  gateway: 'AI Gateway',
 }
 
 export function isBuiltinProvider(providerId: string): providerId is BuiltinProvider {
@@ -178,6 +196,7 @@ export function isBuiltinProvider(providerId: string): providerId is BuiltinProv
     || providerId === 'hermes'
     || providerId === 'omnigent'
     || providerId === 'csagent'
+    || providerId === 'gateway'
 }
 
 export function getApproxContextWindowTokens(providerId: string, modelId: string): number {
@@ -206,6 +225,8 @@ export function getApproxSystemOverheadTokens(providerId: string, modelId: strin
   const normalizedProvider = providerId.toLowerCase()
   const normalizedModel = modelId.toLowerCase()
 
+  // AI Gateway: system prompt + canvas MCP tool schemas (no CLI harness).
+  if (normalizedProvider === 'gateway') return 8_000
   // Claude Code harness: ~27k system prompt + ~5k tool schemas + reminders.
   if (normalizedProvider === 'claude' || normalizedModel.includes('claude')) return 32_000
   // Codex CLI harness: comparable footprint, slightly leaner tool schemas.

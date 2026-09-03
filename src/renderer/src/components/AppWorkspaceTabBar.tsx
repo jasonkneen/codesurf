@@ -126,7 +126,6 @@ export function AppWorkspaceTabBar(props: AppWorkspaceTabBarProps): JSX.Element 
         className="flex items-center flex-shrink-0"
         style={{
           height: 38,            
-          // @ts-ignore
           WebkitAppRegion: 'drag',
           paddingLeft: sidebarCollapsed ? workspaceTabsMinimumLeft : Math.max(sidebarWidth + 4, workspaceTabsMinimumLeft),
           transition: 'padding-left 0.15s ease',
@@ -220,7 +219,6 @@ export function AppWorkspaceTabBar(props: AppWorkspaceTabBarProps): JSX.Element 
             minWidth: 0,
             height: '100%',
             paddingLeft: 8,
-            // @ts-ignore
             WebkitAppRegion: 'no-drag',
           }}
         >

@@ -221,7 +221,8 @@ function TileChromeComponent({
   // ── Collab: listen for external state.json changes ─────────────────────
   useEffect(() => {
     if (!hasDrawer) return
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- collab state crosses IPC as `unknown`; the drawer reads a known-but-loose task shape
+    // Collab state crosses IPC as `unknown`; the drawer reads a known-but-loose task shape.
+    // (Directive removed: @typescript-eslint/no-explicit-any is not enabled.)
     const unsub = window.electron?.collab?.onStateChanged?.((change: any) => {
       if (change.tileId !== tile.id) return
       const state = change.state

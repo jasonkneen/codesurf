@@ -1,296 +1,938 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Git Review Workbench</title>
-  <style>
-    * { box-sizing: border-box; }
-    body {
-      margin: 0;
-      height: 100vh;
-      overflow: hidden;
-      background: radial-gradient(circle at 12% 0%, var(--ct-accent-s, rgba(96,165,250,.18)), transparent 30%), var(--ct-bg, #0d0f12);
-      color: var(--ct-text, #edf2fa);
-      font-family: var(--ct-font-sans, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif);
-      font-size: var(--ct-font-size, 12px);
-      line-height: 1.42;
-    }
-    .shell { height: 100vh; display: grid; grid-template-rows: auto auto 1fr auto; }
-    header {
-      padding: 14px 16px 10px;
-      border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10));
-      background: var(--ct-panel, rgba(13,15,18,.82));
-      backdrop-filter: blur(18px);
-    }
-    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
-    h1 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
-    .sub { margin-top: 4px; color: var(--ct-muted, #95a0af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .toolbar { display: grid; grid-template-columns: 1fr 1fr auto auto auto auto; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); background: var(--ct-panel, rgba(255,255,255,.025)); }
-    main { min-height: 0; display: grid; grid-template-columns: minmax(260px, 330px) 1fr; }
-    aside { min-height: 0; border-right: 1px solid var(--ct-border, rgba(255,255,255,.10)); display: grid; grid-template-rows: auto 1fr; background: var(--ct-panel, rgba(255,255,255,.025)); }
-    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); }
-    .files { min-height: 0; overflow: auto; padding: 10px; display: grid; align-content: start; gap: 7px; }
-    .file-row {
-      border: 1px solid var(--ct-border, rgba(255,255,255,.10));
-      border-radius: 12px;
-      padding: 9px 10px;
-      background: var(--ct-panel, rgba(255,255,255,.04));
-      color: var(--ct-text, #edf2fa);
-      text-align: left;
-      cursor: pointer;
-      display: grid;
-      gap: 3px;
-    }
-    .file-row:hover, .file-row.active { border-color: var(--ct-accent, #60a5fa); background: var(--ct-accent-s, rgba(96,165,250,.10)); }
-    .file-name { font-weight: 670; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .file-meta { color: var(--ct-muted, #95a0af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
-    .tag { display: inline-flex; border-radius: 999px; padding: 1px 6px; border: 1px solid var(--ct-border, rgba(255,255,255,.10)); color: var(--ct-muted, #95a0af); margin-right: 4px; }
-    .tag.A, .tag.added { color: var(--ct-success, #6ee7a8); }
-    .tag.M, .tag.modified { color: var(--ct-accent, #60a5fa); }
-    .tag.D, .tag.deleted { color: var(--ct-danger, #f87171); }
-    .content { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
-    .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); }
-    .panes { min-height: 0; overflow: auto; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
-    .card { overflow: hidden; min-width: 0; padding: 0; }
-    .card h2 { margin: 0; padding: 11px 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); font-size: 12px; color: var(--ct-text, #dce6f4); }
-    .card-body { padding: 10px 12px; display: grid; gap: 7px; }
-    .item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ct-muted, #95a0af); min-width: 0; }
-    .item strong { color: var(--ct-text, #edf2fa); font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    .item span { white-space: nowrap; color: var(--ct-muted, #95a0af); }
-    .full { grid-column: 1 / -1; }
-    pre {
-      margin: 0;
-      padding: 12px;
-      max-height: 300px;
-      overflow: auto;
-      white-space: pre-wrap;
-      word-break: break-word;
-      background: var(--ct-bg, #090b0e);
-      color: var(--ct-text, #d9e2ee);
-      font: 11px/1.5 var(--ct-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
-    }
-    footer { border-top: 1px solid var(--ct-border, rgba(255,255,255,.10)); color: var(--ct-muted, #95a0af); padding: 8px 12px; background: var(--ct-panel, rgba(13,15,18,.84)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-    @media (max-width: 820px) {
-      .toolbar { grid-template-columns: 1fr 1fr; }
-      main { grid-template-columns: 1fr; }
-      aside { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); }
-      .cards, .panes { grid-template-columns: 1fr 1fr; }
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Source Control</title>
+<style>
+/* ── Theme — use host vars with fallbacks ─────────────────────────────────── */
+:root {
+  --bg:          var(--ct-bg, transparent);
+  --panel:       var(--ct-panel, rgba(0,0,0,0.04));
+  --border:      var(--ct-border, rgba(0,0,0,0.09));
+  --text:        var(--ct-text, #111111);
+  --muted:       var(--ct-muted, #555555);
+  --dim:         var(--ct-dim, #888888);
+  --hover:       var(--ct-hover, rgba(0,0,0,0.04));
+  --accent:      var(--ct-accent, #4f46e5);
+  --accent-s:    var(--ct-accent-subtle, rgba(79,70,229,0.10));
+  --select-b:    var(--ct-select-bg, rgba(79,70,229,0.07));
+  --danger:      var(--ct-danger, #ef4444);
+  --success:     var(--ct-success, #22c55e);
+  --warning:     var(--ct-warning, #f59e0b);
+  --sc-add:      #22c55e;
+  --sc-mod:      #3b82f6;
+  --sc-del:      #ef4444;
+  --sc-unt:      #a3a3a3;
+  --sc-ref-local:  #22c55e;
+  --sc-ref-remote: #f59e0b;
+  --sc-ref-tag:    #8b5cf6;
+  --sc-ref-head:   #3b82f6;
+  --sc-graph-1:  #22c55e;
+  --sc-graph-2:  #3b82f6;
+  --sc-graph-3:  #f59e0b;
+  --sc-graph-4:  #ef4444;
+  --sc-graph-5:  #8b5cf6;
+  --sc-graph-6:  #ec4899;
+}
+html[data-ct-mode="dark"] {
+  --sc-ref-local:  #4ade80;
+  --sc-ref-remote: #fbbf24;
+  --sc-ref-tag:    #a78bfa;
+  --sc-ref-head:   #60a5fa;
+}
+
+/* ── Reset ────────────────────────────────────────────────────────────────── */
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--text);
+  font-family: var(--ct-font-primary, var(--ct-font-sans, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif));
+  height: 100vh; overflow: hidden; display: flex; flex-direction: column;
+  font-size: var(--ct-font-primary-size, var(--ct-font-size, 13px));
+}
+/* Force all SVGs to inherit size and be visible */
+svg { width: 16px; height: 16px; flex-shrink: 0; display: block; }
+
+/* ── Tabs ──────────────────────────────────────────────────────────────────── */
+.tabs {
+  display: flex; align-items: center; gap: 2px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.tab {
+  padding: 5px 13px; border-radius: 7px; border: 1px solid transparent;
+  cursor: pointer; font-size: 12px; font-weight: 500; font-family: inherit;
+  background: transparent; color: var(--muted); transition: all 0.15s;
+}
+.tab.active {
+  background: var(--panel); color: var(--text);
+  font-weight: 600; border-color: var(--border);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.06);
+}
+.tab:hover:not(.active) { background: var(--hover); color: var(--text); }
+.spacer { flex: 1; }
+
+/* ── Icon buttons ─────────────────────────────────────────────────────────── */
+.icon-btn {
+  width: 28px; height: 28px; border: none; background: none; cursor: pointer;
+  color: var(--muted); border-radius: 6px; display: flex;
+  align-items: center; justify-content: center; flex-shrink: 0;
+  transition: all 0.1s;
+}
+.icon-btn:hover { color: var(--text); background: var(--hover); }
+.icon-btn.active { color: var(--accent); }
+.icon-btn svg { width: 16px; height: 16px; }
+
+/* Top toolbar buttons — contained, neat */
+.tabs .icon-btn,
+.branch-actions .icon-btn {
+  width: 26px; height: 26px; border: 1px solid var(--border);
+  background: var(--panel); color: var(--muted);
+}
+.tabs .icon-btn:hover,
+.branch-actions .icon-btn:hover {
+  background: var(--hover); border-color: var(--dim); color: var(--text);
+}
+.tabs .icon-btn:active,
+.branch-actions .icon-btn:active { transform: translateY(0.5px); }
+.tabs .icon-btn svg,
+.branch-actions .icon-btn svg { width: 14px; height: 14px; }
+
+/* ── Branch bar ───────────────────────────────────────────────────────────── */
+.branch-bar {
+  display: flex; align-items: center; gap: 6px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.branch-icon { color: var(--muted); display: flex; align-items: center; flex-shrink: 0; }
+.branch-icon svg { width: 16px; height: 16px; }
+.branch-select {
+  flex: 1; background: transparent; border: none; color: var(--text);
+  font-size: 12px; font-family: inherit; font-weight: 600; cursor: pointer;
+  outline: none; padding: 2px 0; min-width: 0;
+  -webkit-appearance: none; appearance: none;
+}
+.branch-actions { display: flex; gap: 4px; }
+
+/* ── Commit bar ───────────────────────────────────────────────────────────── */
+.commit-bar {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 12px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.commit-input {
+  flex: 1; background: var(--panel); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text); font-size: 12px;
+  font-family: inherit; padding: 6px 10px; outline: none; min-width: 0;
+}
+.commit-input:focus { border-color: var(--accent); }
+.commit-input::placeholder { color: var(--dim); }
+.commit-btn {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 14px; border-radius: 6px; border: none;
+  background: var(--accent); color: #fff; cursor: pointer;
+  font-size: 12px; font-family: inherit; font-weight: 500;
+  transition: opacity 0.1s; flex-shrink: 0;
+}
+.commit-btn:hover { opacity: 0.9; }
+.commit-btn:disabled { opacity: 0.4; cursor: default; }
+.commit-btn svg { width: 14px; height: 14px; }
+
+/* ── Scroll area ──────────────────────────────────────────────────────────── */
+.scroll-area { flex: 1; overflow-y: auto; }
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+.section-header {
+  display: flex; align-items: center; gap: 6px;
+  height: 30px; padding: 0 12px; font-size: 11px; font-weight: 600;
+  color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px;
+  cursor: pointer; user-select: none; border-bottom: 1px solid var(--border);
+  background: var(--bg); position: sticky; top: 0; z-index: 2;
+}
+.section-header:hover { color: var(--text); }
+.section-chevron {
+  transition: transform 0.15s; display: flex; align-items: center;
+}
+.section-chevron svg { width: 12px; height: 12px; }
+.section-chevron.collapsed { transform: rotate(-90deg); }
+.section-count {
+  background: var(--accent-s); color: var(--accent);
+  padding: 0 6px; border-radius: 10px; font-size: 10px; font-weight: 700;
+}
+.section-actions { margin-left: auto; display: flex; gap: 2px; }
+.section-content { }
+.section-content.collapsed { display: none; }
+
+/* ── File rows ────────────────────────────────────────────────────────────── */
+.file-row {
+  display: flex; align-items: center; gap: 6px;
+  padding: 2px 12px 2px 20px; cursor: default; transition: background 0.1s;
+  border-bottom: 1px solid transparent;
+}
+.file-row:hover { background: var(--hover); }
+.file-status {
+  width: 18px; height: 18px; border-radius: 3px; font-size: 10px;
+  font-weight: 700; display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; color: #fff;
+}
+.file-status.M { background: var(--sc-mod); }
+.file-status.A { background: var(--sc-add); }
+.file-status.D { background: var(--sc-del); }
+.file-status.U { background: var(--sc-unt); }
+.file-status.R { background: var(--sc-mod); }
+.file-name {
+  flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  font-size: 12px; font-weight: 400; direction: rtl; text-align: left;
+}
+.file-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
+.file-row:hover .file-actions { opacity: 1; }
+
+/* ── Stash rows ───────────────────────────────────────────────────────────── */
+.stash-row {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px 6px 20px; cursor: default; transition: background 0.1s;
+}
+.stash-row:hover { background: var(--hover); }
+.stash-ref {
+  font-size: 11px; font-weight: 600; color: var(--accent);
+  font-family: 'SF Mono', 'Fira Code', monospace; flex-shrink: 0;
+}
+.stash-msg { flex: 1; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.stash-actions { display: flex; gap: 2px; opacity: 0; transition: opacity 0.1s; }
+.stash-row:hover .stash-actions { opacity: 1; }
+
+/* ── History ──────────────────────────────────────────────────────────────── */
+.commit-row {
+  display: flex; align-items: flex-start; gap: 0; min-height: 28px;
+  cursor: default; transition: background 0.1s; position: relative;
+}
+.commit-row:hover { background: var(--hover); }
+.commit-graph {
+  width: 32px; flex-shrink: 0; display: flex; align-items: center;
+  justify-content: center; position: relative; align-self: stretch;
+}
+.graph-node {
+  width: 8px; height: 8px; border-radius: 50%; z-index: 1; flex-shrink: 0;
+}
+.graph-line-top, .graph-line-bottom {
+  position: absolute; left: 50%; width: 2px; transform: translateX(-50%);
+}
+.graph-line-top { top: 0; height: 50%; }
+.graph-line-bottom { bottom: 0; height: 50%; }
+.commit-body {
+  flex: 1; padding: 4px 12px 4px 0; min-width: 0;
+}
+.commit-refs { display: flex; flex-wrap: wrap; gap: 3px; margin-bottom: 2px; }
+.ref-badge {
+  font-size: 10px; font-weight: 600; padding: 1px 6px; border-radius: 4px;
+  white-space: nowrap; font-family: 'SF Mono', 'Fira Code', monospace;
+  line-height: 1.4;
+}
+.ref-badge.local { background: rgba(34,197,94,0.15); color: var(--sc-ref-local); }
+.ref-badge.remote { background: rgba(245,158,11,0.15); color: var(--sc-ref-remote); }
+.ref-badge.tag { background: rgba(139,92,246,0.15); color: var(--sc-ref-tag); }
+.ref-badge.head { background: rgba(59,130,246,0.15); color: var(--sc-ref-head); }
+.commit-subject {
+  font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  line-height: 1.4;
+}
+.commit-meta {
+  display: flex; align-items: center; gap: 8px; margin-top: 1px;
+}
+.commit-author { font-size: 11px; color: var(--dim); }
+.commit-date { font-size: 11px; color: var(--dim); }
+
+/* ── Empty / loading ──────────────────────────────────────────────────────── */
+.empty-state {
+  display: flex; align-items: center; justify-content: center;
+  padding: 32px 16px; font-size: 12px; color: var(--dim);
+}
+
+/* ── Error toast ──────────────────────────────────────────────────────────── */
+.toast {
+  position: fixed; bottom: 12px; left: 12px; right: 12px;
+  padding: 8px 14px; border-radius: 8px; font-size: 12px;
+  z-index: 100; transition: all 0.2s; pointer-events: none;
+  opacity: 0; transform: translateY(8px);
+}
+.toast.visible { opacity: 1; transform: translateY(0); pointer-events: auto; }
+.toast.error { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.2); }
+.toast.success { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.2); }
+
+/* ── Branch dropdown ──────────────────────────────────────────────────────── */
+.branch-dropdown {
+  position: absolute; top: 100%; left: 0; right: 0;
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 8px; z-index: 50; max-height: 240px; overflow-y: auto;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12); margin-top: 4px;
+  display: none;
+}
+.branch-dropdown.open { display: block; }
+.branch-dropdown-search {
+  width: 100%; padding: 8px 12px; border: none; border-bottom: 1px solid var(--border);
+  background: transparent; color: var(--text); font-size: 12px;
+  font-family: inherit; outline: none;
+}
+.branch-option {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 12px; cursor: pointer; font-size: 12px;
+  transition: background 0.1s;
+}
+.branch-option:hover { background: var(--hover); }
+.branch-option.active { color: var(--accent); font-weight: 600; }
+.branch-option .check { width: 14px; text-align: center; flex-shrink: 0; }
+
+/* ── New branch modal ─────────────────────────────────────────────────────── */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.3);
+  display: none; align-items: center; justify-content: center; z-index: 200;
+}
+.modal-overlay.open { display: flex; }
+.modal {
+  background: var(--panel); border: 1px solid var(--border);
+  border-radius: 10px; padding: 16px; width: 300px;
+  box-shadow: 0 12px 32px rgba(0,0,0,0.15);
+}
+.modal h3 { font-size: 13px; margin-bottom: 10px; }
+.modal input {
+  width: 100%; padding: 7px 10px; border: 1px solid var(--border);
+  border-radius: 6px; background: var(--bg); color: var(--text);
+  font-size: 12px; font-family: inherit; outline: none; margin-bottom: 10px;
+}
+.modal input:focus { border-color: var(--accent); }
+.modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+.modal-actions button {
+  padding: 5px 14px; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: var(--text); cursor: pointer;
+  font-size: 12px; font-family: inherit;
+}
+.modal-actions button.primary {
+  background: var(--accent); color: #fff; border-color: var(--accent);
+}
+
+/* ── Scrollbar ────────────────────────────────────────────────────────────── */
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+
+/* ── Spinner ──────────────────────────────────────────────────────────────── */
+@keyframes spin { to { transform: rotate(360deg); } }
+.spinning { animation: spin 0.8s linear infinite; }
+</style>
 </head>
 <body>
-  <div class="shell">
-    <header>
-      <div class="top">
-        <h1>Git Review Workbench</h1>
-        <div id="branchBadge" class="ct-badge">Idle</div>
-      </div>
-      <div id="workspaceLine" class="sub">Resolving workspace…</div>
-    </header>
-    <div class="toolbar">
-      <input id="baseRef" placeholder="Base ref: origin/main" />
-      <input id="headRef" placeholder="Head ref: HEAD" />
-      <button id="refreshBtn" type="button" class="primary">Refresh</button>
-      <button id="handoffBtn" type="button">Handoff</button>
-      <button id="writeBtn" type="button">Write .md</button>
-      <button id="copyBtn" type="button">Copy</button>
-    </div>
-    <main>
-      <aside>
-        <div class="stats">
-          <div class="ct-stat"><div id="fileCount" class="ct-stat-value">—</div><div class="ct-stat-label">changed files</div></div>
-          <div class="ct-stat"><div id="commitCount" class="ct-stat-value">—</div><div class="ct-stat-label">commits</div></div>
-          <div class="ct-stat"><div id="aheadBehind" class="ct-stat-value">—</div><div class="ct-stat-label">ahead / behind</div></div>
-          <div class="ct-stat"><div id="dirtyCount" class="ct-stat-value">—</div><div class="ct-stat-label">worktree</div></div>
-        </div>
-        <div id="fileList" class="files"></div>
-      </aside>
-      <section class="content">
-        <div class="cards">
-          <div class="ct-stat"><div id="additions" class="ct-stat-value">—</div><div class="ct-stat-label">additions</div></div>
-          <div class="ct-stat"><div id="deletions" class="ct-stat-value">—</div><div class="ct-stat-label">deletions</div></div>
-          <div class="ct-stat"><div id="graphNodes" class="ct-stat-value">—</div><div class="ct-stat-label">graph nodes</div></div>
-          <div class="ct-stat"><div id="graphEdges" class="ct-stat-value">—</div><div class="ct-stat-label">graph edges</div></div>
-        </div>
-        <div class="panes">
-          <section class="card ct-card"><h2>Commits to review</h2><div id="commits" class="card-body"></div></section>
-          <section class="card ct-card"><h2>Working tree</h2><div id="worktree" class="card-body"></div></section>
-          <section class="card ct-card"><h2>Central changed files</h2><div id="central" class="card-body"></div></section>
-          <section class="card ct-card"><h2>Directories</h2><div id="dirs" class="card-body"></div></section>
-          <section class="card ct-card full"><h2>Review handoff</h2><pre id="handoff">Refresh to generate review state.</pre></section>
-          <section class="card ct-card full"><h2>Selected diff</h2><pre id="diff">Select a file to load a bounded diff.</pre></section>
-        </div>
-      </section>
-    </main>
-    <footer id="statusLine">Ready.</footer>
+
+<!-- Tabs -->
+<div class="tabs">
+  <button class="tab active" data-tab="changes">Source Control</button>
+  <button class="tab" data-tab="stash">Stash</button>
+  <div class="spacer"></div>
+  <button class="icon-btn" id="btn-refresh" title="Refresh">
+    <svg id="refresh-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+    </svg>
+  </button>
+</div>
+
+<!-- Branch bar -->
+<div class="branch-bar" style="position:relative">
+  <span class="branch-icon">
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <line x1="6" y1="3" x2="6" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/>
+    </svg>
+  </span>
+  <button class="branch-select" id="branch-name">main</button>
+  <div class="branch-actions">
+    <button class="icon-btn" id="btn-new-branch" title="New branch">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-pull" title="Pull">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="8 17 12 21 16 17"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.88 18.09A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.29"/>
+      </svg>
+    </button>
+    <button class="icon-btn" id="btn-push" title="Push">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="16 16 12 12 8 16"/><line x1="12" y1="12" x2="12" y2="21"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/>
+      </svg>
+    </button>
   </div>
+  <!-- Branch dropdown -->
+  <div class="branch-dropdown" id="branch-dropdown">
+    <input class="branch-dropdown-search" id="branch-search" placeholder="Filter branches..." />
+    <div id="branch-list"></div>
+  </div>
+</div>
 
-  <script>
-    const $ = id => document.getElementById(id)
-    const state = {
-      workspacePath: '',
-      gitState: null,
-      handoff: null,
-      selectedFile: '',
-    }
+<!-- Commit bar -->
+<div class="commit-bar" id="commit-bar">
+  <input class="commit-input" id="commit-msg" placeholder="Commit message" />
+  <button class="commit-btn" id="btn-commit" disabled>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <polyline points="20 6 9 17 4 12"/>
+    </svg>
+    Commit
+  </button>
+</div>
 
-    function escapeHtml(value) {
-      return String(value == null ? '' : value)
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#39;')
+<!-- Tab: Changes -->
+<div class="scroll-area" id="tab-changes">
+  <!-- Staged -->
+  <div class="section-header" data-section="staged">
+    <span class="section-chevron" id="chev-staged">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+    <span>Staged</span>
+    <span class="section-count" id="count-staged">0</span>
+    <div class="section-actions">
+      <button class="icon-btn" title="Unstage all" data-act="unstageAll">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="section-content" id="list-staged"></div>
+
+  <!-- Changes -->
+  <div class="section-header" data-section="changes">
+    <span class="section-chevron" id="chev-changes">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+    <span>Changes</span>
+    <span class="section-count" id="count-changes">0</span>
+    <div class="section-actions">
+      <button class="icon-btn" title="Stage all" data-act="stageAll">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+  </div>
+  <div class="section-content" id="list-changes"></div>
+
+  <!-- History -->
+  <div class="section-header" data-section="history">
+    <span class="section-chevron" id="chev-history">
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </span>
+    <span>History</span>
+    <span class="section-count" id="count-history">0</span>
+  </div>
+  <div class="section-content" id="list-history"></div>
+</div>
+
+<!-- Tab: Stash -->
+<div class="scroll-area" id="tab-stash" style="display:none">
+  <div style="padding:8px 12px;display:flex;gap:6px">
+    <input class="commit-input" id="stash-msg" placeholder="Stash message (optional)" style="flex:1" />
+    <button class="commit-btn" id="btn-stash-push" style="background:var(--muted)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px">
+        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/>
+      </svg>
+      Stash
+    </button>
+  </div>
+  <div id="list-stashes"></div>
+  <div class="empty-state" id="stash-empty" style="display:none">No stashes</div>
+</div>
+
+<!-- New Branch Modal -->
+<div class="modal-overlay" id="modal-new-branch">
+  <div class="modal">
+    <h3>Create New Branch</h3>
+    <input id="new-branch-name" placeholder="Branch name" />
+    <div class="modal-actions">
+      <button id="modal-cancel">Cancel</button>
+      <button class="primary" id="modal-create">Create</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+/* ── State ────────────────────────────────────────────────────────────────── */
+var state = {
+  tab: 'changes',
+  branch: '',
+  branches: [],
+  staged: [],
+  unstaged: [],
+  commits: [],
+  stashes: [],
+  collapsed: {},
+  loading: false
+}
+
+/* ── DOM refs ─────────────────────────────────────────────────────────────── */
+var $ = function(id) { return document.getElementById(id) }
+var listStaged   = $('list-staged')
+var listChanges  = $('list-changes')
+var listHistory  = $('list-history')
+var listStashes  = $('list-stashes')
+var commitMsg    = $('commit-msg')
+var commitBtn    = $('btn-commit')
+var branchName   = $('branch-name')
+var branchDrop   = $('branch-dropdown')
+var branchSearch = $('branch-search')
+var branchList   = $('branch-list')
+var refreshIcon  = $('refresh-icon')
+var toastEl      = $('toast')
+
+var GRAPH_COLORS = [
+  'var(--sc-graph-1)', 'var(--sc-graph-2)', 'var(--sc-graph-3)',
+  'var(--sc-graph-4)', 'var(--sc-graph-5)', 'var(--sc-graph-6)'
+]
+
+/* ── Toast ────────────────────────────────────────────────────────────────── */
+var toastTimer = null
+function toast(msg, type) {
+  toastEl.textContent = msg
+  toastEl.className = 'toast visible ' + (type || 'error')
+  clearTimeout(toastTimer)
+  toastTimer = setTimeout(function() { toastEl.classList.remove('visible') }, 3000)
+}
+
+/* ── Bridge helpers ───────────────────────────────────────────────────────── */
+var workspacePath = ''
+
+function invoke(method, args) {
+  if (!window.contex || !window.contex.ext) {
+    return Promise.reject(new Error('Bridge not ready'))
+  }
+  var payload = Object.assign({ workspacePath: workspacePath }, args || {})
+  return window.contex.ext.invoke(method, JSON.stringify(payload))
+    .then(function(r) { return typeof r === 'string' ? JSON.parse(r) : r })
+}
+
+/* ── Data loading ─────────────────────────────────────────────────────────── */
+function refresh() {
+  if (state.loading) return
+  state.loading = true
+  refreshIcon.classList.add('spinning')
+
+  Promise.all([
+    invoke('getStatus'),
+    invoke('getBranches'),
+    invoke('getLog', { max: 80 }),
+    invoke('getStashes')
+  ]).then(function(results) {
+    var status = results[0]
+    var branches = results[1]
+    var log = results[2]
+    var stashes = results[3]
+
+    state.branch   = status.branch
+    state.staged   = status.staged || []
+    state.unstaged = status.unstaged || []
+    state.branches = branches.branches || []
+    state.commits  = log.commits || []
+    state.stashes  = stashes.stashes || []
+
+    branchName.textContent = state.branch || 'detached'
+    if (window.contex) {
+      window.contex.context.set('ctx:git:branch', state.branch)
     }
-    function setStatus(message) { $('statusLine').textContent = message }
-    function shortPath(value) { return String(value || '').split('/').slice(-3).join('/') }
-    function options() {
-      return {
-        baseRef: $('baseRef').value.trim(),
-        headRef: $('headRef').value.trim() || 'HEAD',
+    renderAll()
+  }).catch(function(e) {
+    toast(e.message || 'Failed to load git data')
+  }).finally(function() {
+    state.loading = false
+    refreshIcon.classList.remove('spinning')
+  })
+}
+
+/* ── Render: files ────────────────────────────────────────────────────────── */
+function statusLetter(s) {
+  var m = { modified:'M', added:'A', deleted:'D', renamed:'R', untracked:'U', copied:'C', unmerged:'U' }
+  return m[s] || s[0].toUpperCase()
+}
+
+function renderFileList(container, files, actions) {
+  while (container.firstChild) container.removeChild(container.firstChild)
+  var frag = document.createDocumentFragment()
+  files.forEach(function(f) {
+    var row = document.createElement('div')
+    row.className = 'file-row'
+    var letter = statusLetter(f.status)
+    row.innerHTML =
+      '<span class="file-status ' + esc(letter) + '">' + esc(letter) + '</span>' +
+      '<span class="file-name">' + esc(f.path) + '</span>' +
+      '<span class="file-actions">' + actions.map(function(a) {
+        return '<button class="icon-btn" title="' + a.title + '" data-act="' + a.act + '" data-path="' + esc(f.path) + '">' + a.icon + '</button>'
+      }).join('') + '</span>'
+    frag.appendChild(row)
+  })
+  container.appendChild(frag)
+}
+
+function renderStaged() {
+  $('count-staged').textContent = state.staged.length
+  renderFileList(listStaged, state.staged, [
+    { act: 'unstage', title: 'Unstage', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="5" y1="12" x2="19" y2="12"/></svg>' }
+  ])
+}
+
+function renderChanges() {
+  $('count-changes').textContent = state.unstaged.length
+  renderFileList(listChanges, state.unstaged, [
+    { act: 'discard', title: 'Discard', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' },
+    { act: 'stage', title: 'Stage', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>' }
+  ])
+}
+
+/* ── Render: history with graph ───────────────────────────────────────────── */
+function renderHistory() {
+  $('count-history').textContent = state.commits.length
+  while (listHistory.firstChild) listHistory.removeChild(listHistory.firstChild)
+
+  // Build simple graph: track active lanes
+  var lanes = []  // array of commit hashes occupying each lane
+  var commitLane = {}  // hash -> lane index
+  var frag = document.createDocumentFragment()
+
+  state.commits.forEach(function(c, idx) {
+    // Find which lane this commit occupies
+    var myLane = -1
+    for (var i = 0; i < lanes.length; i++) {
+      if (lanes[i] === c.hash) { myLane = i; break }
+    }
+    if (myLane === -1) {
+      // New lane
+      myLane = lanes.indexOf(null)
+      if (myLane === -1) { myLane = lanes.length; lanes.push(null) }
+      lanes[myLane] = c.hash
+    }
+    commitLane[c.hash] = myLane
+
+    // Replace this lane with first parent, add extra lanes for other parents
+    if (c.parents.length > 0) {
+      lanes[myLane] = c.parents[0]
+      for (var p = 1; p < c.parents.length; p++) {
+        var freeLane = lanes.indexOf(null)
+        if (freeLane === -1) { freeLane = lanes.length; lanes.push(null) }
+        lanes[freeLane] = c.parents[p]
       }
+    } else {
+      lanes[myLane] = null
     }
 
-    async function publishGitContext() {
-      if (!state.gitState || !window.contex || !window.contex.context) return
-      const compare = state.gitState.compare
-      await window.contex.context.set('ctx:git:state', {
-        workspacePath: state.gitState.workspacePath,
-        currentBranch: state.gitState.currentBranch,
-        baseRef: state.gitState.baseRef,
-        headRef: state.gitState.headRef,
-        status: state.gitState.status,
-        compareSummary: compare.summary,
-        generatedAt: Date.now(),
+    // Clean up trailing nulls
+    while (lanes.length > 0 && lanes[lanes.length - 1] === null) lanes.pop()
+
+    var color = GRAPH_COLORS[myLane % GRAPH_COLORS.length]
+    var hasAbove = idx > 0
+    var hasBelow = idx < state.commits.length - 1
+
+    var row = document.createElement('div')
+    row.className = 'commit-row'
+
+    // Graph column
+    var graph = document.createElement('div')
+    graph.className = 'commit-graph'
+    if (hasAbove) {
+      var lt = document.createElement('div')
+      lt.className = 'graph-line-top'
+      lt.style.background = color
+      graph.appendChild(lt)
+    }
+    if (hasBelow) {
+      var lb = document.createElement('div')
+      lb.className = 'graph-line-bottom'
+      lb.style.background = color
+      graph.appendChild(lb)
+    }
+    var node = document.createElement('div')
+    node.className = 'graph-node'
+    node.style.background = color
+    graph.appendChild(node)
+    row.appendChild(graph)
+
+    // Body
+    var body = document.createElement('div')
+    body.className = 'commit-body'
+
+    // Ref badges
+    if (c.refs.length > 0) {
+      var refsDiv = document.createElement('div')
+      refsDiv.className = 'commit-refs'
+      c.refs.forEach(function(ref) {
+        var badge = document.createElement('span')
+        badge.className = 'ref-badge ' + refType(ref)
+        badge.textContent = refLabel(ref)
+        refsDiv.appendChild(badge)
       })
-      await window.contex.context.set('ctx:git:branch_compare', {
-        workspacePath: state.gitState.workspacePath,
-        summary: compare.summary,
-        files: compare.files,
-        commits: compare.commits,
-      })
-      await window.contex.context.set('ctx:git:changed_file_graph', {
-        workspacePath: state.gitState.workspacePath,
-        summary: compare.summary,
-        graph: compare.graph,
-      })
-      if (state.handoff) await window.contex.context.set('ctx:git:review_handoff', state.handoff)
+      body.appendChild(refsDiv)
     }
 
-    function renderList(id, items, renderItem) {
-      const host = $(id)
-      host.innerHTML = items && items.length ? items.map(renderItem).join('') : '<div class="ct-empty">None.</div>'
+    var subj = document.createElement('div')
+    subj.className = 'commit-subject'
+    subj.textContent = c.subject
+    body.appendChild(subj)
+
+    var meta = document.createElement('div')
+    meta.className = 'commit-meta'
+    var author = document.createElement('span')
+    author.className = 'commit-author'
+    author.textContent = c.author
+    var date = document.createElement('span')
+    date.className = 'commit-date'
+    date.textContent = c.date
+    meta.appendChild(author)
+    meta.appendChild(date)
+    body.appendChild(meta)
+
+    row.appendChild(body)
+    frag.appendChild(row)
+  })
+  listHistory.appendChild(frag)
+}
+
+function refType(ref) {
+  if (ref.startsWith('HEAD')) return 'head'
+  if (ref.startsWith('tag:')) return 'tag'
+  if (ref.includes('/')) return 'remote'
+  return 'local'
+}
+
+function refLabel(ref) {
+  return ref.replace(/^HEAD -> /, '').replace(/^tag: /, '')
+}
+
+/* ── Render: stashes ──────────────────────────────────────────────────────── */
+function renderStashes() {
+  while (listStashes.firstChild) listStashes.removeChild(listStashes.firstChild)
+  $('stash-empty').style.display = state.stashes.length ? 'none' : 'flex'
+
+  var frag = document.createDocumentFragment()
+  state.stashes.forEach(function(s) {
+    var row = document.createElement('div')
+    row.className = 'stash-row'
+    row.innerHTML =
+      '<span class="stash-ref">' + esc(s.ref) + '</span>' +
+      '<span class="stash-msg">' + esc(s.message) + '</span>' +
+      '<span class="stash-actions">' +
+        '<button class="icon-btn" title="Apply" data-act="stashPop" data-ref="' + esc(s.ref) + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 2.13-9.36L1 10"/></svg>' +
+        '</button>' +
+        '<button class="icon-btn" title="Drop" data-act="stashDrop" data-ref="' + esc(s.ref) + '">' +
+          '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>' +
+        '</button>' +
+      '</span>'
+    frag.appendChild(row)
+  })
+  listStashes.appendChild(frag)
+}
+
+function renderAll() {
+  renderStaged()
+  renderChanges()
+  renderHistory()
+  renderStashes()
+}
+
+/* ── Utils ────────────────────────────────────────────────────────────────── */
+/**
+ * Escape for BOTH text and attribute contexts.
+ *
+ * Do not "simplify" this back to textContent -> innerHTML. That serialises a
+ * text node, which escapes & < > but NEVER quotes, so it is unsafe anywhere
+ * inside an attribute value. Every string interpolated here is repository
+ * data (git filenames, branch names, stash refs) and is therefore attacker
+ * controlled: a file named  a onmouseover=alert(1) b"  closed data-path="..."
+ * early and injected a live event handler into this tile, which holds the full
+ * window.contex RPC surface. Mirrors escapeHtml() in review.html.
+ */
+function esc(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+/* ── Event delegation ─────────────────────────────────────────────────────── */
+document.addEventListener('click', function(e) {
+  var btn = e.target.closest('[data-act]')
+  if (btn) {
+    var act = btn.dataset.act
+    var fp = btn.dataset.path
+    var ref = btn.dataset.ref
+    if (act === 'stage') {
+      invoke('stageFile', { path: fp }).then(refresh).catch(function(err) { toast(err.message) })
+    } else if (act === 'unstage') {
+      invoke('unstageFile', { path: fp }).then(refresh).catch(function(err) { toast(err.message) })
+    } else if (act === 'stageAll') {
+      invoke('stageAll').then(refresh).catch(function(err) { toast(err.message) })
+    } else if (act === 'unstageAll') {
+      invoke('unstageAll').then(refresh).catch(function(err) { toast(err.message) })
+    } else if (act === 'discard') {
+      // Confirm: this is irreversible (no undo, not recoverable from git) and
+      // the trash icon sits 2px from Stage, revealed only on hover.
+      if (!confirm('Discard all changes to "' + fp + '"?\n\nThis cannot be undone.')) return
+      invoke('discard', { path: fp }).then(refresh).catch(function(err) { toast(err.message) })
+    } else if (act === 'stashPop') {
+      // Must pass ref: without it the host defaulted to stash@{0}, so clicking
+      // Apply on stash@{2} restored AND destroyed an unrelated stash.
+      invoke('stashPop', { ref: ref }).then(function() { toast('Stash applied', 'success'); refresh() }).catch(function(err) { toast(err.message) })
+    } else if (act === 'stashDrop') {
+      invoke('stashDrop', { ref: ref }).then(function() { toast('Stash dropped', 'success'); refresh() }).catch(function(err) { toast(err.message) })
     }
+    return
+  }
 
-    function renderFiles() {
-      const host = $('fileList')
-      const files = state.gitState ? state.gitState.compare.files : []
-      if (!files.length) {
-        host.innerHTML = '<div class="ct-empty">No changed files for this comparison.</div>'
-        return
-      }
-      host.innerHTML = files.map(file => `
-        <button type="button" class="file-row ${state.selectedFile === file.path ? 'active' : ''}" data-path="${escapeHtml(file.path)}">
-          <div class="file-name"><span class="tag ${escapeHtml(file.statusCode)}">${escapeHtml(file.statusCode)}</span>${escapeHtml(shortPath(file.path))}</div>
-          <div class="file-meta">${escapeHtml(file.path)} · +${escapeHtml(file.additions)}/-${escapeHtml(file.deletions)}</div>
-        </button>
-      `).join('')
-      host.querySelectorAll('[data-path]').forEach(button => {
-        button.onclick = async () => {
-          state.selectedFile = button.getAttribute('data-path') || ''
-          if (window.contex && window.contex.context) await window.contex.context.set('ctx:git:selectedFile', { path: state.selectedFile })
-          await loadDiff()
-          render()
-        }
-      })
+  // Section collapse
+  var hdr = e.target.closest('.section-header')
+  if (hdr && !e.target.closest('.section-actions')) {
+    var sec = hdr.dataset.section
+    state.collapsed[sec] = !state.collapsed[sec]
+    var chev = $('chev-' + sec)
+    if (chev) chev.classList.toggle('collapsed', state.collapsed[sec])
+    var content = hdr.nextElementSibling
+    if (content) content.classList.toggle('collapsed', state.collapsed[sec])
+    return
+  }
+})
+
+/* ── Tab switching ────────────────────────────────────────────────────────── */
+document.querySelector('.tabs').addEventListener('click', function(e) {
+  var tab = e.target.closest('.tab')
+  if (!tab) return
+  state.tab = tab.dataset.tab
+  document.querySelectorAll('.tab').forEach(function(t) { t.classList.toggle('active', t.dataset.tab === state.tab) })
+  $('tab-changes').style.display = state.tab === 'changes' ? '' : 'none'
+  $('tab-stash').style.display = state.tab === 'stash' ? '' : 'none'
+  $('commit-bar').style.display = state.tab === 'changes' ? '' : 'none'
+})
+
+/* ── Commit ───────────────────────────────────────────────────────────────── */
+commitMsg.addEventListener('input', function() {
+  commitBtn.disabled = !commitMsg.value.trim()
+})
+commitMsg.addEventListener('keydown', function(e) {
+  if (e.key === 'Enter' && !e.shiftKey && commitMsg.value.trim()) {
+    e.preventDefault()
+    doCommit()
+  }
+})
+commitBtn.addEventListener('click', doCommit)
+
+function doCommit() {
+  var msg = commitMsg.value.trim()
+  if (!msg) return
+  commitBtn.disabled = true
+  invoke('commit', { message: msg }).then(function() {
+    commitMsg.value = ''
+    toast('Committed!', 'success')
+    refresh()
+  }).catch(function(err) {
+    toast(err.message)
+    commitBtn.disabled = false
+  })
+}
+
+/* ── Branch switching ─────────────────────────────────────────────────────── */
+var dropOpen = false
+branchName.addEventListener('click', function(e) {
+  e.stopPropagation()
+  dropOpen = !dropOpen
+  branchDrop.classList.toggle('open', dropOpen)
+  if (dropOpen) {
+    branchSearch.value = ''
+    renderBranchList('')
+    branchSearch.focus()
+  }
+})
+branchSearch.addEventListener('input', function() { renderBranchList(branchSearch.value) })
+branchSearch.addEventListener('click', function(e) { e.stopPropagation() })
+document.addEventListener('click', function() {
+  if (dropOpen) { dropOpen = false; branchDrop.classList.remove('open') }
+})
+
+function renderBranchList(filter) {
+  while (branchList.firstChild) branchList.removeChild(branchList.firstChild)
+  var frag = document.createDocumentFragment()
+  var q = filter.toLowerCase()
+  state.branches.forEach(function(b) {
+    if (q && b.toLowerCase().indexOf(q) === -1) return
+    var opt = document.createElement('div')
+    opt.className = 'branch-option' + (b === state.branch ? ' active' : '')
+    opt.innerHTML = '<span class="check">' + (b === state.branch ? '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : '') + '</span>' + esc(b)
+    opt.addEventListener('click', function() {
+      if (b === state.branch) return
+      dropOpen = false
+      branchDrop.classList.remove('open')
+      invoke('checkoutBranch', { branch: b }).then(function() {
+        toast('Switched to ' + b, 'success')
+        refresh()
+      }).catch(function(err) { toast(err.message) })
+    })
+    frag.appendChild(opt)
+  })
+  branchList.appendChild(frag)
+}
+
+/* ── Pull / Push ──────────────────────────────────────────────────────────── */
+$('btn-pull').addEventListener('click', function() {
+  invoke('pull').then(function(r) { toast(r.output || 'Pulled', 'success'); refresh() }).catch(function(err) { toast(err.message) })
+})
+$('btn-push').addEventListener('click', function() {
+  invoke('push').then(function(r) { toast(r.output || 'Pushed', 'success'); refresh() }).catch(function(err) { toast(err.message) })
+})
+
+/* ── Stash push ───────────────────────────────────────────────────────────── */
+$('btn-stash-push').addEventListener('click', function() {
+  var msg = $('stash-msg').value.trim()
+  invoke('stash', msg ? { message: msg } : {}).then(function() {
+    $('stash-msg').value = ''
+    toast('Changes stashed', 'success')
+    refresh()
+  }).catch(function(err) { toast(err.message) })
+})
+
+/* ── New branch modal ─────────────────────────────────────────────────────── */
+$('btn-new-branch').addEventListener('click', function() {
+  $('modal-new-branch').classList.add('open')
+  $('new-branch-name').value = ''
+  setTimeout(function() { $('new-branch-name').focus() }, 50)
+})
+$('modal-cancel').addEventListener('click', function() { $('modal-new-branch').classList.remove('open') })
+$('modal-new-branch').addEventListener('click', function(e) { if (e.target === this) this.classList.remove('open') })
+$('modal-create').addEventListener('click', createBranch)
+$('new-branch-name').addEventListener('keydown', function(e) {
+  if (e.key === 'Enter') createBranch()
+  if (e.key === 'Escape') $('modal-new-branch').classList.remove('open')
+})
+
+function createBranch() {
+  var name = $('new-branch-name').value.trim()
+  if (!name) return
+  $('modal-new-branch').classList.remove('open')
+  invoke('createBranch', { name: name }).then(function() {
+    toast('Branch ' + name + ' created', 'success')
+    refresh()
+  }).catch(function(err) { toast(err.message) })
+}
+
+/* ── Refresh button ───────────────────────────────────────────────────────── */
+$('btn-refresh').addEventListener('click', refresh)
+
+/* ── Bridge init ──────────────────────────────────────────────────────────── */
+function init() {
+  var ready = window.contex && window.contex.workspace && window.contex.workspace.getPath
+    ? window.contex.workspace.getPath().then(function(p) { workspacePath = p || '' })
+    : Promise.resolve()
+  ready.then(function() {
+    refresh()
+    if (window.contex && window.contex.actions) {
+      window.contex.actions.register('refresh', 'Refresh git data', function() { refresh() })
     }
+  }).catch(function(err) {
+    toast(err.message || 'Failed to resolve workspace')
+  })
+}
 
-    function render() {
-      const git = state.gitState
-      const compare = git && git.compare
-      const summary = compare && compare.summary
-      $('workspaceLine').textContent = state.workspacePath || 'No workspace path available'
-      $('branchBadge').textContent = git ? git.currentBranch : 'Idle'
-      $('fileCount').textContent = summary ? String(summary.fileCount) : '—'
-      $('commitCount').textContent = summary ? String(summary.commitCount) : '—'
-      $('aheadBehind').textContent = summary ? `${summary.ahead}/${summary.behind}` : '—'
-      $('dirtyCount').textContent = git ? String(git.status.changes.length) : '—'
-      $('additions').textContent = summary ? `+${summary.additions}` : '—'
-      $('deletions').textContent = summary ? `-${summary.deletions}` : '—'
-      $('graphNodes').textContent = compare ? String(compare.graph.nodes.length) : '—'
-      $('graphEdges').textContent = compare ? String(compare.graph.edges.length) : '—'
-      $('handoff').textContent = state.handoff ? state.handoff.markdown : 'Refresh to generate review state.'
-      $('copyBtn').disabled = !state.handoff
-      $('writeBtn').disabled = !git
-      $('handoffBtn').disabled = !git
-
-      renderFiles()
-      renderList('commits', compare ? compare.commits : [], commit => `<div class="item"><strong>${escapeHtml(commit.short)} ${escapeHtml(commit.subject)}</strong><span>${escapeHtml(commit.relativeDate)}</span></div>`)
-      renderList('worktree', git ? git.status.changes : [], change => `<div class="item"><strong>${escapeHtml(change.path)}</strong><span>${escapeHtml(change.status)}</span></div>`)
-      renderList('central', compare ? compare.graph.centralFiles : [], file => `<div class="item"><strong>${escapeHtml(file.path)}</strong><span>${escapeHtml(file.edgeCount)} edges</span></div>`)
-      renderList('dirs', compare ? compare.graph.directories : [], dir => `<div class="item"><strong>${escapeHtml(dir.path)}</strong><span>${escapeHtml(dir.fileCount)} files</span></div>`)
-    }
-
-    async function refresh() {
-      if (!state.workspacePath) return
-      setStatus('Reading git state…')
-      state.gitState = await window.contex.ext.invoke('getGitState', state.workspacePath, options())
-      if (!$('baseRef').value.trim()) $('baseRef').value = state.gitState.baseRef
-      if (!$('headRef').value.trim()) $('headRef').value = state.gitState.headRef
-      state.handoff = await window.contex.ext.invoke('generateReviewHandoff', state.workspacePath, options())
-      await publishGitContext()
-      setStatus(`Compared ${state.gitState.compare.summary.baseRef}...${state.gitState.compare.summary.headRef}`)
-      render()
-    }
-
-    async function generateHandoff() {
-      if (!state.workspacePath) return
-      state.handoff = await window.contex.ext.invoke('generateReviewHandoff', state.workspacePath, options())
-      await publishGitContext()
-      setStatus('Generated review handoff and published ctx:git:review_handoff')
-      render()
-    }
-
-    async function writeHandoff() {
-      if (!state.workspacePath) return
-      const result = await window.contex.ext.invoke('writeReviewHandoff', state.workspacePath, options())
-      state.handoff = result
-      await publishGitContext()
-      setStatus(`Wrote ${result.filePath}`)
-      render()
-    }
-
-    async function loadDiff() {
-      if (!state.selectedFile || !state.workspacePath) return
-      const result = await window.contex.ext.invoke('getFileDiff', state.workspacePath, { ...options(), path: state.selectedFile })
-      $('diff').textContent = result.diff || 'No diff for selected file.'
-    }
-
-    async function copyHandoff() {
-      if (!state.handoff || !navigator.clipboard) return
-      await navigator.clipboard.writeText(state.handoff.markdown)
-      setStatus('Copied review handoff markdown')
-    }
-
-    async function init() {
-      try {
-        state.workspacePath = await window.contex.workspace.getPath()
-        $('refreshBtn').onclick = refresh
-        $('handoffBtn').onclick = generateHandoff
-        $('writeBtn').onclick = writeHandoff
-        $('copyBtn').onclick = copyHandoff
-        $('baseRef').addEventListener('keydown', event => { if (event.key === 'Enter') refresh() })
-        $('headRef').addEventListener('keydown', event => { if (event.key === 'Enter') refresh() })
-        render()
-        await refresh()
-      } catch (err) {
-        setStatus(err && err.message ? err.message : String(err))
-        render()
-      }
-    }
-
-    init()
-  </script>
+window.addEventListener('message', function(e) {
+  if (e.data && e.data.type === 'codesurf-bridge-ready') init()
+})
+if (window.contex) init()
+</script>
 </body>
 </html>

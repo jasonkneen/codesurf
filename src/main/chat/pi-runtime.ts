@@ -230,11 +230,8 @@ interface PiRuntime {
 }
 
 // ── Module-level singletons + DEDICATED per-card maps ───────────────────────
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _csagentRuntime: any = null
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _csagentAuth: any = null // AuthStorage singleton (shares ~/.pi/agent/auth.json with the pi CLI — documented coupling)
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _csagentModels: any = null // ModelRegistry singleton
 
 const csagentSessions = new Map<string, PiAgentSession>()

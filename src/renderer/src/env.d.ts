@@ -2,6 +2,16 @@
 /// <reference types="vite-plugin-pwa/client" />
 /// <reference types="vite-plugin-pwa/react" />
 
+// Electron frameless-window drag regions. `-webkit-app-region` is a real,
+// Chromium-supported style key but is absent from @types/react's CSSProperties;
+// declaring it once here removes every per-site suppression workaround.
+declare module 'react' {
+  interface CSSProperties {
+    WebkitAppRegion?: 'drag' | 'no-drag' | 'none'
+  }
+}
+
+
  import type { AggregatedSessionEntry, SessionEntryHint } from '../../shared/session-types'
  import type { ActivityHealthSnapshot, ActivityQuery, ActivityRecord, ActivityUpsertInput, ExecutionHostRecord, ExecutionPreference, Workspace, ProjectRecord, DashboardDreamingSummary } from '../../shared/types'
 
@@ -96,6 +106,8 @@ interface ElectronAPI {
     disposeCard(workspaceId: string, cardId: string): Promise<{ ok: boolean }>
     opencodeModels(): Promise<{ models: Array<{ id: string; label: string; description?: string }>; source?: string; loading?: boolean }>
     onOpencodeModelsUpdated(cb: (payload: { models: Array<{ id: string; label: string; description?: string }>; source: string; error?: string }) => void): () => void
+    gatewayModels(): Promise<{ models: Array<{ id: string; label: string; description?: string }>; source?: string; error?: string }>
+    onGatewayModelsUpdated(cb: (payload: { models: Array<{ id: string; label: string; description?: string }>; source: string; error?: string }) => void): () => void
     openclawAgents(): Promise<{ agents: Array<{ id: string; label: string; description?: string }> }>
     csagentModels(): Promise<{ models: Array<{ id: string; label: string; description?: string }>; error?: string }>
     selectFiles(workspaceId: string, cardId: string): Promise<Array<{ capability: string; displayName: string }>>

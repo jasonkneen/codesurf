@@ -1967,6 +1967,16 @@ async function handleInvoke(channel: string, args: unknown[] = []): Promise<unkn
         return { ok: true, messages: [], hasMore: false, nextCursor: null }
       case 'chat:opencodeModels':
         return { models: OPEN_CODE_FALLBACK_MODELS, source: 'electrobun-fallback' }
+      case 'chat:gatewayModels': {
+        // Live catalog via the daemon; renderer keeps its built-in gateway
+        // defaults when models comes back empty.
+        try {
+          await daemonRuntime.ensureRunning()
+          return await daemonRuntime.request<{ models: unknown[], source?: string, error?: string }>('/chat/gateway-models')
+        } catch (err) {
+          return { models: [], source: 'none', error: err instanceof Error ? err.message : String(err) }
+        }
+      }
       case 'chat:openclawAgents':
         return listOpenClawAgentOptions()
 

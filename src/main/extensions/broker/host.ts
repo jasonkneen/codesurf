@@ -20,7 +20,7 @@ import { bus } from '../../event-bus'
 import { ExtensionContext } from '../context'
 import { getPluginState } from '../plugin-store'
 import type { ExtensionManifest } from '../../../shared/types'
-import type { ExtensionRegistry } from '../registry'
+import type { ExtensionHostRegistry } from '../registry'
 import type { ExtensionScope } from '../loader'
 import { validateCapabilityCall } from './policy'
 import { JsonRpcPeer, type JsonValue, type JsonObject } from './json-rpc'
@@ -35,10 +35,21 @@ export class ExtensionBrokerHost {
   private deliberateExit = false
   private active = false
   private ipcChannels: string[] = []
+  /**
+   * child-local bus subscription id -> real EventBus subscription id.
+   *
+   * The child mints its own `busSub_*` id (so it can register the callback
+   * synchronously) and sends that on both subscribe and unsubscribe. The real
+   * id only exists here. Without this mapping, unsubscribe passed the child id
+   * to EventBus.unsubscribe, matched nothing, and left the main-side
+   * subscription alive — still forwarding every event over IPC to a callback
+   * the child had already dropped.
+   */
+  private busSubscriptionIds = new Map<string, string>()
 
   constructor(
     private manifest: ExtensionManifest,
-    private registry: ExtensionRegistry,
+    private registry: ExtensionHostRegistry,
     // scope is carried for audit logging by the caller; not used inside the host
     _scope: ExtensionScope,
   ) {}
@@ -159,6 +170,7 @@ export class ExtensionBrokerHost {
         grantedCapabilities: gate.granted,
         settings: settings as JsonObject,
         storeState,
+        workspacePath: this.registry.getActiveWorkspacePath(),
       }, 30_000)
 
       this.active = !!result.activated
@@ -184,6 +196,9 @@ export class ExtensionBrokerHost {
     this.peer = null
     this.child = null
     this.ctx = null
+    // ctx.dispose() drops the underlying bus subscriptions; drop our id map too
+    // so a re-activated host cannot resolve stale ids.
+    this.busSubscriptionIds.clear()
 
     if (peer) {
       try {
@@ -272,11 +287,17 @@ export class ExtensionBrokerHost {
                 })
               }
             })
+            this.busSubscriptionIds.set(childSubId, subId)
             return { subscriptionId: subId }
           }
           case 'unsubscribe': {
+            // The child sends its own id; translate to the real one. Fall back
+            // to the raw value so a caller that somehow holds a real id still
+            // works.
             const [id] = args as [string]
-            ctx.bus.unsubscribe(id)
+            const realId = this.busSubscriptionIds.get(id) ?? id
+            this.busSubscriptionIds.delete(id)
+            ctx.bus.unsubscribe(realId)
             return { ok: true }
           }
           default:

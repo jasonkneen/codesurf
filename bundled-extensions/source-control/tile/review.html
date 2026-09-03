@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Git Review Workbench</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      height: 100vh;
+      overflow: hidden;
+      background: radial-gradient(circle at 12% 0%, var(--ct-accent-s, rgba(96,165,250,.18)), transparent 30%), var(--ct-bg, #0d0f12);
+      color: var(--ct-text, #edf2fa);
+      font-family: var(--ct-font-sans, ui-sans-serif, -apple-system, BlinkMacSystemFont, "SF Pro Text", Inter, system-ui, sans-serif);
+      font-size: var(--ct-font-size, 12px);
+      line-height: 1.42;
+    }
+    .shell { height: 100vh; display: grid; grid-template-rows: auto auto 1fr auto; }
+    header {
+      padding: 14px 16px 10px;
+      border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10));
+      background: var(--ct-panel, rgba(13,15,18,.82));
+      backdrop-filter: blur(18px);
+    }
+    .top { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+    h1 { margin: 0; font-size: 16px; letter-spacing: -.02em; }
+    .sub { margin-top: 4px; color: var(--ct-muted, #95a0af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .toolbar { display: grid; grid-template-columns: 1fr 1fr auto auto auto auto; gap: 8px; padding: 10px 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); background: var(--ct-panel, rgba(255,255,255,.025)); }
+    main { min-height: 0; display: grid; grid-template-columns: minmax(260px, 330px) 1fr; }
+    aside { min-height: 0; border-right: 1px solid var(--ct-border, rgba(255,255,255,.10)); display: grid; grid-template-rows: auto 1fr; background: var(--ct-panel, rgba(255,255,255,.025)); }
+    .stats { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; padding: 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); }
+    .files { min-height: 0; overflow: auto; padding: 10px; display: grid; align-content: start; gap: 7px; }
+    .file-row {
+      border: 1px solid var(--ct-border, rgba(255,255,255,.10));
+      border-radius: 12px;
+      padding: 9px 10px;
+      background: var(--ct-panel, rgba(255,255,255,.04));
+      color: var(--ct-text, #edf2fa);
+      text-align: left;
+      cursor: pointer;
+      display: grid;
+      gap: 3px;
+    }
+    .file-row:hover, .file-row.active { border-color: var(--ct-accent, #60a5fa); background: var(--ct-accent-s, rgba(96,165,250,.10)); }
+    .file-name { font-weight: 670; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .file-meta { color: var(--ct-muted, #95a0af); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; }
+    .tag { display: inline-flex; border-radius: 999px; padding: 1px 6px; border: 1px solid var(--ct-border, rgba(255,255,255,.10)); color: var(--ct-muted, #95a0af); margin-right: 4px; }
+    .tag.A, .tag.added { color: var(--ct-success, #6ee7a8); }
+    .tag.M, .tag.modified { color: var(--ct-accent, #60a5fa); }
+    .tag.D, .tag.deleted { color: var(--ct-danger, #f87171); }
+    .content { min-width: 0; min-height: 0; display: grid; grid-template-rows: auto 1fr; }
+    .cards { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; padding: 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); }
+    .panes { min-height: 0; overflow: auto; padding: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 12px; align-content: start; }
+    .card { overflow: hidden; min-width: 0; padding: 0; }
+    .card h2 { margin: 0; padding: 11px 12px; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); font-size: 12px; color: var(--ct-text, #dce6f4); }
+    .card-body { padding: 10px 12px; display: grid; gap: 7px; }
+    .item { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; color: var(--ct-muted, #95a0af); min-width: 0; }
+    .item strong { color: var(--ct-text, #edf2fa); font-weight: 620; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .item span { white-space: nowrap; color: var(--ct-muted, #95a0af); }
+    .full { grid-column: 1 / -1; }
+    pre {
+      margin: 0;
+      padding: 12px;
+      max-height: 300px;
+      overflow: auto;
+      white-space: pre-wrap;
+      word-break: break-word;
+      background: var(--ct-bg, #090b0e);
+      color: var(--ct-text, #d9e2ee);
+      font: 11px/1.5 var(--ct-font-mono, ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace);
+    }
+    footer { border-top: 1px solid var(--ct-border, rgba(255,255,255,.10)); color: var(--ct-muted, #95a0af); padding: 8px 12px; background: var(--ct-panel, rgba(13,15,18,.84)); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    @media (max-width: 820px) {
+      .toolbar { grid-template-columns: 1fr 1fr; }
+      main { grid-template-columns: 1fr; }
+      aside { max-height: 260px; border-right: 0; border-bottom: 1px solid var(--ct-border, rgba(255,255,255,.10)); }
+      .cards, .panes { grid-template-columns: 1fr 1fr; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="top">
+        <h1>Git Review Workbench</h1>
+        <div id="branchBadge" class="ct-badge">Idle</div>
+      </div>
+      <div id="workspaceLine" class="sub">Resolving workspace…</div>
+    </header>
+    <div class="toolbar">
+      <input id="baseRef" placeholder="Base ref: origin/main" />
+      <input id="headRef" placeholder="Head ref: HEAD" />
+      <button id="refreshBtn" type="button" class="primary">Refresh</button>
+      <button id="handoffBtn" type="button">Handoff</button>
+      <button id="writeBtn" type="button">Write .md</button>
+      <button id="copyBtn" type="button">Copy</button>
+    </div>
+    <main>
+      <aside>
+        <div class="stats">
+          <div class="ct-stat"><div id="fileCount" class="ct-stat-value">—</div><div class="ct-stat-label">changed files</div></div>
+          <div class="ct-stat"><div id="commitCount" class="ct-stat-value">—</div><div class="ct-stat-label">commits</div></div>
+          <div class="ct-stat"><div id="aheadBehind" class="ct-stat-value">—</div><div class="ct-stat-label">ahead / behind</div></div>
+          <div class="ct-stat"><div id="dirtyCount" class="ct-stat-value">—</div><div class="ct-stat-label">worktree</div></div>
+        </div>
+        <div id="fileList" class="files"></div>
+      </aside>
+      <section class="content">
+        <div class="cards">
+          <div class="ct-stat"><div id="additions" class="ct-stat-value">—</div><div class="ct-stat-label">additions</div></div>
+          <div class="ct-stat"><div id="deletions" class="ct-stat-value">—</div><div class="ct-stat-label">deletions</div></div>
+          <div class="ct-stat"><div id="graphNodes" class="ct-stat-value">—</div><div class="ct-stat-label">graph nodes</div></div>
+          <div class="ct-stat"><div id="graphEdges" class="ct-stat-value">—</div><div class="ct-stat-label">graph edges</div></div>
+        </div>
+        <div class="panes">
+          <section class="card ct-card"><h2>Commits to review</h2><div id="commits" class="card-body"></div></section>
+          <section class="card ct-card"><h2>Working tree</h2><div id="worktree" class="card-body"></div></section>
+          <section class="card ct-card"><h2>Central changed files</h2><div id="central" class="card-body"></div></section>
+          <section class="card ct-card"><h2>Directories</h2><div id="dirs" class="card-body"></div></section>
+          <section class="card ct-card full"><h2>Review handoff</h2><pre id="handoff">Refresh to generate review state.</pre></section>
+          <section class="card ct-card full"><h2>Selected diff</h2><pre id="diff">Select a file to load a bounded diff.</pre></section>
+        </div>
+      </section>
+    </main>
+    <footer id="statusLine">Ready.</footer>
+  </div>
+
+  <script>
+    const $ = id => document.getElementById(id)
+    const state = {
+      workspacePath: '',
+      gitState: null,
+      handoff: null,
+      selectedFile: '',
+    }
+
+    function escapeHtml(value) {
+      return String(value == null ? '' : value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;')
+    }
+    function setStatus(message) { $('statusLine').textContent = message }
+    function shortPath(value) { return String(value || '').split('/').slice(-3).join('/') }
+    function options() {
+      return {
+        baseRef: $('baseRef').value.trim(),
+        headRef: $('headRef').value.trim() || 'HEAD',
+      }
+    }
+
+    async function publishGitContext() {
+      if (!state.gitState || !window.contex || !window.contex.context) return
+      const compare = state.gitState.compare
+      await window.contex.context.set('ctx:git:state', {
+        workspacePath: state.gitState.workspacePath,
+        currentBranch: state.gitState.currentBranch,
+        baseRef: state.gitState.baseRef,
+        headRef: state.gitState.headRef,
+        status: state.gitState.status,
+        compareSummary: compare.summary,
+        generatedAt: Date.now(),
+      })
+      await window.contex.context.set('ctx:git:branch_compare', {
+        workspacePath: state.gitState.workspacePath,
+        summary: compare.summary,
+        files: compare.files,
+        commits: compare.commits,
+      })
+      await window.contex.context.set('ctx:git:changed_file_graph', {
+        workspacePath: state.gitState.workspacePath,
+        summary: compare.summary,
+        graph: compare.graph,
+      })
+      if (state.handoff) await window.contex.context.set('ctx:git:review_handoff', state.handoff)
+    }
+
+    function renderList(id, items, renderItem) {
+      const host = $(id)
+      host.innerHTML = items && items.length ? items.map(renderItem).join('') : '<div class="ct-empty">None.</div>'
+    }
+
+    function renderFiles() {
+      const host = $('fileList')
+      const files = state.gitState ? state.gitState.compare.files : []
+      if (!files.length) {
+        host.innerHTML = '<div class="ct-empty">No changed files for this comparison.</div>'
+        return
+      }
+      host.innerHTML = files.map(file => `
+        <button type="button" class="file-row ${state.selectedFile === file.path ? 'active' : ''}" data-path="${escapeHtml(file.path)}">
+          <div class="file-name"><span class="tag ${escapeHtml(file.statusCode)}">${escapeHtml(file.statusCode)}</span>${escapeHtml(shortPath(file.path))}</div>
+          <div class="file-meta">${escapeHtml(file.path)} · +${escapeHtml(file.additions)}/-${escapeHtml(file.deletions)}</div>
+        </button>
+      `).join('')
+      host.querySelectorAll('[data-path]').forEach(button => {
+        button.onclick = async () => {
+          state.selectedFile = button.getAttribute('data-path') || ''
+          if (window.contex && window.contex.context) await window.contex.context.set('ctx:git:selectedFile', { path: state.selectedFile })
+          await loadDiff()
+          render()
+        }
+      })
+    }
+
+    function render() {
+      const git = state.gitState
+      const compare = git && git.compare
+      const summary = compare && compare.summary
+      $('workspaceLine').textContent = state.workspacePath || 'No workspace path available'
+      $('branchBadge').textContent = git ? git.currentBranch : 'Idle'
+      $('fileCount').textContent = summary ? String(summary.fileCount) : '—'
+      $('commitCount').textContent = summary ? String(summary.commitCount) : '—'
+      $('aheadBehind').textContent = summary ? `${summary.ahead}/${summary.behind}` : '—'
+      $('dirtyCount').textContent = git ? String(git.status.changes.length) : '—'
+      $('additions').textContent = summary ? `+${summary.additions}` : '—'
+      $('deletions').textContent = summary ? `-${summary.deletions}` : '—'
+      $('graphNodes').textContent = compare ? String(compare.graph.nodes.length) : '—'
+      $('graphEdges').textContent = compare ? String(compare.graph.edges.length) : '—'
+      $('handoff').textContent = state.handoff ? state.handoff.markdown : 'Refresh to generate review state.'
+      $('copyBtn').disabled = !state.handoff
+      $('writeBtn').disabled = !git
+      $('handoffBtn').disabled = !git
+
+      renderFiles()
+      renderList('commits', compare ? compare.commits : [], commit => `<div class="item"><strong>${escapeHtml(commit.short)} ${escapeHtml(commit.subject)}</strong><span>${escapeHtml(commit.relativeDate)}</span></div>`)
+      renderList('worktree', git ? git.status.changes : [], change => `<div class="item"><strong>${escapeHtml(change.path)}</strong><span>${escapeHtml(change.status)}</span></div>`)
+      renderList('central', compare ? compare.graph.centralFiles : [], file => `<div class="item"><strong>${escapeHtml(file.path)}</strong><span>${escapeHtml(file.edgeCount)} edges</span></div>`)
+      renderList('dirs', compare ? compare.graph.directories : [], dir => `<div class="item"><strong>${escapeHtml(dir.path)}</strong><span>${escapeHtml(dir.fileCount)} files</span></div>`)
+    }
+
+    async function refresh() {
+      if (!state.workspacePath) return
+      setStatus('Reading git state…')
+      state.gitState = await window.contex.ext.invoke('getGitState', state.workspacePath, options())
+      if (!$('baseRef').value.trim()) $('baseRef').value = state.gitState.baseRef
+      if (!$('headRef').value.trim()) $('headRef').value = state.gitState.headRef
+      state.handoff = await window.contex.ext.invoke('generateReviewHandoff', state.workspacePath, options())
+      await publishGitContext()
+      setStatus(`Compared ${state.gitState.compare.summary.baseRef}...${state.gitState.compare.summary.headRef}`)
+      render()
+    }
+
+    async function generateHandoff() {
+      if (!state.workspacePath) return
+      state.handoff = await window.contex.ext.invoke('generateReviewHandoff', state.workspacePath, options())
+      await publishGitContext()
+      setStatus('Generated review handoff and published ctx:git:review_handoff')
+      render()
+    }
+
+    async function writeHandoff() {
+      if (!state.workspacePath) return
+      const result = await window.contex.ext.invoke('writeReviewHandoff', state.workspacePath, options())
+      state.handoff = result
+      await publishGitContext()
+      setStatus(`Wrote ${result.filePath}`)
+      render()
+    }
+
+    async function loadDiff() {
+      if (!state.selectedFile || !state.workspacePath) return
+      const result = await window.contex.ext.invoke('getFileDiff', state.workspacePath, { ...options(), path: state.selectedFile })
+      $('diff').textContent = result.diff || 'No diff for selected file.'
+    }
+
+    async function copyHandoff() {
+      if (!state.handoff || !navigator.clipboard) return
+      await navigator.clipboard.writeText(state.handoff.markdown)
+      setStatus('Copied review handoff markdown')
+    }
+
+    async function init() {
+      try {
+        state.workspacePath = await window.contex.workspace.getPath()
+        $('refreshBtn').onclick = refresh
+        $('handoffBtn').onclick = generateHandoff
+        $('writeBtn').onclick = writeHandoff
+        $('copyBtn').onclick = copyHandoff
+        $('baseRef').addEventListener('keydown', event => { if (event.key === 'Enter') refresh() })
+        $('headRef').addEventListener('keydown', event => { if (event.key === 'Enter') refresh() })
+        render()
+        await refresh()
+      } catch (err) {
+        setStatus(err && err.message ? err.message : String(err))
+        render()
+      }
+    }
+
+    init()
+  </script>
+</body>
+</html>

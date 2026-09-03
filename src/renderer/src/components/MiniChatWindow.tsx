@@ -76,7 +76,7 @@ export function MiniChatWindow({
                 background: theme.surface.titlebar,
                 backdropFilter: 'blur(18px)',
                 WebkitBackdropFilter: 'blur(18px)',
-                ...({ WebkitAppRegion: 'drag' } as React.CSSProperties),
+                WebkitAppRegion: 'drag',
                 userSelect: 'none',
               }}
             >
@@ -122,7 +122,7 @@ export function MiniChatWindow({
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  ...({ WebkitAppRegion: 'no-drag' } as React.CSSProperties),
+                  WebkitAppRegion: 'no-drag',
                 }}
               >
                 <X size={13} />

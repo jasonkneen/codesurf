@@ -80,28 +80,34 @@ function runNode(args) {
   })
 }
 
-test('source-control is bundled as a safe Git Review Workbench with MCP read tools', async () => {
+test('source-control is bundled as a porcelain panel with MCP review tools', async () => {
   const manifest = JSON.parse(await readFile(join(EXT_DIR, 'extension.json'), 'utf8'))
 
   assert.equal(manifest.id, 'source-control')
-  assert.equal(manifest.name, 'Git Review Workbench')
+  assert.equal(manifest.name, 'Source Control')
   assert.equal(manifest.main, 'main.js')
   assert.equal(manifest.ui.mode, 'native')
 
   const tile = manifest.contributes.tiles.find(entry => entry.type === 'source-control-panel')
   assert.ok(tile, 'expected source-control-panel tile contribution')
   assert.equal(tile.entry, 'tile/index.html')
-  assert.deepEqual(tile.defaultSize, { w: 860, h: 640 })
+  assert.equal(tile.label, 'Source Control')
 
+  assert.ok(manifest.contributes.context.produces.includes('ctx:git:branch'))
   assert.ok(manifest.contributes.context.produces.includes('ctx:git:state'))
   assert.ok(manifest.contributes.context.produces.includes('ctx:git:branch_compare'))
   assert.ok(manifest.contributes.context.produces.includes('ctx:git:changed_file_graph'))
   assert.ok(manifest.contributes.context.produces.includes('ctx:git:review_handoff'))
-  assert.ok(manifest.contributes.context.consumes.includes('ctx:code-index:repo_map'))
-  assert.ok(manifest.contributes.context.consumes.includes('ctx:test-loop:last_run'))
+  assert.ok(manifest.contributes.context.consumes.includes('ctx:workspace'))
 
-  const actionNames = manifest.contributes.actions.map(action => action.name).sort()
-  assert.deepEqual(actionNames, ['compareBranches', 'generateReviewHandoff', 'getChangedFileGraph', 'getFileDiff', 'getGitState', 'writeReviewHandoff'])
+  const actionNames = manifest.contributes.actions.map(action => action.name)
+  for (const name of [
+    'getStatus', 'getBranches', 'getLog', 'getStashes',
+    'stageFile', 'unstageFile', 'stageAll', 'commit',
+    'getGitState', 'compareBranches', 'getFileDiff', 'generateReviewHandoff',
+  ]) {
+    assert.ok(actionNames.includes(name), `expected action ${name}`)
+  }
 
   const mcpNames = manifest.contributes.mcpTools.map(tool => tool.name).sort()
   assert.deepEqual(mcpNames, ['branch_compare', 'changed_file_graph', 'file_diff', 'git_state', 'review_handoff'])
@@ -167,17 +173,160 @@ test('source-control rejects path traversal for file diffs', async () => {
   }
 })
 
-test('source-control tile calls host review APIs and publishes git context', async () => {
+test('source-control tile calls porcelain git APIs and publishes git context', async () => {
   const tileHtml = await readFile(join(EXT_DIR, 'tile', 'index.html'), 'utf8')
-  assert.match(tileHtml, /ext\.invoke\('getGitState'/)
-  assert.match(tileHtml, /ext\.invoke\('generateReviewHandoff'/)
-  assert.match(tileHtml, /ext\.invoke\('writeReviewHandoff'/)
-  assert.match(tileHtml, /ext\.invoke\('getFileDiff'/)
-  assert.match(tileHtml, /ctx:git:state/)
-  assert.match(tileHtml, /ctx:git:branch_compare/)
-  assert.match(tileHtml, /ctx:git:changed_file_graph/)
-  assert.match(tileHtml, /ctx:git:review_handoff/)
-  assert.match(tileHtml, /Git Review Workbench/)
+  assert.match(tileHtml, /invoke\('getStatus'/)
+  assert.match(tileHtml, /invoke\('getBranches'/)
+  assert.match(tileHtml, /invoke\('getLog'/)
+  assert.match(tileHtml, /invoke\('getStashes'/)
+  assert.match(tileHtml, /invoke\('commit'/)
+  assert.match(tileHtml, /ctx:git:branch/)
+  assert.match(tileHtml, /workspace\.getPath/)
+})
+
+test('source-control keeps a Git Review tile that calls host review APIs', async () => {
+  const reviewHtml = await readFile(join(EXT_DIR, 'tile', 'review.html'), 'utf8')
+  assert.match(reviewHtml, /ext\.invoke\('getGitState'/)
+  assert.match(reviewHtml, /ext\.invoke\('generateReviewHandoff'/)
+  assert.match(reviewHtml, /Git Review Workbench/)
+})
+
+test('source-control getStatus returns porcelain staged/unstaged for the tile', async () => {
+  const dir = await createFixtureRepo()
+  try {
+    const status = await sourceControl.__testing.getPorcelainStatus(dir)
+    assert.equal(status.branch, 'feature/review-workbench')
+    assert.ok(status.unstaged.some(change => change.path === 'README.md'))
+    assert.equal(status.staged.length, 0)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+// ── Hostile-repository regression tests ──────────────────────────────────────
+// Repository content (filenames, refs) is attacker-controlled: cloning a repo
+// must not be able to attack the tile or the host. The suite previously used
+// only ASCII fixtures (README.md, src/main.ts), which is why the three defects
+// below shipped undetected.
+
+const XSS_FILENAME = 'a onmouseover=alert(1) b"'
+const UNICODE_FILENAME = 'caf\u00e9.txt'
+
+/** The tile's escaper, mirrored from bundled-extensions/source-control/tile/index.html. */
+function tileEsc(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
+test('porcelain paths survive non-ASCII and quote characters (no C-quoting)', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'codesurf-source-control-hostile-'))
+  try {
+    await initGit(dir)
+    await writeFile(join(dir, 'seed.txt'), 'seed\n')
+    await git(dir, ['add', '.'])
+    await git(dir, ['commit', '-m', 'seed'])
+
+    await writeFile(join(dir, UNICODE_FILENAME), 'accented\n')
+    await writeFile(join(dir, XSS_FILENAME), 'quoted\n')
+
+    const status = await sourceControl.__testing.getPorcelainStatus(dir)
+    const paths = status.unstaged.map(change => change.path)
+
+    // Without `-z`, git emits "caf\303\251.txt" (a literal 12-char string) and
+    // the round-trip back into `git add --` matches nothing.
+    assert.ok(
+      paths.includes(UNICODE_FILENAME),
+      `expected exact bytes for the accented path, got ${JSON.stringify(paths)}`,
+    )
+    assert.ok(
+      paths.includes(XSS_FILENAME),
+      `expected exact bytes for the quoted path, got ${JSON.stringify(paths)}`,
+    )
+    for (const filePath of paths) {
+      assert.ok(!/\\[0-7]{3}/.test(filePath), `path is still C-quoted: ${filePath}`)
+    }
+
+    // The path must round-trip: this is what stage/unstage/discard actually do.
+    await git(dir, ['add', '--', UNICODE_FILENAME])
+    const staged = await sourceControl.__testing.getPorcelainStatus(dir)
+    assert.ok(staged.staged.some(change => change.path === UNICODE_FILENAME))
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('renames parse under -z, where the origin path is a separate record', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'codesurf-source-control-rename-'))
+  try {
+    await initGit(dir)
+    await writeFile(join(dir, UNICODE_FILENAME), 'accented\n')
+    await writeFile(join(dir, 'plain.txt'), 'plain\n')
+    await git(dir, ['add', '.'])
+    await git(dir, ['commit', '-m', 'seed'])
+
+    // A destination containing a space would also defeat the old ' -> ' split.
+    await git(dir, ['mv', UNICODE_FILENAME, 'caf\u00e9 moved.txt'])
+    await git(dir, ['mv', 'plain.txt', 'renamed name.txt'])
+
+    const status = await sourceControl.__testing.getPorcelainStatus(dir)
+    const paths = status.staged.map(change => change.path)
+    assert.ok(paths.includes('caf\u00e9 moved.txt'), JSON.stringify(paths))
+    assert.ok(paths.includes('renamed name.txt'), JSON.stringify(paths))
+    // The origin records must be consumed, not surfaced as phantom entries.
+    assert.ok(!paths.includes(UNICODE_FILENAME), 'rename origin leaked as its own change')
+    assert.ok(!paths.includes('plain.txt'), 'rename origin leaked as its own change')
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+  }
+})
+
+test('tile escaper neutralises a filename that would break out of an attribute', () => {
+  const escaped = tileEsc(XSS_FILENAME)
+  assert.ok(!escaped.includes('"'), `unescaped quote survives: ${escaped}`)
+  assert.equal(escaped, 'a onmouseover=alert(1) b&quot;')
+
+  // The whole point: the value must stay inside its attribute.
+  const markup = `<button data-path="${escaped}">x</button>`
+  assert.equal(markup.split('"').length, 3, `attribute broken out of: ${markup}`)
+
+  // textContent -> innerHTML (the old implementation) does NOT escape quotes.
+  assert.ok(tileEsc('<script>').includes('&lt;'))
+  assert.equal(tileEsc("it's"), 'it&#39;s')
+})
+
+test('option-shaped refs are rejected before reaching git (argument injection)', async () => {
+  const dir = await createFixtureRepo()
+  const marker = join(tmpdir(), `codesurf-refguard-${Date.now()}.txt`)
+  try {
+    // `git diff --output=<file>` creates/truncates that file. baseRef is a
+    // required, agent-supplied field on the branch_compare MCP tool, so this
+    // is reachable by a prompt-injected model, not just by a user.
+    await assert.rejects(
+      () => sourceControl.__testing.compareBranches(dir, { baseRef: `--output=${marker}`, headRef: 'HEAD' }),
+      /Invalid ref/,
+    )
+    await assert.rejects(
+      () => sourceControl.__testing.getFileDiff(dir, { path: 'README.md', baseRef: `--output=${marker}`, headRef: 'HEAD' }),
+      /Invalid ref/,
+    )
+    await assert.rejects(
+      () => sourceControl.__testing.compareBranches(dir, { baseRef: 'main', headRef: '--output=/tmp/x' }),
+      /Invalid ref/,
+    )
+
+    await assert.rejects(() => stat(marker), { code: 'ENOENT' }, 'ref guard let git write outside the repo')
+
+    // Legitimate refs must still work.
+    const ok = await sourceControl.__testing.compareBranches(dir, { baseRef: 'main', headRef: 'HEAD' })
+    assert.ok(ok.summary.fileCount >= 1)
+  } finally {
+    await rm(dir, { recursive: true, force: true })
+    await rm(marker, { force: true })
+  }
 })
 
 test('validate-extension accepts bundled source-control target', async () => {

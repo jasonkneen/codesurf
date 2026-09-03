@@ -320,7 +320,7 @@ describe('agent CLI contract builders', () => {
     expect(ipcSource).toContain('Supported daemon providers: Claude, Codex, OpenCode, Hermes, and Omnigent.')
     expect(daemonSource).toContain("request.provider === 'hermes'")
     expect(daemonSource).toContain("request.provider === 'omnigent'")
-    expect(daemonSource).toContain('Daemon execution is only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent right now')
+    expect(daemonSource).toContain('Daemon execution is only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway right now')
   })
 
   test('Claude bypass mode passes the SDK dangerous-skip confirmation flag', () => {

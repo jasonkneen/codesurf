@@ -93,7 +93,6 @@ function Btn({ label, title, active, loading, onClick }: {
         height: 23,
         borderRadius: 7,
         border: 'none',
-        // @ts-ignore
         WebkitAppRegion: 'no-drag',
         background: 'transparent',
         color: baseColor,
@@ -234,7 +233,6 @@ export function ArrangeToolbar({
         pointerEvents: 'all',
         zIndex: 1000,
         alignItems: 'center',
-        // @ts-ignore
         WebkitAppRegion: 'no-drag',
         border: 'none',
         borderRadius: 9,
@@ -259,7 +257,6 @@ export function ArrangeToolbar({
             display: 'flex',
             alignItems: 'center',
             height: '100%',
-            // @ts-ignore
             WebkitAppRegion: 'no-drag',
             border: `1px solid ${zoomBorder}`,
             cursor: 'pointer',

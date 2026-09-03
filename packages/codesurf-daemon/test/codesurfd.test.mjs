@@ -1116,7 +1116,7 @@ test('daemon chat jobs persist detached background mode in job metadata', async 
   }, 5_000, 50)
 
   assert.equal(completed.runMode, 'background')
-  assert.match(String(completed.error ?? ''), /only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent/i)
+  assert.match(String(completed.error ?? ''), /only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway/i)
 })
 
 test('daemon lists external CodeSurf sessions and invalidates the external-session cache route', async t => {
@@ -1342,7 +1342,7 @@ test('daemon runs a persisted chat job timeline and replays events for completed
   assert.equal(state.status, 200)
   assert.equal(state.payload.id, jobId)
   assert.equal(state.payload.status, 'failed')
-  assert.match(state.payload.error, /only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent/i)
+  assert.match(state.payload.error, /only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway/i)
 
   const timelineResponse = await fetch(`http://127.0.0.1:${daemon.pidInfo.port}/chat/job/events?jobId=${encodeURIComponent(jobId)}&since=0`, {
     headers: {
@@ -1370,7 +1370,7 @@ test('daemon runs a persisted chat job timeline and replays events for completed
   const errorEvent = replayedEvents.at(-2)
   assert.equal(errorEvent?.jobId, jobId)
   assert.equal(errorEvent?.type, 'error')
-  assert.match(errorEvent?.error ?? '', /only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent/i)
+  assert.match(errorEvent?.error ?? '', /only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway/i)
 
   const doneEvent = replayedEvents.at(-1)
   assert.equal(doneEvent?.jobId, jobId)
@@ -1561,7 +1561,7 @@ exit 0
   assert.match(rawTimeline, /"type":"session","sessionId":"hermes-session-test"/)
   assert.match(rawTimeline, /"type":"text","text":"HERMES OK"/)
   assert.match(rawTimeline, /"type":"done"/)
-  assert.doesNotMatch(rawTimeline, /only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent/i)
+  assert.doesNotMatch(rawTimeline, /only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway/i)
 })
 
 test('daemon hermes failures sanitize credential-looking diagnostics', async t => {
@@ -1693,7 +1693,7 @@ exit 0
   assert.match(rawTimeline, /"type":"session","sessionId":"opencode-session-test"/)
   assert.match(rawTimeline, /"type":"text","text":"OPENCODE OK"/)
   assert.match(rawTimeline, /"type":"done"/)
-  assert.doesNotMatch(rawTimeline, /only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent/i)
+  assert.doesNotMatch(rawTimeline, /only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway/i)
 })
 
 test('daemon codex file changes create restorable checkpoint with daemon-local workspace roots', async t => {

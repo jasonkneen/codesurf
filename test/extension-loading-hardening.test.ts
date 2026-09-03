@@ -1650,3 +1650,35 @@ test('a losing catalog collision is rejected before recursive identity hashing',
     /^sha256:[a-f0-9]{64}$/,
   )
 })
+
+test('a bundled extension wins over a same-id global install', async () => {
+  const temp = await mkdtemp(join(tmpdir(), 'codesurf-bundled-global-collision-'))
+  const home = join(temp, 'home')
+  const bundledDir = join(temp, 'bundled')
+  const globalDir = join(home, 'extensions')
+  const bundledExtension = join(bundledDir, 'source-control')
+  const globalExtension = join(globalDir, 'source-control')
+  await mkdir(bundledExtension, { recursive: true })
+  await mkdir(globalExtension, { recursive: true })
+  await writeFile(join(bundledExtension, 'extension.json'), JSON.stringify({
+    id: 'source-control',
+    name: 'Bundled Source Control',
+    version: '1.0.0',
+    tier: 'safe',
+  }))
+  await writeFile(join(globalExtension, 'extension.json'), JSON.stringify({
+    id: 'source-control',
+    name: 'Stale Global Source Control',
+    version: '1.0.0',
+    tier: 'safe',
+  }))
+
+  const { ExtensionRegistry } = await loadRegistryModule(home)
+  const registry = new ExtensionRegistry({ bundledDirs: [bundledDir] })
+  await registry.rescan()
+  assert.equal(registry.get('source-control')?.manifest.name, 'Bundled Source Control')
+  assert.ok(
+    (registry.get('source-control')?.manifest._path ?? '').endsWith(`${sep}bundled${sep}source-control`),
+    `expected bundled install path, got ${registry.get('source-control')?.manifest._path}`,
+  )
+})

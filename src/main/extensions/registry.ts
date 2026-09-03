@@ -382,8 +382,9 @@ export class ExtensionRegistry {
     }
     const globalDir = join(CODESURF_HOME, EXTENSIONS_DIRNAME)
     await this.scanDir(globalDir, undefined, CODESURF_HOME)
-    // Catalog dirs load last — any id already loaded from bundled/global wins,
-    // so shipped bundled extensions override the catalog copies.
+    // Catalog dirs load last. Same-id collisions: first loaded wins (bundled,
+    // then global), so a stale ~/.codesurf/extensions copy cannot shadow a
+    // shipped bundled extension. Workspace scans may still replace an id.
     for (const catalogDir of this.catalogDirs) {
       await this.scanDir(catalogDir, { defaultEnabled: false }, catalogDir)
     }
@@ -609,6 +610,9 @@ export class ExtensionRegistry {
     return this.activeWorkspacePath
   }
 
+  // See ExtensionHostRegistry (bottom of this file) for the narrow slice of
+  // this class that the broker host and extension context actually depend on.
+
   private enqueueTransition<T>(run: () => Promise<T>): Promise<T> {
     const result = this.transitionQueue.then(run, run)
     this.transitionQueue = result.then(
@@ -713,8 +717,9 @@ export class ExtensionRegistry {
         // Match the full loader exactly:
         // - catalog candidates never replace installed/bundled/workspace ids;
         // - adapted candidates keep the first loaded id;
-        // - later native manifests replace earlier native or adapted entries.
-        if (opts?.defaultEnabled === false || adapted) continue
+        // - bundled ids win over a later same-id global install;
+        // - later native workspace manifests replace earlier native entries.
+        if (adapted || this.shouldKeepExistingExtension(opts)) continue
         stagedManifests.delete(manifest.id)
       }
       stagedManifests.set(manifest.id, manifest)
@@ -875,10 +880,10 @@ export class ExtensionRegistry {
     normalizeTileTypes(manifest)
 
     const existing = this.extensions.get(manifest.id)
-    // Decide precedence before recursive identity work. Catalog candidates lose
-    // to every already-loaded installation; later native non-catalog manifests
-    // remain the established winner (workspace overrides global).
-    if (existing && opts?.defaultEnabled === false) {
+    // Decide precedence before recursive identity work:
+    // - catalog and global never replace an already-loaded id (bundled wins)
+    // - workspace (untrustedScope) may still replace bundled/global
+    if (existing && this.shouldKeepExistingExtension(opts)) {
       return
     }
 
@@ -1372,6 +1377,18 @@ export class ExtensionRegistry {
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
+  /**
+   * Same-id collision policy used by both the full loader and the lightweight
+   * scan. First loaded id wins (bundled, then global); catalog never replaces;
+   * workspace scans may replace an earlier id.
+   */
+  private shouldKeepExistingExtension(
+    opts?: { defaultEnabled?: boolean; untrustedScope?: boolean },
+  ): boolean {
+    if (opts?.untrustedScope) return false
+    return true
+  }
+
   /** Is this extension's path under one of the registered catalog dirs? */
   private isCatalogExtension(manifest: ExtensionManifest): boolean {
     if (!manifest._path) return false
@@ -1689,4 +1706,27 @@ export class ExtensionRegistry {
   registerMCPTool(extId: string, tool: ExtensionMCPToolContrib & { handler?: (args: Record<string, unknown>) => Promise<string> }): void {
     this.extraMCPTools.push({ ...tool, extId })
   }
+}
+
+/**
+ * The exact slice of ExtensionRegistry that ExtensionBrokerHost and
+ * ExtensionContext depend on.
+ *
+ * They take this narrow interface rather than the whole class so the broker
+ * test harness can supply a real, type-checked fake instead of casting one
+ * through `as never`. That cast previously silenced the compiler and let
+ * `getActiveWorkspacePath` drift out of the fake, which failed at runtime and
+ * took down all 13 broker host tests — including the IPC namespace-escape
+ * security assertion, which then failed for an unrelated reason.
+ *
+ * Adding a registry call in the host or context is now a compile error until
+ * the fake implements it too.
+ */
+export interface ExtensionHostRegistry {
+  getCapabilityGate(id: string): { enforced: boolean; granted: string[] }
+  registerMCPTool(
+    extId: string,
+    tool: ExtensionMCPToolContrib & { handler?: (args: Record<string, unknown>) => Promise<string> },
+  ): void
+  getActiveWorkspacePath(): string | null
 }

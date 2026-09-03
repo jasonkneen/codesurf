@@ -87,6 +87,7 @@ jobs:
         run: |
           npm run check:daemon-boundaries
           npm run typecheck
+          npm run typecheck:tsc
           npm run test:unit:core
           npm run test:packages
 
@@ -161,6 +162,17 @@ jobs:
       - name: Smoke built web runtime
         run: npm run test:web-smoke
 
+      - name: Upload web-smoke failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: web-smoke-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
+
       - name: Build standalone chat app
         run: npm --prefix apps/chat-app run build
 
@@ -172,6 +184,17 @@ jobs:
 
       - name: Run Playwright E2E suite
         run: npm run test:e2e
+
+      - name: Upload E2E failure artifacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-failure-artifacts
+          path: |
+            playwright-report/
+            test-results/
+          if-no-files-found: ignore
+          retention-days: 7
 
       - name: Assert builds did not rewrite tracked files
         run: git diff --exit-code

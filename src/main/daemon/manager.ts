@@ -7,6 +7,8 @@ import {
 } from '@codesurf/daemon/manager'
 import { DAEMON_PACKAGE_VERSION } from '@codesurf/daemon/paths'
 import { CODESURF_HOME } from '../paths'
+import { getSecret } from '../secrets'
+import { GATEWAY_SECRET_NAME, resolveGatewayApiKey } from '../chat/gateway-tools'
 
 export type { DaemonStatusInfo }
 
@@ -45,8 +47,42 @@ const manager = createDaemonManager({
   homeDir: CODESURF_HOME,
   getAppVersion: resolveAppVersion,
   resolveDaemonScriptPath,
-  extraEnv: () => ({ CODESURF_HOST_APP_VERSION: resolveHostAppVersion() }),
+  extraEnv: () => {
+    // Hand the keychain-stored AI Gateway key to the daemon so daemon-executed
+    // gateway jobs work without a separately configured environment.
+    //
+    // Precedence is resolveGatewayApiKey's (stored secret first), shared with
+    // the in-process provider. These two used to disagree, so with both a
+    // stored key and an env var the app and the daemon authenticated as
+    // different accounts.
+    //
+    // Note this is captured at SPAWN time, so changing the key requires a
+    // daemon restart — see restartDaemonForGatewayKeyChange, called from
+    // secrets-ipc when the key is written or cleared.
+    const gatewayKey = resolveGatewayApiKey(getSecret(GATEWAY_SECRET_NAME), process.env)
+    return {
+      CODESURF_HOST_APP_VERSION: resolveHostAppVersion(),
+      ...(gatewayKey ? { AI_GATEWAY_API_KEY: gatewayKey } : {}),
+    }
+  },
 })
+
+/**
+ * Re-spawn the daemon so it picks up a changed AI Gateway key.
+ *
+ * extraEnv() is evaluated once per spawn, so without this a running daemon
+ * keeps serving gateway jobs with the key it was started with — the user
+ * updates it in Settings, the app starts using the new key immediately, and
+ * daemon-backed clients silently keep using the old one.
+ *
+ * No-op when the daemon is not running: the next spawn reads the new value
+ * anyway, so there is nothing to do and nothing to start.
+ */
+export async function restartDaemonForGatewayKeyChange(): Promise<void> {
+  const status = await manager.getDaemonStatus()
+  if (!status.running) return
+  await manager.restartDaemon()
+}
 
 export const ensureDaemonRunning = manager.ensureDaemonRunning
 export const getDaemonStatus = manager.getDaemonStatus

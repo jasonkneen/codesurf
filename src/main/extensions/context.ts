@@ -16,7 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'fs'
 import { join } from 'path'
 import type { EventBus } from '../event-bus'
 import type { ExtensionManifest, ExtensionMCPToolContrib } from '../../shared/types'
-import type { ExtensionRegistry } from './registry'
+import type { ExtensionHostRegistry } from './registry'
 import { registerRelayIPC, unregisterRelayIPC } from '../ipc/relay'
 import { CODESURF_HOME } from '../paths'
 import { getPluginState, setPluginState, replacePluginState, stateChannel } from './plugin-store'
@@ -88,14 +88,18 @@ export class ExtensionContext {
 
   readonly log: (msg: string) => void
 
+  /** Active workspace directory when the extension was activated, or null. */
+  readonly workspacePath: string | null
+
   constructor(
     manifest: ExtensionManifest,
     private eventBus: EventBus,
-    private registry: ExtensionRegistry,
+    private registry: ExtensionHostRegistry,
   ) {
     const extId = manifest.id
     const prefix = `[Ext:${manifest.name}]`
     this.relayHost = undefined
+    this.workspacePath = registry.getActiveWorkspacePath()
 
     // ── Bus API ──
     this.bus = {

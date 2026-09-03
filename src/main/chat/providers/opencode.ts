@@ -41,7 +41,6 @@ import {
 // Lazy-loaded: @opencode-ai/sdk only exports ESM, Electron main is CJS.
 // externalizeDepsPlugin converts dynamic import() to require() which can't
 // resolve ESM-only exports — wrap in try/catch so the app still starts.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 let _createOpencodeClient: any = null
 async function getOpencodeClient(): Promise<any> {
   if (!_createOpencodeClient) {
@@ -279,7 +278,6 @@ export async function abortOpenCodeSession(scope: ChatStreamScope): Promise<void
 }
 
 // Cached SDK client — avoid re-creating on every message
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
 const opencodeClientCache = new OpenCodeClientCache<any>()
 
 async function getOrCreateOpencodeClient(): Promise<{ client: any; url: string }> {

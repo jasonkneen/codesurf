@@ -4056,11 +4056,18 @@ export function createChatJobManager({
         await runHermesJob(job, request, workspaceDir, instructionPrompt)
       } else if (request.provider === 'omnigent') {
         await runOmnigentJob(job, request, workspaceDir, instructionPrompt)
+      } else if (request.provider === 'gateway') {
+        const { runGatewayJob } = await import('./gateway-provider.mjs')
+        if (job.cancelRequested) return
+        await runGatewayJob(job, request, workspaceDir, instructionPrompt, {
+          appendEvent,
+          contextPrompt: contextPromptForRequest(request),
+        })
       } else if (request.provider === 'pi') {
         await appendEvent(job.id, { type: 'error', error: PI_HARNESS_UNAVAILABLE_ERROR })
         await appendEvent(job.id, { type: 'done' })
       } else {
-        await appendEvent(job.id, { type: 'error', error: `Daemon execution is only implemented for Claude, Codex, OpenCode, Hermes, and Omnigent right now. Requested: ${request.provider}` })
+        await appendEvent(job.id, { type: 'error', error: `Daemon execution is only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway right now. Requested: ${request.provider}` })
         await appendEvent(job.id, { type: 'done' })
       }
     } catch (err) {

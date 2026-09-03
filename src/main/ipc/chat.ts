@@ -72,6 +72,7 @@ import {
 } from '../chat/request-policy'
 import { chatCsagent } from '../chat/providers/csagent'
 import { chatLocalProxy, stopLocalProxyTurn } from '../chat/providers/local-proxy'
+import { chatGateway, getGatewayModelsSnapshot, stopGatewayTurn } from '../chat/providers/gateway'
 import type {
   ChatRequest,
   ChatImageAttachment,
@@ -1291,6 +1292,7 @@ async function stopCardExecution(
   }
   const processTermination = await stopActiveChatProcess(scopeKey)
   stopLocalProxyTurn(scope)
+  stopGatewayTurn(scope)
   const daemonCancellation = await cancelChatDaemonJobs(scope)
   cancelPendingAskUserQuestionsForCard(scope, reason)
   cancelPendingToolPermissionsForCard(scope, reason)
@@ -1633,6 +1635,19 @@ export function registerChatIPC(): void {
         case 'opencode': chatOpencode(requestWithFileReferences, providerLaunchGuard); break
         case 'openclaw': chatOpenclaw(requestWithFileReferences); break
         case 'hermes': chatHermes(requestWithFileReferences); break
+        case 'gateway':
+          // No writeTileMcpConfig here on purpose. This branch is the
+          // IN-PROCESS gateway, which calls executeChatAgentTool directly and
+          // never reads that file; and the daemon route cannot reach this
+          // switch at all (supportsDaemonChatProvider excludes 'gateway', and
+          // the daemon branch returns earlier). Writing it anyway put a live
+          // tile bearer token on disk every turn for zero consumers.
+          //
+          // If daemon-executed gateway jobs are enabled later, add 'gateway'
+          // to supportsDaemonChatProvider and write the config in the daemon
+          // branch above — not here, where it would still be dead.
+          chatGateway(requestWithFileReferences)
+          break
         case 'csagent':
           void chatCsagent(requestWithFileReferences, providerLaunchGuard).catch(reportProviderRejection)
           break
@@ -2144,6 +2159,11 @@ export function registerChatIPC(): void {
   })
 
   ipcMain.handle('chat:opencodeModels', async () => getOpenCodeModelsSnapshot())
+
+  // AI Gateway model catalog (live from the gateway /models endpoint, cached).
+  // Best-effort: returns [] with an error when no key is configured — the tile
+  // keeps its built-in default list.
+  ipcMain.handle('chat:gatewayModels', async () => getGatewayModelsSnapshot())
 
   // Pi (csagent) models from the user's installed pi ModelRegistry (auth-configured).
   // Best-effort: returns [] if pi isn't installed/authed — the tile keeps its defaults.

@@ -18,9 +18,13 @@ import { JsonRpcPeer, type JsonValue, type JsonObject } from './json-rpc'
 import { bus } from '../../event-bus'
 import type { ExtensionManifest } from '../../../shared/types'
 import { isValidExtensionCapabilityRequests } from '../../../shared/extension-types'
+import type { ExtensionHostRegistry } from '../registry'
 
-// Fake registry — only provides getCapabilityGate and registerMCPTool
-class TestRegistry {
+// Fake registry. `implements ExtensionHostRegistry` is load-bearing: it makes
+// any new registry dependency in host.ts/context.ts a compile error here rather
+// than a runtime TypeError that silently red-lines the whole broker suite.
+// Do not replace this with a cast.
+class TestRegistry implements ExtensionHostRegistry {
   private capGate: { enforced: boolean; granted: string[] } = { enforced: false, granted: [] }
 
   setGate(gate: { enforced: boolean; granted: string[] }): void {
@@ -31,8 +35,12 @@ class TestRegistry {
     return this.capGate
   }
 
-  registerMCPTool(_extId: string, _tool: unknown): void {
+  registerMCPTool(): void {
     // no-op in test
+  }
+
+  getActiveWorkspacePath(): string | null {
+    return null
   }
 }
 
@@ -104,7 +112,7 @@ async function handleHarnessCall(method: string, params: JsonObject): Promise<Js
         registry.setGate({ enforced: false, granted: [] })
       }
 
-      const host = new ExtensionBrokerHost(manifest, registry as never, 'global')
+      const host = new ExtensionBrokerHost(manifest, registry, 'global')
       const ok = await host.activate()
       if (ok) {
         activeHosts.set(manifest.id, host)

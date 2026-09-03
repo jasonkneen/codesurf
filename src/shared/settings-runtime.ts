@@ -84,7 +84,10 @@ export interface FontSettings {
 
 // ── System font stacks ──────────────────────────────────────────────────────
 
-const SANS_STACK = '"Saira", "SF Pro Rounded", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
+// Bricolage Grotesque is the product's primary and secondary UI face. It ships
+// bundled (src/renderer/src/assets/fonts) with an @font-face in index.css, so
+// the rest of the stack is fallback-only and should not be reached.
+const SANS_STACK = '"Bricolage Grotesque", "SF Pro Rounded", "SF Pro Text", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif'
 // Geist Mono is the default UI monospace; Nerd Font remains in the fallback
 // stack so terminal tiles can still render PUA icon glyphs when installed.
 const MONO_STACK = '"Geist Mono", "FiraCode Nerd Font Mono", ui-monospace, "SF Mono", "Menlo", "Monaco", "JetBrains Mono", "Fira Code", monospace'

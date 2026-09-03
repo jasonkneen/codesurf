@@ -4,8 +4,8 @@
  * from context; provider state + callbacks arrive via props. Types live here
  * (the leaf) and are re-imported by SettingsPanel.
  */
-import React from 'react'
-import { Type, RefreshCw, Eye, EyeOff, Image as ImageIcon, Video } from 'lucide-react'
+import React, { useEffect, useRef, useState } from 'react'
+import { Type, RefreshCw, Eye, EyeOff, Image as ImageIcon, Video, Bot } from 'lucide-react'
 import { DEFAULT_SETTINGS } from '../../../../shared/types'
 import type { GenerationProviderSettings } from '../../../../shared/types'
 import { useTheme } from '../../ThemeContext'
@@ -38,6 +38,169 @@ export interface ProvidersSectionProps {
   setVisibleProviderKeys: React.Dispatch<React.SetStateAction<Record<string, boolean>>>
   providerValidation: Record<string, ProviderValidationResult | { loading: true }>
   validateProvider: (provider: GenerationProviderSettings) => void | Promise<void>
+}
+
+const GATEWAY_SECRET_NAME = 'ai-gateway'
+
+/**
+ * API key card for the AI Gateway chat provider. The key persists in the
+ * encrypted secrets store (never settings.json); the renderer only ever
+ * learns whether a key is set, never its value.
+ */
+function GatewayKeyCard({ inputStyle, labelStyle }: {
+  inputStyle: React.CSSProperties
+  labelStyle: React.CSSProperties
+}): React.JSX.Element {
+  const theme = useTheme()
+  const fonts = useAppFonts()
+  const [hasKey, setHasKey] = useState(false)
+  const [keyInput, setKeyInput] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [busy, setBusy] = useState(false)
+  const [statusMsg, setStatusMsg] = useState<string | null>(null)
+
+  useEffect(() => {
+    // Guard `.has` too, not just `secrets`: on the web/Native bridge `secrets`
+    // is a synthesized Proxy that is truthy but has no real methods.
+    const sec = window.electron?.secrets
+    if (!sec?.has) return
+    void Promise.resolve(sec.has(GATEWAY_SECRET_NAME))
+      .then(r => setHasKey(Boolean(r?.has)))
+      .catch(() => setHasKey(false))
+  }, [])
+
+  // Keep the handle so a second flash cannot be blanked early by the first
+  // one's timer, and so nothing fires after unmount (switching settings
+  // section unmounts this card).
+  const statusTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  useEffect(() => () => {
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+  }, [])
+
+  const flashStatus = (msg: string): void => {
+    setStatusMsg(msg)
+    if (statusTimerRef.current) clearTimeout(statusTimerRef.current)
+    statusTimerRef.current = setTimeout(() => setStatusMsg(null), 2200)
+  }
+
+  /**
+   * Secure storage is Electron-only. The web/Native bridge synthesizes a
+   * truthy `secrets` Proxy whose methods resolve `undefined`, so a bare
+   * `if (!sec) return` passes and `r.ok` then throws a TypeError into an
+   * unhandled rejection — the user saw no error and no saved key, while the
+   * card claimed the key was stored encrypted. Report it instead.
+   */
+  const secretsUnavailable = 'Secure storage is unavailable on this platform — set AI_GATEWAY_API_KEY in the environment instead.'
+
+  const saveKey = async (): Promise<void> => {
+    const sec = window.electron?.secrets
+    if (!sec?.set) { flashStatus(secretsUnavailable); return }
+    setBusy(true)
+    try {
+      const value = keyInput.trim()
+      const r = await sec.set(GATEWAY_SECRET_NAME, value)
+      if (r?.ok) {
+        setKeyInput('')
+        setHasKey(value.length > 0)
+        flashStatus(value ? 'AI Gateway key saved' : 'AI Gateway key cleared')
+      } else {
+        flashStatus(`Save failed: ${r?.error || secretsUnavailable}`)
+      }
+    } catch (err) {
+      flashStatus(`Save failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const clearKey = async (): Promise<void> => {
+    const sec = window.electron?.secrets
+    if (!sec?.delete) { flashStatus(secretsUnavailable); return }
+    setBusy(true)
+    try {
+      await sec.delete(GATEWAY_SECRET_NAME)
+      setHasKey(false)
+      flashStatus('AI Gateway key cleared')
+    } catch (err) {
+      flashStatus(`Clear failed: ${err instanceof Error ? err.message : String(err)}`)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const buttonStyle: React.CSSProperties = {
+    padding: '7px 12px',
+    borderRadius: 8,
+    fontSize: fonts.secondarySize,
+    fontWeight: 600,
+    border: `1px solid ${theme.border.default}`,
+    background: theme.surface.input,
+    color: theme.text.secondary,
+    cursor: busy ? 'default' : 'pointer',
+    opacity: busy ? 0.7 : 1,
+    flexShrink: 0,
+  }
+
+  return (
+    <div
+      style={{
+        background: theme.surface.panelMuted,
+        border: `1px solid ${hasKey ? theme.accent.base : theme.border.subtle}`,
+        borderRadius: 10,
+        padding: 14,
+        marginBottom: 10,
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 10,
+      }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        <Bot size={14} />
+        <span style={{ fontSize: fonts.size, color: theme.text.primary, fontWeight: 700 }}>AI Gateway</span>
+        <span style={{ fontSize: Math.max(10, fonts.secondarySize - 1), color: hasKey ? theme.accent.base : theme.text.disabled }}>
+          {hasKey ? 'Key configured' : 'No key set'}
+        </span>
+      </div>
+      <div style={{ fontSize: Math.max(10, fonts.secondarySize - 1), color: theme.text.disabled, lineHeight: 1.4 }}>
+        One key unlocks every gateway model (Anthropic, OpenAI, Google, xAI, …) for AI Gateway chat blocks. Get a key at vercel.com → AI Gateway. Stored encrypted on this machine.
+      </div>
+      <div>
+        <div style={labelStyle}>API key</div>
+        <div style={{ display: 'flex', gap: 6 }}>
+          <input
+            type={showKey ? 'text' : 'password'}
+            value={keyInput}
+            onChange={e => setKeyInput(e.target.value)}
+            placeholder={hasKey ? 'Enter a new key to replace the saved one' : 'vck_…'}
+            autoComplete="off"
+            spellCheck={false}
+            style={inputStyle}
+          />
+          <button
+            type="button"
+            onClick={() => setShowKey(prev => !prev)}
+            title={showKey ? 'Hide key' : 'Show key'}
+            style={{ ...buttonStyle, width: 34, height: 34, padding: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          >
+            {showKey ? <EyeOff size={14} /> : <Eye size={14} />}
+          </button>
+          <button type="button" disabled={busy || !keyInput.trim()} onClick={() => void saveKey()} style={buttonStyle}>
+            Save
+          </button>
+          {hasKey && (
+            <button type="button" disabled={busy} onClick={() => void clearKey()} style={buttonStyle}>
+              Clear
+            </button>
+          )}
+        </div>
+        {statusMsg && (
+          <div style={{ fontSize: Math.max(10, fonts.secondarySize - 1), color: theme.accent.base, marginTop: 6 }}>
+            {statusMsg}
+          </div>
+        )}
+      </div>
+    </div>
+  )
 }
 
 export function ProvidersSection(props: ProvidersSectionProps): React.JSX.Element {
@@ -80,6 +243,8 @@ export function ProvidersSection(props: ProvidersSectionProps): React.JSX.Elemen
         }
         return (
           <>
+            <SectionLabel label="Chat Providers" />
+            <GatewayKeyCard inputStyle={inputStyle} labelStyle={labelStyle} />
             <SectionLabel label="Generation Providers" />
             <div style={{ background: theme.surface.panelMuted, border: `1px solid ${theme.border.subtle}`, borderRadius: 10, padding: '12px 16px', marginBottom: 10 }}>
               <div style={{ fontSize: fonts.size, color: theme.text.secondary, lineHeight: 1.45 }}>

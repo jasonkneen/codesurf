@@ -55,9 +55,48 @@ async function resolveGitRoot(workspacePath) {
   return stdout.trim()
 }
 
+/**
+ * Normalize a user/agent-supplied git ref.
+ *
+ * The leading-dash rejection is a security control, not tidiness. Refs are
+ * interpolated into a single positional argv entry (`${base}...${head}`) and
+ * handed to `git diff`, which still parses options there. execFile blocks
+ * SHELL injection but not ARGUMENT injection, so `baseRef =
+ * "--output=/path/to/file"` made git create/truncate that file. This is
+ * reachable by a model, not just a user: `baseRef` is a required agent-supplied
+ * field on the branch_compare MCP tool.
+ *
+ * Callers additionally pass '--end-of-options' before revision arguments.
+ */
 function normalizeRef(value, fallback) {
   const ref = String(value || '').trim()
-  return ref || fallback
+  if (!ref) return fallback
+  if (ref.startsWith('-')) throw new Error('Invalid ref: must not start with "-"')
+  if (/[\0\n\r]/.test(ref)) throw new Error('Invalid ref: control characters are not allowed')
+  return ref
+}
+
+/**
+ * Validate a stash ref. Same argument-injection reasoning as normalizeRef:
+ * this reaches `git stash apply/drop`, so an option-shaped value must not get
+ * through. Accepts the only form the UI emits (`stash@{N}`) plus a bare index.
+ * Returns '' when absent, meaning "let git use its default".
+ */
+function normalizeStashRef(value) {
+  const ref = String(value == null ? '' : value).trim()
+  if (!ref) return ''
+  if (!/^(?:stash@\{\d+\}|\d+)$/.test(ref)) throw new Error('Invalid stash ref')
+  return /^\d+$/.test(ref) ? `stash@{${ref}}` : ref
+}
+
+/** Is this repo-relative path tracked by git? Used to route discard. */
+async function isTrackedPath(root, relPath) {
+  try {
+    await runGit(root, ['ls-files', '--error-unmatch', '--', relPath])
+    return true
+  } catch {
+    return false
+  }
 }
 
 function normalizeRepoPath(value) {
@@ -88,19 +127,46 @@ function statusName(code) {
   }[code] || code || 'unknown'
 }
 
+/**
+ * Parse `git status --porcelain=v1 -b -uall -z` output.
+ *
+ * -z is required, not cosmetic. Without it git C-quotes any "unusual" pathname
+ * (default core.quotePath=true quotes every byte >= 0x80 plus " and \), so
+ * `café.txt` arrives as the literal 12-char string `"caf\303\251.txt"`. That
+ * string then round-trips back into `git add -- '"caf\303\251.txt"'`, which
+ * matches nothing — every stage/unstage/discard silently failed for non-ASCII
+ * filenames. With -z, records are NUL-terminated and paths are never quoted.
+ *
+ * Record grammar under -z:
+ *   `## <branch info>\0`            (header, present because of -b)
+ *   `XY <path>\0`                   (ordinary entry)
+ *   `XY <newpath>\0<oldpath>\0`     (rename/copy — origin is its OWN record)
+ *
+ * Note the rename form differs from the newline format's `old -> new`; the
+ * origin path follows as a separate field, which is why this walks an index
+ * rather than mapping over lines.
+ */
 function parseStatusPorcelain(stdout) {
-  const lines = stdout.split('\n').filter(Boolean)
-  const header = lines.find(line => line.startsWith('## ')) || ''
+  const records = String(stdout || '').split('\0')
+  if (records.length && records[records.length - 1] === '') records.pop()
+  const header = records.find(record => record.startsWith('## ')) || ''
   const changes = []
 
-  for (const line of lines) {
-    if (!line || line.startsWith('## ')) continue
-    const x = line[0]
-    const y = line[1]
-    const rawPath = line.slice(3)
-    const renameParts = rawPath.split(' -> ')
-    const filePath = renameParts[renameParts.length - 1]
-    const oldPath = renameParts.length > 1 ? renameParts[0] : undefined
+  for (let i = 0; i < records.length; i += 1) {
+    const record = records[i]
+    if (!record || record.startsWith('## ')) continue
+    const x = record[0]
+    const y = record[1]
+    const filePath = record.slice(3)
+    // Rename/copy entries carry their origin path in the following record.
+    let oldPath
+    if (x === 'R' || x === 'C' || y === 'R' || y === 'C') {
+      const origin = records[i + 1]
+      if (typeof origin === 'string' && origin !== '' && !origin.startsWith('## ')) {
+        oldPath = origin
+        i += 1
+      }
+    }
     changes.push({
       path: filePath,
       ...(oldPath ? { oldPath } : {}),
@@ -212,13 +278,14 @@ async function getDefaultBaseRef(root) {
 }
 
 async function getAheadBehind(root, baseRef, headRef) {
-  const stdout = await tryGit(root, ['rev-list', '--left-right', '--count', `${baseRef}...${headRef}`], '0\t0')
+  const stdout = await tryGit(root, ['rev-list', '--left-right', '--count', '--end-of-options', `${baseRef}...${headRef}`], '0\t0')
   const [behind, ahead] = stdout.trim().split(/\s+/).map(value => Number(value) || 0)
   return { ahead, behind }
 }
 
 async function getStatus(root) {
-  const stdout = await tryGit(root, ['status', '--porcelain=v1', '-b', '-uall'], '')
+  // -z: NUL-terminated records, never C-quoted. See parseStatusPorcelain.
+  const stdout = await tryGit(root, ['status', '--porcelain=v1', '-b', '-uall', '-z'], '')
   return parseStatusPorcelain(stdout)
 }
 
@@ -235,12 +302,12 @@ async function getRecentLog(root, max = DEFAULT_LOG_LIMIT) {
 
 async function getRangeCommits(root, baseRef, headRef, max = DEFAULT_LOG_LIMIT) {
   const limit = Math.max(1, Math.min(200, Number(max) || DEFAULT_LOG_LIMIT))
-  const stdout = await tryGit(root, ['log', `${baseRef}..${headRef}`, `--max-count=${limit}`, '--topo-order', '--format=%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%D%x1f%P'], '')
+  const stdout = await tryGit(root, ['log', `--max-count=${limit}`, '--topo-order', '--format=%H%x1f%h%x1f%an%x1f%ar%x1f%s%x1f%D%x1f%P', '--end-of-options', `${baseRef}..${headRef}`], '')
   return parseLog(stdout)
 }
 
 async function getCommitTouchedFiles(root, baseRef, headRef) {
-  const stdout = await tryGit(root, ['log', `${baseRef}..${headRef}`, '--name-only', '--format=commit:%H'], '')
+  const stdout = await tryGit(root, ['log', '--name-only', '--format=commit:%H', '--end-of-options', `${baseRef}..${headRef}`], '')
   const commits = []
   let current = null
   for (const line of stdout.split('\n')) {
@@ -258,8 +325,8 @@ async function getCommitTouchedFiles(root, baseRef, headRef) {
 
 async function getChangedFiles(root, baseRef, headRef) {
   const [nameStatusOut, numstatOut] = await Promise.all([
-    tryGit(root, ['diff', '--name-status', '--find-renames', `${baseRef}...${headRef}`], ''),
-    tryGit(root, ['diff', '--numstat', '--find-renames', `${baseRef}...${headRef}`], ''),
+    tryGit(root, ['diff', '--name-status', '--find-renames', '--end-of-options', `${baseRef}...${headRef}`], ''),
+    tryGit(root, ['diff', '--numstat', '--find-renames', '--end-of-options', `${baseRef}...${headRef}`], ''),
   ])
   const stats = parseNumstat(numstatOut)
   return parseNameStatus(nameStatusOut).map(file => ({
@@ -338,7 +405,7 @@ async function compareBranches(workspacePath, options = {}) {
   const baseRef = normalizeRef(options.baseRef, defaultBaseRef)
   const headRef = normalizeRef(options.headRef, 'HEAD')
   const [mergeBase, aheadBehind, files, commits, commitTouches] = await Promise.all([
-    tryGit(root, ['merge-base', baseRef, headRef], ''),
+    tryGit(root, ['merge-base', '--end-of-options', baseRef, headRef], ''),
     getAheadBehind(root, baseRef, headRef),
     getChangedFiles(root, baseRef, headRef),
     getRangeCommits(root, baseRef, headRef, options.maxCommits),
@@ -399,7 +466,7 @@ async function getFileDiff(workspacePath, options = {}) {
   const relPath = normalizeRepoPath(options.path)
   const baseRef = normalizeRef(options.baseRef, await getDefaultBaseRef(root))
   const headRef = normalizeRef(options.headRef, 'HEAD')
-  const stdout = await tryGit(root, ['diff', `${baseRef}...${headRef}`, '--', relPath], '')
+  const stdout = await tryGit(root, ['diff', '--end-of-options', `${baseRef}...${headRef}`, '--', relPath], '')
   return { path: relPath, baseRef, headRef, diff: truncate(stdout, Number(options.maxChars) || DEFAULT_DIFF_LIMIT) }
 }
 
@@ -533,17 +600,218 @@ function mcpJson(value) {
   return JSON.stringify(value, null, 2)
 }
 
+function parseInvokePayload(first, second) {
+  if (first && typeof first === 'object' && !Array.isArray(first)) {
+    return { ...first, ...(second && typeof second === 'object' ? second : {}) }
+  }
+  if (typeof first === 'string') {
+    const trimmed = first.trim()
+    if (trimmed.startsWith('{')) {
+      try {
+        const parsed = JSON.parse(trimmed)
+        if (parsed && typeof parsed === 'object') {
+          return { ...parsed, ...(second && typeof second === 'object' ? second : {}) }
+        }
+      } catch {
+        // fall through to workspacePath / empty payload
+      }
+    }
+    if (isAbsoluteWorkspacePath(first)) {
+      return { workspacePath: first, ...(second && typeof second === 'object' ? second : {}) }
+    }
+  }
+  return second && typeof second === 'object' ? { ...second } : {}
+}
+
+function workspaceFromPayload(payload, fallback) {
+  if (isAbsoluteWorkspacePath(payload.workspacePath)) return payload.workspacePath
+  if (isAbsoluteWorkspacePath(fallback)) return fallback
+  throw new Error('Expected an absolute workspacePath')
+}
+
+async function getPorcelainStatus(workspacePath) {
+  const root = await resolveGitRoot(workspacePath)
+  const [status, branch] = await Promise.all([getStatus(root), getCurrentBranch(root)])
+  return {
+    branch,
+    staged: status.staged.map(change => ({
+      path: change.path,
+      status: change.stagedStatus || change.status,
+    })),
+    unstaged: status.unstaged.map(change => ({
+      path: change.path,
+      status: change.unstagedStatus || change.status,
+    })),
+  }
+}
+
+async function getPorcelainBranches(workspacePath) {
+  const root = await resolveGitRoot(workspacePath)
+  const branches = await getBranches(root)
+  const current = (branches.find(branch => branch.current) || {}).name || await getCurrentBranch(root)
+  return { branches: branches.map(branch => branch.name), current }
+}
+
+async function getPorcelainLog(workspacePath, max) {
+  const root = await resolveGitRoot(workspacePath)
+  const commits = await getRecentLog(root, max)
+  return {
+    commits: commits.map(commit => ({
+      hash: commit.hash,
+      short: commit.short,
+      author: commit.author,
+      date: commit.relativeDate,
+      subject: commit.subject,
+      refs: commit.refs,
+      parents: commit.parents,
+    })),
+  }
+}
+
+async function getPorcelainStashes(workspacePath) {
+  const root = await resolveGitRoot(workspacePath)
+  const stdout = await tryGit(root, ['stash', 'list', '--format=%gd%x1f%gs'], '')
+  return {
+    stashes: stdout.split('\n').filter(Boolean).map(line => {
+      const [ref, message] = line.split('\x1f')
+      return { ref, message }
+    }),
+  }
+}
+
+async function getWorkingTreeDiff(workspacePath, filePath, staged) {
+  const root = await resolveGitRoot(workspacePath)
+  const rel = normalizeRepoPath(filePath)
+  const args = staged ? ['diff', '--cached', '--', rel] : ['diff', '--', rel]
+  return truncate(await tryGit(root, args, ''), DEFAULT_DIFF_LIMIT)
+}
+
+function jsonResult(value) {
+  return typeof value === 'string' ? value : JSON.stringify(value)
+}
+
 module.exports = {
   activate(ctx) {
     bus = ctx.bus
-    ctx.log('Git Review Workbench activated')
+    ctx.log('Source Control activated')
+
+    const fallbackWorkspace = () => ctx.workspacePath || ''
+
+    const withWorkspace = (fn) => async (first, second) => {
+      const payload = parseInvokePayload(first, second)
+      const workspacePath = workspaceFromPayload(payload, fallbackWorkspace())
+      return jsonResult(await fn(workspacePath, payload))
+    }
+
+    ctx.ipc.handle('getStatus', withWorkspace((workspacePath) => getPorcelainStatus(workspacePath)))
+    ctx.ipc.handle('getBranches', withWorkspace((workspacePath) => getPorcelainBranches(workspacePath)))
+    ctx.ipc.handle('getLog', withWorkspace((workspacePath, payload) => getPorcelainLog(workspacePath, payload.max)))
+    ctx.ipc.handle('getStashes', withWorkspace((workspacePath) => getPorcelainStashes(workspacePath)))
+    ctx.ipc.handle('stageFile', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['add', '--', normalizeRepoPath(payload.path)])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('unstageFile', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['reset', 'HEAD', '--', normalizeRepoPath(payload.path)])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('stageAll', withWorkspace(async (workspacePath) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['add', '-A'])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('unstageAll', withWorkspace(async (workspacePath) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['reset', 'HEAD'])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('commit', withWorkspace(async (workspacePath, payload) => {
+      const message = String(payload.message || '').trim()
+      if (!message) throw new Error('Commit message required')
+      const root = await resolveGitRoot(workspacePath)
+      const staged = (await runGit(root, ['diff', '--cached', '--name-only'])).stdout.trim()
+      if (!staged) throw new Error('Nothing staged to commit. Stage files first.')
+      await runGit(root, ['commit', '-m', message])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('checkoutBranch', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['checkout', String(payload.branch || '')])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('createBranch', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['checkout', '-b', String(payload.name || '')])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('deleteBranch', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      await runGit(root, ['branch', '-d', String(payload.branch || '')])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('pull', withWorkspace(async (workspacePath) => {
+      const root = await resolveGitRoot(workspacePath)
+      const { stdout, stderr } = await runGit(root, ['pull'])
+      return { output: `${stdout}${stderr}`.trim() }
+    }))
+    ctx.ipc.handle('push', withWorkspace(async (workspacePath) => {
+      const root = await resolveGitRoot(workspacePath)
+      const { stdout, stderr } = await runGit(root, ['push'])
+      return { output: `${stdout}${stderr}`.trim() }
+    }))
+    ctx.ipc.handle('stash', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      const args = ['stash', 'push']
+      if (payload.message) args.push('-m', String(payload.message))
+      await runGit(root, args)
+      return { ok: true }
+    }))
+    ctx.ipc.handle('stashPop', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      // `apply`, not `pop`: the button is labelled Apply and there is a
+      // separate Drop button, so restoring must not also destroy the entry.
+      // The ref is required for correctness — defaulting to stash@{0} meant
+      // clicking Apply on stash@{2} silently consumed a different stash.
+      const ref = normalizeStashRef(payload && payload.ref)
+      await runGit(root, ref ? ['stash', 'apply', '--', ref] : ['stash', 'apply'])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('stashDrop', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      const ref = normalizeStashRef(payload && payload.ref)
+      await runGit(root, ref ? ['stash', 'drop', '--', ref] : ['stash', 'drop'])
+      return { ok: true }
+    }))
+    ctx.ipc.handle('discard', withWorkspace(async (workspacePath, payload) => {
+      const root = await resolveGitRoot(workspacePath)
+      const relPath = normalizeRepoPath(payload.path)
+      // Untracked files are listed in Changes too (getStatus uses -uall), but
+      // `git checkout --` cannot match them and fails with "did not match any
+      // file known to git". Delete those instead of surfacing a dead error.
+      const tracked = await isTrackedPath(root, relPath)
+      if (tracked) {
+        await runGit(root, ['checkout', '--', relPath])
+      } else {
+        await runGit(root, ['clean', '-f', '--', relPath])
+      }
+      return { ok: true }
+    }))
 
     ctx.ipc.handle('getGitState', async (workspacePath, options) => getGitState(String(workspacePath || ''), options || {}))
     ctx.ipc.handle('compareBranches', async (workspacePath, options) => compareBranches(String(workspacePath || ''), options || {}))
     ctx.ipc.handle('getChangedFileGraph', async (workspacePath, options) => getChangedFileGraph(String(workspacePath || ''), options || {}))
     ctx.ipc.handle('generateReviewHandoff', async (workspacePath, options) => generateReviewHandoff(String(workspacePath || ''), options || {}))
     ctx.ipc.handle('writeReviewHandoff', async (workspacePath, options) => writeReviewHandoff(String(workspacePath || ''), options || {}))
-    ctx.ipc.handle('getFileDiff', async (workspacePath, options) => getFileDiff(String(workspacePath || ''), options || {}))
+    ctx.ipc.handle('getFileDiff', async (first, second) => {
+      const payload = parseInvokePayload(first, second)
+      const workspacePath = workspaceFromPayload(payload, typeof first === 'string' && isAbsoluteWorkspacePath(first) ? first : fallbackWorkspace())
+      if (payload.staged === true || payload.staged === false) {
+        return jsonResult({ diff: await getWorkingTreeDiff(workspacePath, payload.path, payload.staged) })
+      }
+      return getFileDiff(workspacePath, payload)
+    })
 
     ctx.mcp.registerTool({
       name: 'git_state',
@@ -635,6 +903,7 @@ module.exports = {
     getChangedFileGraph,
     getFileDiff,
     getGitState,
+    getPorcelainStatus,
     isAbsoluteWorkspacePath,
     normalizeRepoPath,
     parseNameStatus,

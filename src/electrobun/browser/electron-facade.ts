@@ -91,6 +91,7 @@ export function getDefaultElectrobunInvokeResponse(channel: string): unknown {
 
   if (
     channel === 'chat:opencodeModels'
+    || channel === 'chat:gatewayModels'
     || channel === 'chat:openclawAgents'
     || channel === 'execution:listHosts'
     || channel === 'dreaming:listRuns'
@@ -363,7 +364,9 @@ export function createElectrobunElectronFacade(options: FacadeOptions): any {
       clearSession: makeInvoker(invoke, 'chat:clearSession'),
       disposeCard: makeInvoker(invoke, 'chat:disposeCard'),
       opencodeModels: makeInvoker(invoke, 'chat:opencodeModels'),
+      gatewayModels: makeInvoker(invoke, 'chat:gatewayModels'),
       onOpencodeModelsUpdated: makeEventListener(eventHub, 'chat:opencodeModelsUpdated'),
+      onGatewayModelsUpdated: makeEventListener(eventHub, 'chat:gatewayModelsUpdated'),
       openclawAgents: makeInvoker(invoke, 'chat:openclawAgents'),
       csagentModels: makeInvoker(invoke, 'chat:csagentModels'),
       selectFiles: makeInvoker(invoke, 'chat:selectFiles'),

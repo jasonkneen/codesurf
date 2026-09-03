@@ -524,6 +524,17 @@ function buildMcpToolContext(principal: McpPrincipal): McpToolContext {
   }
 }
 
+export async function executeChatAgentTool(
+  name: string,
+  args: Record<string, unknown>,
+  principal: McpPrincipal,
+): Promise<string> {
+  // Called from chat/providers/gateway.ts — a direct main-process call made on
+  // behalf of an in-app chat turn, not an external MCP client. The principal
+  // still scopes tile-targeted tools exactly like an HTTP caller's would.
+  return handleTool(name, args, principal)
+}
+
 export async function executeImageEditTool(
   workspaceId: string,
   tileId: string,

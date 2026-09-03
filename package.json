@@ -26,7 +26,8 @@
     "test": "npm run test:unit && npm run test:packages",
     "pretest:unit": "npm run build:main",
     "test:unit": "npm run test:unit:core && npm run test:unit:electron-hosts",
-    "test:unit:core": "node --experimental-strip-types --test test/*.test.ts test/*.test.mjs test/main/*.test.mjs test/sidebar/*.test.mjs test/daemon/*.test.mjs test/platform/*.test.mjs",
+    "test:unit:core": "node --experimental-strip-types --experimental-test-module-mocks --test test/*.test.ts test/*.test.mjs test/main/*.test.mjs test/sidebar/*.test.mjs test/daemon/*.test.mjs test/platform/*.test.mjs",
+    "test:unit:coverage": "npm run build:main && node --experimental-strip-types --experimental-test-module-mocks --experimental-test-coverage --test test/*.test.ts test/*.test.mjs test/main/*.test.mjs test/sidebar/*.test.mjs test/daemon/*.test.mjs test/platform/*.test.mjs",
     "test:unit:electron-hosts": "node --test --test-concurrency=1 test/hosts/*.test.mjs",
     "test:daemon-package": "npm --prefix packages/codesurf-daemon test",
     "test:relay": "npm --prefix packages/codesurf-relay test",
@@ -141,6 +142,7 @@
     "vite-plugin-pwa": "1.2.0"
   },
   "dependencies": {
+    "@ai-sdk/gateway": "^4.0.60",
     "@anthropic-ai/claude-agent-sdk": "0.2.141",
     "@codesurf/daemon": "file:packages/codesurf-daemon",
     "@mcp-ui/client": "^7.1.1",
@@ -155,7 +157,7 @@
     "@streamdown/mermaid": "^1.0.2",
     "@xterm/addon-fit": "^0.11.0",
     "@xterm/xterm": "^6.0.0",
-    "ai": "^6.0.174",
+    "ai": "^7.0.74",
     "better-sqlite3": "^12.8.0",
     "blobatar": "^2.3.0",
     "chokidar": "^5.0.0",

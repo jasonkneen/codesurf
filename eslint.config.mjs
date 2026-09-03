@@ -80,6 +80,10 @@ export default [
       'src/renderer/public/**',
       'src/renderer/src/assets/cluso/**',
       'test-results/**',
+      // Vite dep-optimizer caches: generated third-party bundles whose embedded
+      // eslint-disable comments reference rules this config doesn't define.
+      '.vite/**',
+      '**/.vite/**',
     ],
   },
   {

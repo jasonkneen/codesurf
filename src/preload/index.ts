@@ -292,10 +292,16 @@ const electronApi = {
       ipcRenderer.invoke('chat:clearSession', { workspaceId, cardId }),
     disposeCard: (workspaceId: string, cardId: string) => ipcRenderer.invoke('chat:disposeCard', { workspaceId, cardId }),
     opencodeModels: () => ipcRenderer.invoke('chat:opencodeModels'),
+    gatewayModels: () => ipcRenderer.invoke('chat:gatewayModels'),
     onOpencodeModelsUpdated: (cb: (payload: { models: Array<{ id: string; label: string; description?: string }>; source: string; error?: string }) => void) => {
       const handler = (_: unknown, payload: { models: Array<{ id: string; label: string; description?: string }>; source: string; error?: string }) => cb(payload)
       ipcRenderer.on('chat:opencodeModelsUpdated', handler)
       return () => ipcRenderer.removeListener('chat:opencodeModelsUpdated', handler)
+    },
+    onGatewayModelsUpdated: (cb: (payload: { models: Array<{ id: string; label: string; description?: string }>; source: string; error?: string }) => void) => {
+      const handler = (_: unknown, payload: { models: Array<{ id: string; label: string; description?: string }>; source: string; error?: string }) => cb(payload)
+      ipcRenderer.on('chat:gatewayModelsUpdated', handler)
+      return () => ipcRenderer.removeListener('chat:gatewayModelsUpdated', handler)
     },
     openclawAgents: () => ipcRenderer.invoke('chat:openclawAgents'),
     csagentModels: () => ipcRenderer.invoke('chat:csagentModels'),

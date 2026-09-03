@@ -89,6 +89,13 @@ export interface ActivateParams extends JsonObject {
   settings: JsonObject
   /** Initial plugin-store state. */
   storeState: JsonObject
+  /**
+   * Active workspace directory at activation time, or null when none is open.
+   * Required (not optional) because `ActivateParams extends JsonObject`, whose
+   * index signature is `JsonValue` — an optional property widens to include
+   * `undefined`, which is not a `JsonValue`. Senders pass explicit null.
+   */
+  workspacePath: string | null
 }
 
 export interface ActivateResult extends JsonObject {

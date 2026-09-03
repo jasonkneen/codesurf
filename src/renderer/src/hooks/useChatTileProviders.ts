@@ -38,6 +38,7 @@ const PROVIDER_ICON: Record<BuiltinProvider, React.ReactNode> = {
   hermes: React.createElement(HermesIcon, { size: TOOLBAR_PILL_ICON_SIZE }),
   omnigent: React.createElement(Bot, { size: TOOLBAR_PILL_ICON_SIZE }),
   csagent: React.createElement(PiIcon, { size: TOOLBAR_PILL_ICON_SIZE }),
+  gateway: React.createElement(Bot, { size: TOOLBAR_PILL_ICON_SIZE }),
 }
 
 export interface UseChatTileProvidersOptions {
@@ -86,10 +87,12 @@ export function useChatTileProviders({
   const [opencodeModels, setOpencodeModels] = useState<ModelOption[]>(DEFAULT_MODELS.opencode)
   const [openclawAgents, setOpenclawAgents] = useState<ModelOption[]>(DEFAULT_MODELS.openclaw)
   const [csagentModels, setCsagentModels] = useState<ModelOption[]>(DEFAULT_MODELS.csagent)
-  const requestedProviderOptionsRef = useRef<{ opencode: boolean; openclaw: boolean; csagent: boolean }>({
+  const [gatewayModels, setGatewayModels] = useState<ModelOption[]>(DEFAULT_MODELS.gateway)
+  const requestedProviderOptionsRef = useRef<{ opencode: boolean; openclaw: boolean; csagent: boolean; gateway: boolean }>({
     opencode: false,
     openclaw: false,
     csagent: false,
+    gateway: false,
   })
 
   useEffect(() => {
@@ -100,6 +103,27 @@ export function useChatTileProviders({
     })
 
     return () => { unsubscribeOpencode?.() }
+  }, [provider])
+
+  // The gateway catalog is fetched once per provider switch, so a key saved in
+  // Settings AFTER this tile opened would otherwise never be reflected — the
+  // picker would keep showing the hardcoded fallback list. Main re-fetches and
+  // broadcasts on key change; clear the once-only guard so a later provider
+  // switch can retry too.
+  useEffect(() => {
+    if (provider !== 'gateway') return
+
+    const unsubscribeGateway = window.electron?.chat?.onGatewayModelsUpdated?.((payload: any) => {
+      if (payload?.models?.length) {
+        setGatewayModels(payload.models)
+        requestedProviderOptionsRef.current.gateway = true
+      } else {
+        setGatewayModels(DEFAULT_MODELS.gateway)
+        requestedProviderOptionsRef.current.gateway = false
+      }
+    })
+
+    return () => { unsubscribeGateway?.() }
   }, [provider])
 
   useEffect(() => {
@@ -118,6 +142,16 @@ export function useChatTileProviders({
         if (result?.agents?.length) setOpenclawAgents(result.agents)
       }).catch(() => {
         requestedProviderOptionsRef.current.openclaw = false
+      })
+    }
+
+    if (provider === 'gateway' && !requestedProviderOptionsRef.current.gateway) {
+      requestedProviderOptionsRef.current.gateway = true
+      window.electron?.chat?.gatewayModels?.().then((result: any) => {
+        if (result?.models?.length) setGatewayModels(result.models)
+        else requestedProviderOptionsRef.current.gateway = false
+      }).catch(() => {
+        requestedProviderOptionsRef.current.gateway = false
       })
     }
 
@@ -189,7 +223,16 @@ export function useChatTileProviders({
       models: csagentModels,
       kind: 'builtin',
     },
-  }), [opencodeModels, openclawAgents, csagentModels])
+    gateway: {
+      id: 'gateway',
+      label: PROVIDER_LABELS.gateway,
+      description: 'Vercel AI Gateway — every gateway model, streaming chat + canvas tools',
+      noun: 'model',
+      icon: PROVIDER_ICON.gateway,
+      models: gatewayModels,
+      kind: 'builtin',
+    },
+  }), [opencodeModels, openclawAgents, csagentModels, gatewayModels])
 
   const extensionProviderEntries = useMemo<ProviderEntry[]>(() => {
     void peerContextVersion
@@ -227,6 +270,7 @@ export function useChatTileProviders({
     builtinProviderEntries.hermes,
     builtinProviderEntries.omnigent,
     builtinProviderEntries.csagent,
+    builtinProviderEntries.gateway,
     ...extensionProviderEntries,
   ], [builtinProviderEntries, extensionProviderEntries])
 
