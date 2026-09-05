@@ -6,7 +6,7 @@
  * lookup is the only way to ask "is this provider configured?"
  */
 import { ipcMain } from 'electron'
-import { deleteSecret, hasSecret, listSecretNames, setSecret } from '../secrets'
+import { deleteSecret, getSecret, hasSecret, listSecretNames, setSecret } from '../secrets'
 import {
   GATEWAY_SECRET_NAME,
   getGatewayModelsSnapshot,
@@ -41,8 +41,13 @@ export function registerSecretsIpc(): void {
     try {
       const name = String(args?.name ?? '').trim()
       if (!name) return { ok: false, error: 'name required' }
-      setSecret(name, String(args?.value ?? ''))
-      if (name === GATEWAY_SECRET_NAME) onGatewayKeyChanged()
+      const nextValue = String(args?.value ?? '')
+      // Compare BEFORE writing. onGatewayKeyChanged force-restarts the daemon,
+      // whose SIGTERM handler tears down every live chat job with no resume —
+      // so re-pasting an unchanged key silently killed detached background work.
+      const gatewayUnchanged = name === GATEWAY_SECRET_NAME && getSecret(name) === nextValue
+      setSecret(name, nextValue)
+      if (name === GATEWAY_SECRET_NAME && !gatewayUnchanged) onGatewayKeyChanged()
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }
@@ -51,8 +56,11 @@ export function registerSecretsIpc(): void {
 
   ipcMain.handle('secrets:delete', (_event, name: string) => {
     try {
-      deleteSecret(String(name ?? ''))
-      if (String(name ?? '') === GATEWAY_SECRET_NAME) onGatewayKeyChanged()
+      const secretName = String(name ?? '')
+      const gatewayWasSet = secretName === GATEWAY_SECRET_NAME && getSecret(secretName) !== null
+      deleteSecret(secretName)
+      // Deleting a key that was never set changes nothing; don't restart.
+      if (secretName === GATEWAY_SECRET_NAME && gatewayWasSet) onGatewayKeyChanged()
       return { ok: true }
     } catch (err) {
       return { ok: false, error: err instanceof Error ? err.message : String(err) }

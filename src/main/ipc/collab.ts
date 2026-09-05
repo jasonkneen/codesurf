@@ -2,7 +2,7 @@ import { randomUUID } from 'crypto'
 import { ipcMain, type WebContents } from 'electron'
 import { promises as fs } from 'fs'
 import { homedir } from 'os'
-import { join, basename, resolve, sep } from 'path'
+import { basename, join, relative, resolve, sep } from 'path'
 import type {
   CollabState,
   CollabSkills,
@@ -289,12 +289,18 @@ async function broadcastMessageChange(payload: {
 }
 
 function parseMailboxAndFilename(rootDir: string, changedPath: string): { mailbox: CollabMailbox; filename: string } | null {
-  const relative = changedPath.slice(rootDir.length + 1)
-  const parts = relative.split('/').filter(Boolean)
+  // Split on the platform separator: slicing and splitting on '/' made the
+  // mailbox check below fail on Windows, where relative paths use '\\'.
+  const parts = relative(rootDir, changedPath).split(sep).filter(Boolean)
   if (parts.length < 2) return null
+  if (parts.some(part => part === '..')) return null
   const mailbox = parts[0] as CollabMailbox
   if (!MESSAGE_MAILBOXES.includes(mailbox)) return null
-  return { mailbox, filename: parts.slice(1).join('/') }
+  const filename = parts.slice(1).join('/')
+  // The glob used to constrain this to .md; now that we watch the directory,
+  // filter here instead.
+  if (!filename.endsWith('.md')) return null
+  return { mailbox, filename }
 }
 
 // ─── Watcher state ──────────────────────────────────────────────────────────
@@ -369,8 +375,14 @@ async function startMessageWatcher(workspacePath: string, tileId: string): Promi
   await ensureTileProtocolDirs(workspacePath, tileId)
 
   const chokidar = await import('chokidar')
-  const watcher = chokidar.watch(join(rootDir, '**/*.md'), {
+  // Watch the DIRECTORY, not a glob. chokidar removed glob support in v4 and
+  // this project is on 5.x, so `join(rootDir, '**/*.md')` was treated as a
+  // literal path to a directory named `**` — no event ever fired, the handlers
+  // below were dead code, and collab:messageChanged never broadcast. The drawer
+  // only refreshed on the 15s interval fallback. `.md` is filtered in onChange.
+  const watcher = chokidar.watch(rootDir, {
     ignoreInitial: true,
+    depth: 2,
     awaitWriteFinish: { stabilityThreshold: 300, pollInterval: 100 },
   })
 

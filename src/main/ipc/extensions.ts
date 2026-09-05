@@ -7,8 +7,6 @@ import { ipcMain, dialog, BrowserWindow } from 'electron'
 import { promises as fs } from 'fs'
 import { join, isAbsolute } from 'path'
 
-import { execFile, spawn } from 'child_process'
-import { promisify } from 'util'
 import type { ExtensionRegistry } from '../extensions/registry'
 import { getBridgeScript } from '../extensions/bridge'
 import { CODESURF_HOME } from '../paths'
@@ -22,7 +20,6 @@ import { getDeclaredSensitiveMediaCapabilities } from '../../shared/extension-se
 
 const extLog = log.scope('Extensions')
 
-const execFileAsync = promisify(execFile)
 const EXTENSIONS_DIR = join(CODESURF_HOME, 'extensions')
 const EXTENSION_SETTINGS_DIR = join(CODESURF_HOME, 'extension-settings')
 
@@ -38,57 +35,48 @@ interface InstallPluginResult {
 // Zip entry safety helpers
 // ---------------------------------------------------------------------------
 
-function runCmd(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
-  return new Promise((resolve, reject) => {
-    const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
-    let stdout = ''
-    let stderr = ''
-    child.stdout.on('data', (d: Buffer) => { stdout += d.toString('utf8') })
-    child.stderr.on('data', (d: Buffer) => { stderr += d.toString('utf8') })
-    child.on('error', reject)
-    child.on('close', code => {
-      if (code === 0) resolve({ stdout, stderr })
-      else reject(new Error(`${cmd} ${args.join(' ')} failed (code ${code}): ${stderr || stdout}`))
-    })
-  })
+/**
+ * Reject an unsafe archive entry name / mode.
+ *
+ * Rejects absolute paths, `..` traversal, and symlink entries (unix mode
+ * S_IFLNK in the high 16 bits of externalFileAttributes).
+ */
+function assertSafeZipEntry(name: string, externalFileAttributes: number): void {
+  const unixMode = (externalFileAttributes >>> 16) & 0o170000
+  if (unixMode === 0o120000) {
+    throw new Error(`Archive entry is a symlink: ${name}`)
+  }
+  if (!name) return
+  if (isAbsolute(name) || /^[A-Za-z]:[\\/]/.test(name) || name.startsWith('\\\\')) {
+    throw new Error(`Archive entry has absolute path: ${name}`)
+  }
+  for (const seg of name.split(/[\\/]/)) {
+    if (seg === '..') {
+      throw new Error(`Archive entry contains path traversal: ${name}`)
+    }
+  }
 }
 
 /**
- * Validate all archive entries before extraction.
- * Rejects:
- *   - entries with absolute paths
- *   - entries containing `..` segments
- *   - symlink entries (permissions starting with 'l' in zipinfo output)
+ * Extract an archive into `destDir`, validating every entry as it is read.
  *
- * Uses `unzip -Z` (zipinfo mode) which lists permissions + filename per line.
- * The first character of the permissions field is:
- *   '-' regular file, 'd' directory, 'l' symlink.
+ * Previously this shelled out to the absolute path `/usr/bin/unzip` for BOTH a
+ * zipinfo enumeration pass and the extraction, while package.json ships win and
+ * linux targets alongside mac. On Windows that path does not exist, so
+ * installing a plugin from file failed with ENOENT after the user had already
+ * picked the file; on Linux distros without unzip (or with it elsewhere) the
+ * spawn failed too. extract-zip is already a declared dependency and is pure
+ * JS, so enumeration and extraction now share one cross-platform
+ * implementation with no external binary.
  */
-async function assertSafeZipEntries(archivePath: string): Promise<void> {
-  const { stdout } = await runCmd('/usr/bin/unzip', ['-Z', archivePath])
-  for (const line of stdout.split('\n')) {
-    const trimmed = line.trim()
-    if (!trimmed || trimmed.startsWith('Archive:') || trimmed.startsWith('Zip file size:')) continue
-    // Only process lines that start with a Unix file-type character.
-    if (!/^[-dls]/.test(trimmed)) continue
-    if (trimmed.startsWith('l')) {
-      // Last whitespace-separated token is the filename.
-      const name = trimmed.split(/\s+/).pop() ?? ''
-      throw new Error(`Archive entry is a symlink: ${name}`)
-    }
-    // Extract filename (last token).
-    const name = trimmed.split(/\s+/).pop() ?? ''
-    if (!name) continue
-    if (isAbsolute(name)) {
-      throw new Error(`Archive entry has absolute path: ${name}`)
-    }
-    const segments = name.split('/')
-    for (const seg of segments) {
-      if (seg === '..') {
-        throw new Error(`Archive entry contains path traversal: ${name}`)
-      }
-    }
-  }
+async function extractArchiveSafely(archivePath: string, destDir: string): Promise<void> {
+  const { default: extract } = await import('extract-zip')
+  await extract(archivePath, {
+    dir: destDir,
+    onEntry: entry => {
+      assertSafeZipEntry(entry.fileName, entry.externalFileAttributes)
+    },
+  })
 }
 
 /**
@@ -190,15 +178,14 @@ async function installPluginArchive(registry: ExtensionRegistry, archivePath: st
   try {
     await fs.mkdir(EXTENSIONS_DIR, { recursive: true })
 
-    // Step 1: validate all entries before touching the extensions directory.
-    await assertSafeZipEntries(archivePath)
-
-    // Step 2: extract into a scoped staging root inside EXTENSIONS_DIR.
+    // Extract into a scoped staging root inside EXTENSIONS_DIR, validating every
+    // entry as it is read. The staging root is removed on any failure below, so
+    // a rejected entry cannot leave a partial install behind.
     const tempName = `__tmp_install_${Date.now()}_${Math.random().toString(36).slice(2)}`
     stagingRoot = resolveInside(EXTENSIONS_DIR, tempName)
     payloadDir = resolveInside(stagingRoot, 'payload')
     await fs.mkdir(payloadDir, { recursive: true })
-    await execFileAsync('/usr/bin/unzip', ['-o', archivePath, '-d', payloadDir])
+    await extractArchiveSafely(archivePath, payloadDir)
 
     // vsix archives nest everything under extension/ — flatten it up a level.
     const extensionSubdir = join(payloadDir, 'extension')

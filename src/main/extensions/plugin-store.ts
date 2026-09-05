@@ -12,7 +12,7 @@
  * persistence + event bus rather than adopt a heavy replicated DB.
  */
 
-import { readFileSync, writeFileSync, mkdirSync } from 'fs'
+import { closeSync, existsSync, fsyncSync, mkdirSync, openSync, readFileSync, renameSync, unlinkSync, writeSync } from 'fs'
 import { join } from 'path'
 import { CODESURF_HOME } from '../paths'
 import { bus } from '../event-bus'
@@ -35,24 +35,56 @@ export function stateChannel(extId: string): string {
 export function getPluginState(extId: string): Record<string, unknown> {
   const cached = cache.get(extId)
   if (cached) return cached
+  const file = fileFor(extId)
   let value: Record<string, unknown> = {}
+  let readable = true
   try {
-    value = JSON.parse(readFileSync(fileFor(extId), 'utf8')) as Record<string, unknown>
-  } catch {
+    value = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw new Error('not an object')
+  } catch (err) {
     value = {}
+    // Distinguish "no state yet" from "state is corrupt". Caching {} for a
+    // corrupt file made the next setPluginState spread over {} and rewrite the
+    // file, turning a recoverable partial write into permanent loss.
+    if (existsSync(file)) {
+      readable = false
+      try {
+        renameSync(file, `${file}.bad-${Date.now()}`)
+        console.warn(`[plugin-store] unreadable state for ${extId}; preserved as .bad`, err)
+      } catch (renameErr) {
+        console.warn(`[plugin-store] unreadable state for ${extId}; could not preserve it`, renameErr)
+      }
+    }
   }
-  cache.set(extId, value)
+  if (readable) cache.set(extId, value)
   return value
 }
 
 function persist(extId: string, value: Record<string, unknown>): void {
-  cache.set(extId, value)
+  // Write atomically: temp file, fsync, rename. A bare writeFileSync can leave
+  // truncated JSON on power loss, and the old code additionally swallowed the
+  // failure while still publishing a success event, so subscribers believed a
+  // write had landed that had not.
+  const file = fileFor(extId)
+  const tmp = `${file}.${process.pid}.tmp`
+  mkdirSync(STORE_DIR, { recursive: true })
+  let fd: number | undefined
   try {
-    mkdirSync(STORE_DIR, { recursive: true })
-    writeFileSync(fileFor(extId), JSON.stringify(value, null, 2))
+    fd = openSync(tmp, 'wx')
+    writeSync(fd, JSON.stringify(value, null, 2))
+    fsyncSync(fd)
+    closeSync(fd)
+    fd = undefined
+    renameSync(tmp, file)
   } catch (err) {
+    if (fd !== undefined) { try { closeSync(fd) } catch { /* already closed */ } }
+    try { unlinkSync(tmp) } catch { /* nothing to clean */ }
     console.warn(`[plugin-store] write failed for ${extId}:`, err)
+    // Do NOT cache or announce a state that is not on disk.
+    throw err instanceof Error ? err : new Error(String(err))
   }
+
+  cache.set(extId, value)
   bus.publish({
     channel: stateChannel(extId),
     type: 'data',

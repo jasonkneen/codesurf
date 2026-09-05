@@ -16,7 +16,7 @@
  */
 
 import { app, BrowserWindow, ipcMain } from 'electron'
-import { promises as fs } from 'fs'
+import { existsSync, promises as fs } from 'fs'
 import { homedir } from 'os'
 import path from 'node:path'
 import { spawn } from 'node:child_process'
@@ -67,6 +67,34 @@ export function markRendererReadyAndFlushSkillQueue(): void {
 
 // --- Zip helpers -----------------------------------------------------------
 
+/**
+ * Resolve the `unzip` binary.
+ *
+ * Hardcoding /usr/bin/unzip broke every non-macOS target this app ships (see
+ * package.json win/linux): the path does not exist on Windows, and Linux
+ * distros may not have unzip or may place it elsewhere. Probe the usual
+ * locations, then fall back to PATH resolution, and fail with an actionable
+ * message rather than a bare ENOENT for a path the user never chose.
+ */
+let cachedUnzipPath: string | null | undefined
+function resolveUnzipBinary(): string {
+  if (cachedUnzipPath !== undefined) {
+    if (cachedUnzipPath === null) {
+      throw new Error('`unzip` was not found on this system; install it to add skills from a .zip')
+    }
+    return cachedUnzipPath
+  }
+  for (const candidate of ['/usr/bin/unzip', '/bin/unzip', '/usr/local/bin/unzip', '/opt/homebrew/bin/unzip']) {
+    if (existsSync(candidate)) {
+      cachedUnzipPath = candidate
+      return candidate
+    }
+  }
+  // Let the OS resolve it from PATH (covers Linux layouts and Windows shims).
+  cachedUnzipPath = process.platform === 'win32' ? 'unzip.exe' : 'unzip'
+  return cachedUnzipPath
+}
+
 function runCmd(cmd: string, args: string[]): Promise<{ stdout: string; stderr: string }> {
   return new Promise((resolve, reject) => {
     const child = spawn(cmd, args, { stdio: ['ignore', 'pipe', 'pipe'] })
@@ -84,7 +112,7 @@ function runCmd(cmd: string, args: string[]): Promise<{ stdout: string; stderr: 
 
 // macOS / Linux: `unzip -Z1 <file>` lists archive entries, one per line.
 async function listZipEntries(zipPath: string): Promise<string[]> {
-  const { stdout } = await runCmd('/usr/bin/unzip', ['-Z1', zipPath])
+  const { stdout } = await runCmd(resolveUnzipBinary(), ['-Z1', zipPath])
   return stdout.split('\n').map(l => l.trim()).filter(Boolean)
 }
 
@@ -102,7 +130,7 @@ async function listZipVerbose(zipPath: string): Promise<Array<{ name: string; is
   // entries that don't contain spaces — and for traversal-attack entries the
   // name itself is the threat (we validate it separately), so precision here
   // is on the permissions column, not the name.
-  const { stdout } = await runCmd('/usr/bin/unzip', ['-Z', zipPath])
+  const { stdout } = await runCmd(resolveUnzipBinary(), ['-Z', zipPath])
   const results: Array<{ name: string; isSymlink: boolean }> = []
   for (const line of stdout.split('\n')) {
     const trimmed = line.trim()
@@ -147,7 +175,7 @@ async function assertSafeZipEntries(zipPath: string): Promise<void> {
 
 // Print a single archive member to stdout without touching disk.
 async function readZipEntry(zipPath: string, entryName: string): Promise<string> {
-  const { stdout } = await runCmd('/usr/bin/unzip', ['-p', zipPath, entryName])
+  const { stdout } = await runCmd(resolveUnzipBinary(), ['-p', zipPath, entryName])
   return stdout
 }
 
@@ -231,7 +259,7 @@ async function extractSkill(
   // `-o` = overwrite without prompt; `-d` = target directory. The archive
   // already contains a `<folder>/` prefix so extracting into `targetDir`
   // yields `targetDir/<folder>/…`.
-  await runCmd('/usr/bin/unzip', ['-o', '-qq', zipPath, '-d', targetDir])
+  await runCmd(resolveUnzipBinary(), ['-o', '-qq', zipPath, '-d', targetDir])
   const entries = await listZipEntries(zipPath)
   return { installedPath, entries }
 }

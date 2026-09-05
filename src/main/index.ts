@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain, shell, Menu, nativeImage, screen } from 'electron'
+import { app, BrowserWindow, dialog, ipcMain, shell, Menu, nativeImage, screen } from 'electron'
 import { join } from 'path'
 import { existsSync } from 'fs'
 import { fileURLToPath } from 'url'
@@ -934,6 +934,21 @@ app.whenReady().then(async () => {
   app.on('activate', function () {
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+}).catch(error => {
+  // The bootstrap chain awaits migrateLegacyStorage() and initWorkspaces(),
+  // both of which rethrow, and every IPC registration, the MCP server, the menu
+  // and createWindow() come after them. Without this the app either died on the
+  // unhandled rejection or sat in the dock with zero IPC handlers and no
+  // window, surfacing nothing at all. There is no unhandledRejection handler in
+  // src/main to fall back on.
+  console.error('[startup] app bootstrap failed:', error)
+  try {
+    dialog.showErrorBox(
+      'CodeSurf failed to start',
+      error instanceof Error ? error.message : String(error),
+    )
+  } catch { /* dialog unavailable this early */ }
+  app.exit(1)
 })
 }
 
