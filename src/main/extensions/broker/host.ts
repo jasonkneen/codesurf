@@ -22,7 +22,7 @@ import { getPluginState } from '../plugin-store'
 import type { ExtensionManifest } from '../../../shared/types'
 import type { ExtensionHostRegistry } from '../registry'
 import type { ExtensionScope } from '../loader'
-import { validateCapabilityCall } from './policy'
+import { buildBrokerChildEnv, validateCapabilityCall } from './policy'
 import { JsonRpcPeer, type JsonValue, type JsonObject } from './json-rpc'
 import { BROKER_ERROR_CODES } from './protocol'
 import { registerRelayIPC, unregisterRelayIPC } from '../../ipc/relay'
@@ -90,10 +90,9 @@ export class ExtensionBrokerHost {
     const child = utilityProcess.fork(childBundle, [], {
       serviceName: `ext:${extId}`,
       stdio: 'pipe',
-      env: {
-        ...process.env,
-        CODESURF_BROKER_CHILD: '1',
-      },
+      // Allow-listed, NOT `...process.env`: a third-party extension child must
+      // not inherit the main process's credentials. See buildBrokerChildEnv.
+      env: buildBrokerChildEnv(process.env, { CODESURF_BROKER_CHILD: '1' }),
     })
     this.child = child
 

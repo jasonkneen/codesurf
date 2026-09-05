@@ -207,6 +207,24 @@ export function getApproxContextWindowTokens(providerId: string, modelId: string
   if (normalizedModel.includes('o3') || normalizedModel.includes('o4')) return 200_000
   if (normalizedProvider === 'claude' || normalizedModel.includes('claude')) return 200_000
   if (normalizedProvider === 'codex') return 258_000
+
+  // Gateway model ids are vendor-prefixed (`google/gemini-2.5-pro`,
+  // `meta/llama-3.3-70b`), so the checks above — which match on the bare model
+  // name — miss them and every gateway model fell through to 128k. That
+  // under-reports the window by up to 8x for Gemini and silently mis-sizes the
+  // context budget. Match the remaining families by name, for gateway and for
+  // any other provider that surfaces the same models.
+  if (normalizedModel.includes('gemini')) {
+    // 1.5/2.x Pro and the 2.5 line are 1M+; Flash variants are 1M too.
+    return 1_000_000
+  }
+  if (normalizedModel.includes('grok')) return 256_000
+  if (normalizedModel.includes('llama')) return 128_000
+  if (normalizedModel.includes('mistral') || normalizedModel.includes('mixtral')) return 128_000
+  if (normalizedModel.includes('deepseek')) return 128_000
+  if (normalizedModel.includes('qwen')) return 128_000
+  if (/\bgpt-4(?:\.|-|o|$)/.test(normalizedModel)) return 128_000
+
   return 128_000
 }
 

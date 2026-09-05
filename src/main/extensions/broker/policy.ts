@@ -85,9 +85,75 @@ export function validateCapabilityCall(
     return { ok: true }
   }
 
+  // `enforced` is false when the manifest declares no capabilities at all. That
+  // does NOT mean "ungated" — gated namespaces stay denied, which is the safe
+  // default and the behaviour relied on today. It is read here only to explain
+  // the denial accurately: "you are not granted fs" is misleading when the
+  // manifest never declared any capability in the first place, and it sent
+  // authors looking for a revoked grant instead of a missing declaration.
+  if (!gate.enforced) {
+    return {
+      ok: false,
+      code: 'capability-denied',
+      message:
+        `Extension "${extId}" called gated capability "${capability}.${method}" but its manifest declares no ` +
+        `"capabilities". Add { "capabilities": [{ "name": "${requiredGrant}" }] } to extension.json and re-enable it.`,
+    }
+  }
+
   return {
     ok: false,
     code: 'capability-denied',
     message: `Extension "${extId}" is not granted capability "${requiredGrant}" (called "${capability}.${method}")`,
   }
+}
+
+/**
+ * Environment variables forwarded to an extension child process.
+ *
+ * The broker previously forked children with `{ ...process.env }`, handing every
+ * third-party extension the main process's entire environment — including
+ * AI_GATEWAY_API_KEY, ANTHROPIC_API_KEY and anything else the user exported
+ * before launching the app. An extension only needs enough to resolve binaries
+ * and find its own data.
+ *
+ * Anything not listed here is dropped. That is deliberate: a missing variable
+ * makes an extension fail loudly and is trivially fixable by extending this
+ * list, whereas a leaked credential is silent and unrecoverable.
+ */
+export const BROKER_CHILD_ENV_ALLOWLIST: readonly string[] = [
+  // Process/binary resolution
+  'PATH', 'SHELL', 'HOME', 'USER', 'LOGNAME',
+  // Temp dirs
+  'TMPDIR', 'TEMP', 'TMP',
+  // Locale / time
+  'LANG', 'LC_ALL', 'LC_CTYPE', 'TZ',
+  // Runtime mode
+  'NODE_ENV', 'CI',
+  // App's own non-secret configuration
+  'CODESURF_HOME', 'CODESURF_WORKSPACE_ID', 'CODESURF_POWER_BROKER', 'CODESURF_BROKER_TEST',
+  // Windows essentials
+  'SYSTEMROOT', 'WINDIR', 'COMSPEC', 'PATHEXT', 'APPDATA', 'LOCALAPPDATA',
+  'USERPROFILE', 'PROGRAMDATA', 'PROGRAMFILES', 'PROGRAMFILES(X86)', 'NUMBER_OF_PROCESSORS',
+]
+
+/**
+ * Defence in depth: even a variable on the allow-list is dropped if its NAME
+ * looks like a credential, so widening the list above cannot silently
+ * reintroduce a leak.
+ */
+const SECRET_NAME_PATTERN = /(KEY|TOKEN|SECRET|PASSWORD|PASSWD|CREDENTIAL|AUTH|SESSION|COOKIE|PRIVATE)/i
+
+export function buildBrokerChildEnv(
+  parentEnv: NodeJS.ProcessEnv,
+  extra: Record<string, string> = {},
+): Record<string, string> {
+  const env: Record<string, string> = {}
+  for (const name of BROKER_CHILD_ENV_ALLOWLIST) {
+    const value = parentEnv[name]
+    if (typeof value !== 'string') continue
+    if (SECRET_NAME_PATTERN.test(name)) continue
+    env[name] = value
+  }
+  return { ...env, ...extra }
 }

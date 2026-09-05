@@ -1102,10 +1102,18 @@ export class ExtensionRegistry {
   }
 
   /**
-   * P1 capability gate for the iframe bridge (least privilege). A plugin that
-   * declares NO capabilities is ungated (full SDK surface — no regression). A
-   * plugin that declares capabilities only receives the namespaces matching its
-   * GRANTED set recorded at enable time. Missing entries retain the legacy
+   * P1 capability gate for the iframe bridge (least privilege).
+   *
+   * A plugin that declares NO capabilities gets `{ enforced: false, granted: [] }`.
+   * That is NOT "ungated": validateCapabilityCall allows only the BASELINE
+   * namespaces (bus, mcp, ipc, settings, store, log) and denies every gated one
+   * (fs, shell, network, secrets, chat, canvas, chrome, daemon, relayHost),
+   * because an empty grant list cannot satisfy any required grant. `enforced`
+   * distinguishes "declared nothing" from "declared but not granted" so the
+   * denial can say which it is — it does not relax the check.
+   *
+   * A plugin that declares capabilities only receives the namespaces matching
+   * its GRANTED set recorded at enable time. Missing entries retain the legacy
    * declared-set fallback, while explicit empty, unknown, and no-longer-declared
    * grants cannot provide authority.
    */

@@ -645,11 +645,46 @@ async function getPorcelainStatus(workspacePath) {
   }
 }
 
+/**
+ * Split a branch name into the local branch to end up on and the remote-tracking
+ * ref to track, if any.
+ *
+ * `git checkout origin/feature` does NOT create a branch — it detaches HEAD at
+ * that commit, so the next commit is unreachable from any ref. Selecting a
+ * remote branch in the UI did exactly that, because getPorcelainBranches
+ * flattened branches to bare names and discarded the `remote` flag.
+ */
+function resolveBranchCheckout(rawName) {
+  const name = String(rawName || '').trim()
+  if (!name) return { local: '', trackFrom: null }
+  const withoutRemotesPrefix = name.startsWith('remotes/') ? name.slice('remotes/'.length) : name
+  const slash = withoutRemotesPrefix.indexOf('/')
+  const looksRemote = name.startsWith('remotes/')
+    || withoutRemotesPrefix.startsWith('origin/')
+    || withoutRemotesPrefix.startsWith('upstream/')
+  if (!looksRemote || slash < 0) return { local: name, trackFrom: null }
+  return {
+    local: withoutRemotesPrefix.slice(slash + 1),
+    trackFrom: withoutRemotesPrefix,
+  }
+}
+
 async function getPorcelainBranches(workspacePath) {
   const root = await resolveGitRoot(workspacePath)
   const branches = await getBranches(root)
   const current = (branches.find(branch => branch.current) || {}).name || await getCurrentBranch(root)
-  return { branches: branches.map(branch => branch.name), current }
+  return {
+    branches: branches.map(branch => branch.name),
+    // Additive: the flat `branches` array is kept for existing callers, while
+    // branchDetails preserves the `remote` flag that was being discarded here.
+    branchDetails: branches.map(branch => ({
+      name: branch.name,
+      remote: Boolean(branch.remote),
+      current: Boolean(branch.current),
+      upstream: branch.upstream || null,
+    })),
+    current,
+  }
 }
 
 async function getPorcelainLog(workspacePath, max) {
@@ -738,7 +773,20 @@ module.exports = {
     }))
     ctx.ipc.handle('checkoutBranch', withWorkspace(async (workspacePath, payload) => {
       const root = await resolveGitRoot(workspacePath)
-      await runGit(root, ['checkout', String(payload.branch || '')])
+      const { local, trackFrom } = resolveBranchCheckout(payload.branch)
+      if (!local) throw new Error('No branch specified')
+      if (!trackFrom) {
+        await runGit(root, ['checkout', local])
+        return { ok: true }
+      }
+      // Remote-tracking ref: switch to the local branch if it already exists,
+      // otherwise create it tracking the remote. Either way HEAD stays attached.
+      try {
+        await runGit(root, ['rev-parse', '--verify', '--quiet', `refs/heads/${local}`])
+        await runGit(root, ['checkout', local])
+      } catch {
+        await runGit(root, ['checkout', '-b', local, '--track', trackFrom])
+      }
       return { ok: true }
     }))
     ctx.ipc.handle('createBranch', withWorkspace(async (workspacePath, payload) => {
