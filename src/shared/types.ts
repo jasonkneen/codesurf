@@ -175,6 +175,18 @@ export interface ToolPermissionGrant {
   action: 'allow' | 'deny'
   scope: Exclude<ToolPermissionDecisionScope, 'once'>
   workspaceDir: string | null
+  /**
+   * The specific resource this grant covers — the tile id for tools that act on
+   * one tile, such as terminal_send_input.
+   *
+   * Without it the grant key was (provider, toolName, workspaceDir) while the
+   * dialog said "wants to type into terminal tile <id>": approving "Always" for
+   * terminal A silently authorised every terminal in the workspace, including
+   * for a prompt-injected agent in another tile and for the raw /inject route
+   * that shares the same toolName and scope. Absent = a workspace-wide grant,
+   * which stays correct for tools that are not tile-scoped.
+   */
+  resourceId?: string | null
   title?: string | null
   description?: string | null
   blockedPath?: string | null

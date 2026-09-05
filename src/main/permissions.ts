@@ -17,6 +17,8 @@ export interface ToolPermissionRequest {
   description?: string | null
   blockedPath?: string | null
   workspaceDir?: string | null
+  /** Tile id (or other single resource) this request is scoped to, when it is. */
+  resourceId?: string | null
 }
 
 function ensureDir(dirPath: string): void {
@@ -129,12 +131,21 @@ function sameGrantTarget(grant: ToolPermissionGrant, request: ToolPermissionRequ
   if (grant.toolName !== request.toolName) return false
   const requestedWorkspace = normalizeWorkspaceDir(request.workspaceDir)
   if (request.provider.trim().toLowerCase() === 'mcp' && requestedWorkspace === null) return false
+  if ((grant.resourceId ?? null) !== (request.resourceId ?? null)) return false
   return (grant.workspaceDir ?? null) === requestedWorkspace
 }
 
 function grantAppliesToRequest(grant: ToolPermissionGrant, request: ToolPermissionRequest): boolean {
   if (grant.provider !== request.provider) return false
   if (grant.toolName !== request.toolName) return false
+  // A resource-scoped grant covers only that resource. A legacy grant with no
+  // resourceId stays workspace-wide, but a request that names a resource must
+  // not be satisfied by one — otherwise "Always" for terminal A would keep
+  // authorising terminal B exactly as before.
+  const grantResource = grant.resourceId ?? null
+  const requestResource = request.resourceId ?? null
+  if (requestResource !== null && grantResource !== requestResource) return false
+  if (grantResource !== null && grantResource !== requestResource) return false
   const grantWorkspace = normalizeWorkspaceDir(grant.workspaceDir)
   const requestWorkspace = normalizeWorkspaceDir(request.workspaceDir)
   if (grant.provider.trim().toLowerCase() === 'mcp') {
@@ -154,6 +165,7 @@ function buildGrant(request: ToolPermissionRequest, scope: Exclude<ToolPermissio
     action,
     scope,
     workspaceDir: normalizeWorkspaceDir(request.workspaceDir),
+    resourceId: request.resourceId ?? null,
     title: request.title ?? null,
     description: request.description ?? null,
     blockedPath: request.blockedPath ?? null,

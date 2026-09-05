@@ -191,7 +191,18 @@ export async function handlePeerBridgeTool(
   if (!toolSchema || !nodeToolNames.has(name)) return null
 
   const tileId = asString(args.tile_id)
-  if (!tileId) return 'Missing tile_id'
+  if (!tileId) {
+    // The kanban_* names are claimed by BOTH this bridge and the board-level
+    // handler in tools/kanban.ts, and TOOL_HANDLERS puts this one first — so a
+    // non-null return here stopped dispatch. getAllTools() advertises the BOARD
+    // schema (title + board_tile_id/workspace_id, no tile_id), so an agent
+    // calling exactly as documented got "Missing tile_id", and the entire
+    // persisted-board branch was unreachable except kanban_get_board. Fall
+    // through so the handler whose schema is advertised actually runs; a call
+    // that does pass tile_id still routes here to the connected peer.
+    if (name.startsWith('kanban_')) return null
+    return 'Missing tile_id'
+  }
   if (!isValidAgentRoomId(tileId)) return 'Invalid tile_id'
   const workspaceScope = resolvePeerWorkspaceScope(ctx.principal, args.workspace_id)
   if (!workspaceScope.ok) return workspaceScope.error
@@ -236,6 +247,10 @@ export async function handlePeerBridgeTool(
       provider: 'mcp',
       toolName: 'terminal_send_input',
       workspaceDir,
+      // Scope the grant to THIS terminal. The dialog already names the tile;
+      // without this the grant key was only (provider, toolName, workspaceDir),
+      // so "Always" for one terminal authorised every terminal in the workspace.
+      resourceId: tileId,
       title: 'Terminal input from MCP agent',
       description: `An MCP agent wants to type into terminal tile "${tileId}":\n${input.slice(0, 200)}${input.length > 200 ? '...' : ''}`,
     }

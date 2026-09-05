@@ -1118,6 +1118,9 @@ export async function startMCPServer(): Promise<number> {
               provider: 'mcp',
               toolName: 'terminal_send_input',
               workspaceDir: permissionWorkspace,
+              // Same grant key as the peer-bridge path, so /inject cannot reuse
+              // an approval minted for a different terminal.
+              resourceId: card_id,
               title: 'Terminal input via /inject',
               description: `An MCP agent wants to write into terminal tile "${card_id}" via /inject:\n${String(message ?? '').slice(0, 200)}${String(message ?? '').length > 200 ? '...' : ''}`,
             }, /* interactive */ true)
