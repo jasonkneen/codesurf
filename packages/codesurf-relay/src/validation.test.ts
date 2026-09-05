@@ -4,6 +4,8 @@ import {
   safeSlug,
   sanitizeForPrompt,
   validateParticipantId,
+  normalizeRelayImpacts,
+  MAX_RELAY_IMPACTS,
 } from './validation'
 
 describe('validation', () => {
@@ -125,5 +127,48 @@ describe('validation', () => {
       expect(safeSlug('!!!')).toBe('message')
       expect(safeSlug('   ')).toBe('message')
     })
+  })
+})
+
+describe('normalizeRelayImpacts', () => {
+  const valid = { targetType: 'agent', targetId: 'a1', description: 'touches auth', severity: 'high' }
+
+  it('keeps well-formed impacts', () => {
+    expect(normalizeRelayImpacts([valid])).toEqual([valid])
+  })
+
+  it('coerces the non-array a model turn can produce', () => {
+    // {"work":{"impacts":"none"}} previously stored a string, and every later
+    // read called .filter() on it and threw — permanently, across restarts.
+    for (const poison of ['none', 42, null, undefined, {}, true]) {
+      expect(normalizeRelayImpacts(poison)).toEqual([])
+    }
+  })
+
+  it('drops malformed entries but keeps the good ones', () => {
+    const out = normalizeRelayImpacts([
+      valid,
+      'nope',
+      null,
+      { targetType: 'martian', description: 'x', severity: 'high' },
+      { targetType: 'agent', description: '', severity: 'high' },
+      { targetType: 'agent', description: 'x', severity: 'catastrophic' },
+      { targetType: 'agent', description: 'x', severity: 'low', targetId: 99 },
+    ])
+    expect(out).toEqual([valid])
+  })
+
+  it('accepts an impact without a targetId', () => {
+    const out = normalizeRelayImpacts([{ targetType: 'system', description: 'restarts', severity: 'low' }])
+    expect(out).toEqual([{ targetType: 'system', description: 'restarts', severity: 'low' }])
+  })
+
+  it('bounds the retained count', () => {
+    const many = Array.from({ length: MAX_RELAY_IMPACTS + 25 }, () => valid)
+    expect(normalizeRelayImpacts(many)).toHaveLength(MAX_RELAY_IMPACTS)
+  })
+
+  it('result is always safely filterable', () => {
+    expect(() => normalizeRelayImpacts('none').filter(i => i.targetType === 'agent')).not.toThrow()
   })
 })

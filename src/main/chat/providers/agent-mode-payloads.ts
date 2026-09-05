@@ -104,6 +104,24 @@ export interface CodexSpawnInput extends AgentModeSelection {
 // codexSandboxApprovalFlags forces read-only for a write-free list and THROWS
 // CODEX_DENY_ALL_ERROR for an unenforceable deny-all ([]). chatCodex catches and
 // surfaces the throw (fail closed) rather than spawning Codex.
+/**
+ * Codex session ids are opaque tokens minted by the CLI, but `resumeThreadId`
+ * arrives from the renderer/IPC and is not covered by
+ * PRIVILEGED_CHAT_CONTEXT_FIELDS or canonicalizeElectronChatRequest. It is
+ * emitted as a bare positional after `resume`, so anything starting with `-` is
+ * read by clap as an option instead: `--config=sandbox_mode="danger-full-access"`
+ * would override the host-selected sandbox, and `--last` would resume an
+ * unrelated workspace's thread. Accept only the shape a real session id has.
+ */
+const CODEX_SESSION_ID = /^[A-Za-z0-9][A-Za-z0-9_.-]{0,127}$/
+
+export function assertValidCodexSessionId(value: string): string {
+  if (!CODEX_SESSION_ID.test(value)) {
+    throw new Error(`Refusing to resume codex with an invalid session id: ${JSON.stringify(value)}`)
+  }
+  return value
+}
+
 export function buildCodexSpawnArgs(input: CodexSpawnInput): string[] {
   if (agentModeUnresolved(input)) throw new Error(AGENT_MODE_UNRESOLVED_ERROR)
   const codexMode = input.mode === 'default' || input.mode === 'auto' || input.mode === 'read-only' || input.mode === 'full-access'
@@ -128,7 +146,7 @@ export function buildCodexSpawnArgs(input: CodexSpawnInput): string[] {
   args.push('--ignore-user-config')
   if (input.workspaceDir) args.push('--skip-git-repo-check', '-C', input.workspaceDir)
   else args.push('--skip-git-repo-check')
-  if (input.resumeThreadId) args.push('resume', input.resumeThreadId)
+  if (input.resumeThreadId) args.push('resume', assertValidCodexSessionId(input.resumeThreadId))
   args.push(promptText)
   return args
 }

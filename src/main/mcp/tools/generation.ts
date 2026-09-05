@@ -15,6 +15,7 @@ import {
   mimeTypeForImagePath,
   selectImageProvider,
 } from '../../image-generation'
+import { validateCanonicalFsPathDetails } from '../../ipc/fs'
 import { resolveGenerationKeys } from '../../generation-secrets'
 import { bus } from '../../event-bus'
 import { buildPeerCommandPayload } from '../../../shared/nodeTools'
@@ -136,6 +137,40 @@ async function readCanvasStateTiles(workspaceId: string): Promise<TileState[]> {
   return []
 }
 
+/** Image inputs the edit tool will accept. */
+const EDITABLE_IMAGE_EXTENSIONS = new Set(['.png', '.jpg', '.jpeg', '.webp', '.gif'])
+
+/**
+ * Authorize a resolved image-tile source path before it is read and uploaded.
+ *
+ * `ctx:image:path` is MCP-writable through `tile_context_set`, which only checks
+ * size and serializability — so without this the tool would read any local file
+ * an agent names (`~/.ssh/id_rsa`) and base64 it to Gemini, then write the
+ * result back next to the source. Note tools already gate on
+ * `validateCanonicalFsPathDetails`; this brings image editing to the same
+ * boundary, and additionally requires a real image extension so a workspace file
+ * of another type cannot be exfiltrated either.
+ *
+ * Returns null (rather than throwing) so an unauthorized path is treated as
+ * "no source", matching how the caller already handles an unresolvable tile.
+ */
+async function authorizeImageTileSource(
+  candidatePath: string,
+  workspaceRoot: string,
+): Promise<string | null> {
+  const ext = candidatePath.slice(candidatePath.lastIndexOf('.')).toLowerCase()
+  if (!EDITABLE_IMAGE_EXTENSIONS.has(ext)) return null
+  try {
+    const validated = await validateCanonicalFsPathDetails(candidatePath, 'read', {
+      restrictToWorkspaceRoots: true,
+      allowedRoots: [workspaceRoot],
+    })
+    return validated.operationPath
+  } catch {
+    return null
+  }
+}
+
 async function findImageTileSourcePath(
   workspaceId: string,
   tileId: string,
@@ -147,7 +182,10 @@ async function findImageTileSourcePath(
       const tiles = await readCanvasStateTiles(ws.id)
       const tile = tiles.find(entry => entry?.id === tileId && entry?.type === 'image')
       const filePath = typeof tile?.filePath === 'string' ? tile.filePath.trim() : ''
-      if (filePath) return { workspaceId: ws.id, filePath }
+      if (filePath) {
+        const authorized = await authorizeImageTileSource(filePath, ws.path)
+        if (authorized) return { workspaceId: ws.id, filePath: authorized }
+      }
     } catch {
       // ignore
     }
@@ -156,7 +194,10 @@ async function findImageTileSourcePath(
       const state = await loadWorkspaceTileState<{ _context?: Record<string, { value?: unknown }> }>(ws.id, tileId, {})
       const contextPath = state._context?.['ctx:image:path']?.value ?? state._context?.['ctx:file:path']?.value
       const filePath = typeof contextPath === 'string' ? contextPath.trim() : ''
-      if (filePath) return { workspaceId: ws.id, filePath }
+      if (filePath) {
+        const authorized = await authorizeImageTileSource(filePath, ws.path)
+        if (authorized) return { workspaceId: ws.id, filePath: authorized }
+      }
     } catch {
       // ignore
     }

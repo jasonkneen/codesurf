@@ -1,3 +1,4 @@
+import type { RelayImpact } from './types'
 const INVALID_ID_PATTERN = /\.\.|\/|\\|^\.|\0/
 
 export const MAX_RELAY_STORAGE_ID_LENGTH = 128
@@ -61,4 +62,44 @@ export function sanitizeForPrompt(
     .replace(/<\|/g, '\\<\\|')
     .replace(/\|>/g, '\\|\\>')
     .slice(0, maxLength)
+}
+
+/** Upper bound on impacts retained per participant. */
+export const MAX_RELAY_IMPACTS = 64
+const IMPACT_TARGET_TYPES = new Set(['agent', 'human', 'system'])
+const IMPACT_SEVERITIES = new Set(['low', 'medium', 'high'])
+
+/**
+ * Coerce a model-supplied `work.impacts` into a well-formed RelayImpact[].
+ *
+ * `parseTurnOutput` is a bare JSON.parse + cast, so a turn returning
+ * `{"work":{"impacts":"none"}}` previously stored a string here. It was written
+ * to participant.json *before* the relationships snapshot, and every later read
+ * called `.filter()` on it and threw — so spawnAgent, syncWorkspace,
+ * setWorkContext and even the error-recovery setParticipantStatus all failed,
+ * permanently, across restarts, until the file was hand-edited.
+ *
+ * Anything that is not a well-formed impact is dropped rather than rejected:
+ * a malformed model turn should lose its impacts, not brick the relay.
+ */
+export function normalizeRelayImpacts(value: unknown): RelayImpact[] {
+  if (!Array.isArray(value)) return []
+  const out: RelayImpact[] = []
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue
+    const candidate = entry as Record<string, unknown>
+    const { targetType, targetId, description, severity } = candidate
+    if (typeof targetType !== 'string' || !IMPACT_TARGET_TYPES.has(targetType)) continue
+    if (typeof description !== 'string' || !description.trim()) continue
+    if (typeof severity !== 'string' || !IMPACT_SEVERITIES.has(severity)) continue
+    if (targetId !== undefined && typeof targetId !== 'string') continue
+    out.push({
+      targetType: targetType as RelayImpact['targetType'],
+      ...(targetId === undefined ? {} : { targetId }),
+      description,
+      severity: severity as RelayImpact['severity'],
+    })
+    if (out.length >= MAX_RELAY_IMPACTS) break
+  }
+  return out
 }

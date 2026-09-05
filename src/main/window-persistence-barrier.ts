@@ -304,6 +304,12 @@ export interface AppQuitBarrierApp {
  * first quit request, settle every window persistence challenge in ownership
  * order, then resume app.quit exactly once.
  */
+/**
+ * How many times shutdown cleanup may fail before the barrier stops blocking
+ * quit. Retrying is right for a transient failure; blocking forever is not.
+ */
+export const MAX_QUIT_CLEANUP_ATTEMPTS = 3
+
 export function installAppQuitBarrier(
   app: AppQuitBarrierApp,
   getRegistry: () => Pick<
@@ -318,6 +324,7 @@ export function installAppQuitBarrier(
   let resumeQuit = false
   let resumeScheduled = false
   let cleanupPromise: Promise<void> | null = null
+  let cleanupFailures = 0
 
   const runCleanup = (): Promise<void> => {
     if (!cleanupPromise) {
@@ -343,7 +350,26 @@ export function installAppQuitBarrier(
           // renderer cannot keep external processes alive. Cleanup is
           // different: an unconfirmed provider process tree must keep app
           // shutdown fail-closed instead of orphaning descendants.
+          //
+          // Failing closed ONCE is intentional; failing closed forever is not.
+          // Previously `resumeScheduled` stayed latched and `cleanupPromise`
+          // memoized the rejection, so every later quit was preventDefault'd
+          // and re-awaited the same cached failure — Cmd+Q, dock Quit and
+          // window-all-closed all became silent no-ops and the only way out was
+          // a force-quit, which skips the very persistence this barrier exists
+          // to protect. Drop the memo and unlatch so the next quit genuinely
+          // retries, and give up after a bounded number of attempts.
+          cleanupFailures += 1
           onError(error)
+          cleanupPromise = null
+          resumeScheduled = false
+          if (cleanupFailures >= MAX_QUIT_CLEANUP_ATTEMPTS) {
+            onError(new Error(
+              `[window] shutdown cleanup failed ${cleanupFailures} times; quitting anyway to avoid trapping the app`,
+            ))
+            resumeQuit = true
+            app.quit()
+          }
           return
         }
         if (resumeQuit) return

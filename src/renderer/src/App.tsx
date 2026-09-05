@@ -49,7 +49,7 @@ import {
   readCachedSettings,
   readPersistedWorkspaceTabState,
   persistWorkspaceTabState,
-  SETTINGS_CACHE_KEY,
+  writeCachedSettings,
 } from './lib/appShellPersistence'
 import { hrefToLocalPath, snapToCanvasGrid } from './lib/canvasStateHelpers'
 import {
@@ -463,9 +463,7 @@ function App(): JSX.Element {
 
   // ─── Load workspace + canvas state on mount ───────────────────────────────
   useEffect(() => {
-    try {
-      window.localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(settings))
-    } catch {}
+    writeCachedSettings(settings)
   }, [settings])
 
   // Listen for .skill files opened via Finder / file-association / argv. Also

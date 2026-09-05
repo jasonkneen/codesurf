@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react'
+import React, { useState, useEffect, useMemo, useRef } from 'react'
 import { useDetectedAgents } from '../hooks/useDetectedAgents'
 import { useMCPServers } from '../hooks/useMCPServers'
 import { useAppFonts } from '../FontContext'
@@ -138,8 +138,26 @@ function CardAgentRunner({
   workspaceDir: string
   launchCmd?: string
 }): null {
+  // `launchCmd` is NOT a dependency, deliberately.
+  //
+  // It is derived from `agentInfo?.path`, which is undefined on first render and
+  // becomes an absolute path (`claude` -> `/opt/homebrew/bin/claude`) when the
+  // async `agents:detect` resolves ~100ms later. With launchCmd in the dep array
+  // that refinement re-ran the effect, and cleanup calls terminal.destroy —
+  // killing the tmux session and pty of an agent that was already running, then
+  // re-executing it in a fresh terminal. `card.launched` is persisted, so this
+  // fired deterministically on every restart: the first run's work was lost and
+  // its side effects ran twice.
+  //
+  // The command is therefore pinned to the first value that actually launched.
+  // A genuinely different agent gets a different `termId`, which IS a dependency
+  // and correctly tears the old terminal down.
+  const launchedCmdRef = useRef<string | undefined>(undefined)
+
   useEffect(() => {
     if (!launchCmd) return
+    if (launchedCmdRef.current === undefined) launchedCmdRef.current = launchCmd
+    const commandToRun = launchedCmdRef.current
 
     let cancelled = false
 
@@ -147,7 +165,7 @@ function CardAgentRunner({
       try {
         await window.electron?.terminal?.create(termId, workspaceId, workspaceDir)
         if (cancelled) return
-        await window.electron?.terminal?.write(termId, `${launchCmd}\n`)
+        await window.electron?.terminal?.write(termId, `${commandToRun}\n`)
       } catch (error) {
         if (!cancelled) {
           console.error('[KanbanCard] CardAgentRunner launch failed:', error)
@@ -159,7 +177,8 @@ function CardAgentRunner({
       cancelled = true
       void window.electron?.terminal?.destroy(termId, workspaceId).catch(() => {})
     }
-  }, [termId, workspaceId, workspaceDir, launchCmd])
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [termId, workspaceId, workspaceDir, Boolean(launchCmd)])
 
   return null
 }

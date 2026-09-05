@@ -7,6 +7,7 @@ import { describe, test } from 'node:test'
 import {
   createWindowPersistenceBarrierRegistry,
   installAppQuitBarrier,
+  MAX_QUIT_CLEANUP_ATTEMPTS,
   WINDOW_PERSISTENCE_READY_CHANNEL,
   WINDOW_PERSISTENCE_REQUEST_CHANNEL,
   type PersistenceBarrierIpc,
@@ -496,6 +497,65 @@ describe('window persistence barrier', () => {
     assert.equal(app.quitCalls, 1)
     assert.equal(app.acceptedQuitCount, 0)
     assert.deepEqual(errors, [cleanupError])
+    disposeQuitBarrier()
+  })
+
+  test('a failed cleanup is retried on the next quit instead of wedging forever', async () => {
+    // H5: resumeScheduled stayed latched and cleanupPromise memoized the
+    // rejection, so every later quit was preventDefault'd and re-awaited the
+    // same cached failure — the app could only be force-quit.
+    const app = new FakeApp()
+    const errors: unknown[] = []
+    let attempts = 0
+    const disposeQuitBarrier = installAppQuitBarrier(
+      app,
+      () => null,
+      async () => {
+        attempts += 1
+        if (attempts === 1) throw new Error('provider tree exit was not confirmed')
+      },
+      error => { errors.push(error) },
+    )
+
+    app.quit()
+    await settle()
+    assert.equal(attempts, 1, 'first quit attempts cleanup')
+    assert.equal(app.acceptedQuitCount, 0, 'first quit still fails closed')
+
+    // Second quit must genuinely re-run cleanup, not re-await the cached rejection.
+    app.quit()
+    await settle()
+    assert.equal(attempts, 2, 'the second quit retries cleanup')
+    assert.equal(app.acceptedQuitCount, 1, 'a recovered cleanup lets the app quit')
+    assert.equal(errors.length, 1)
+    disposeQuitBarrier()
+  })
+
+  test('quits anyway after MAX_QUIT_CLEANUP_ATTEMPTS consecutive failures', async () => {
+    const app = new FakeApp()
+    const errors: unknown[] = []
+    let attempts = 0
+    const disposeQuitBarrier = installAppQuitBarrier(
+      app,
+      () => null,
+      async () => {
+        attempts += 1
+        throw new Error('cleanup always fails')
+      },
+      error => { errors.push(error) },
+    )
+
+    for (let i = 0; i < MAX_QUIT_CLEANUP_ATTEMPTS; i += 1) {
+      app.quit()
+      await settle()
+    }
+
+    assert.equal(attempts, MAX_QUIT_CLEANUP_ATTEMPTS, 'every attempt genuinely re-ran cleanup')
+    assert.equal(app.acceptedQuitCount >= 1, true, 'the user is never trapped in an unquittable app')
+    assert.ok(
+      errors.some(e => String((e as Error)?.message).includes('quitting anyway')),
+      'the give-up is reported, not silent',
+    )
     disposeQuitBarrier()
   })
 })

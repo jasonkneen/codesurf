@@ -23,6 +23,7 @@ import {
   workspaceTileMessagesDir,
   workspaceTileMessageMailboxDir,
 } from '../paths'
+import { pruneOrphanedTileDirs, removeDirIfExists } from './collab-helpers'
 import {
   assertSafePathSegment,
   assertSafeWorkspacePath,
@@ -151,33 +152,6 @@ async function readJsonFromEither<T>(primary: string, legacy: string, fallback: 
 
 async function writeJson(path: string, data: unknown): Promise<void> {
   await fs.writeFile(path, JSON.stringify(data, null, 2))
-}
-
-async function removeDirIfExists(path: string): Promise<void> {
-  try {
-    await fs.rm(path, { recursive: true, force: true })
-  } catch {
-    // ignore missing paths
-  }
-}
-
-async function pruneOrphanedTileDirs(rootDir: string, validTileIds: Set<string>): Promise<string[]> {
-  try {
-    const entries = await fs.readdir(rootDir, { withFileTypes: true })
-    const removed: string[] = []
-
-    await Promise.all(entries.map(async entry => {
-      if (!entry.isDirectory()) return
-      if (entry.name.startsWith('.')) return
-      if (validTileIds.has(entry.name)) return
-      await removeDirIfExists(join(rootDir, entry.name))
-      removed.push(entry.name)
-    }))
-
-    return removed.sort()
-  } catch {
-    return []
-  }
 }
 
 function sanitizeFilenamePart(value: string): string {

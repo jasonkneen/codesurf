@@ -10,6 +10,7 @@
  *  ⚠️ node-pty / extensions: Electron-only
  */
 
+import type { BusEvent } from '../../../shared/event-bus-types.ts'
 import { createHostHeaders, hostUrl } from './hostConfig.ts'
 import { createTerminalTransport } from './terminalTransport.ts'
 
@@ -119,7 +120,8 @@ function softElectronApi<T extends object>(base: T): T {
  * Build a partial ElectronAPI that covers bootstrap + collaborative core paths.
  */
 export function createDaemonBackedElectronApi(): typeof window.electron {
-  const busListeners = new Map<string, Set<(event: { channel: string; payload: unknown }) => void>>()
+  const busListeners = new Map<string, Set<(event: BusEvent) => void>>()
+  let busSeq = 0
   const terminalTransport = createTerminalTransport()
   const streamListeners = new Set<(event: Record<string, unknown>) => void>()
   const activeJobStreams = new Map<string, {
@@ -440,25 +442,68 @@ export function createDaemonBackedElectronApi(): typeof window.electron {
       persistenceReady: undefined,
     },
 
+    // Pets are an Electron-only capability, but PetPicker consumes the RETURN
+    // VALUE of these calls (iterates gallery/list, then .filter()s the result in
+    // render). The generic soft-stub resolves undefined, which throws inside
+    // render and takes out the whole app via RootErrorBoundary. Shaped empty
+    // results degrade to "no pets available" instead.
+    //
+    // Note: unknown namespaces deliberately keep the soft-stub no-op rather than
+    // resolving to undefined — call sites like ImageTile's
+    // `window.electron.tileContext.set(...)` are unguarded, and a bare undefined
+    // namespace would turn today's silent no-op into a TypeError.
+    pets: {
+      list: async () => [],
+      gallery: async () => [],
+      galleryLocal: async () => [],
+      install: async (_slug: string) => ({ ok: false, error: 'pets are not available on this host' }),
+      remove: async (_slug: string) => ({ ok: false, error: 'pets are not available on this host' }),
+      thumbnail: async (_slug: string) => null,
+      thumbnailData: async (_slug: string) => null,
+      spritesheetData: async (_slug: string) => null,
+      onGalleryChanged: (_cb: () => void) => noopUnsub(),
+    },
+
     bus: {
-      publish: async (channel: string, payload: unknown) => {
+      // Must mirror the preload contract exactly: publish(channel, type, source,
+      // payload) delivering a full BusEvent. A 2-arg facade silently binds `type`
+      // to `payload` and drops `source`, leaving every subscriber that reads
+      // evt.type / evt.source permanently inert on this host.
+      publish: async (channel: string, type: string, source: string, payload: Record<string, unknown>) => {
+        const event: BusEvent = {
+          id: `bus-${++busSeq}`,
+          channel,
+          type: type as BusEvent['type'],
+          source,
+          timestamp: Date.now(),
+          payload,
+        }
         const set = busListeners.get(channel)
         if (set) {
           for (const cb of set) {
             try {
-              cb({ channel, payload })
+              cb(event)
             } catch (err) {
               console.error('[codesurf-platform] bus listener error', err)
             }
           }
         }
+        return event
       },
-      subscribe: (_channel: string, _subscriberId: string, callback: (event: { channel: string; payload: unknown }) => void) => {
+      subscribe: (_channel: string, _subscriberId: string, callback: (event: BusEvent) => void) => {
         const channel = _channel
         if (!busListeners.has(channel)) busListeners.set(channel, new Set())
         busListeners.get(channel)!.add(callback)
         return () => busListeners.get(channel)?.delete(callback)
       },
+      // No cross-process bus on this host: no history is retained and nothing is
+      // unread. Shaped stubs rather than soft-proxy undefined so callers that do
+      // not guard still get a usable value.
+      unsubscribeAll: async (_subscriberId: string) => {},
+      history: async (_channel: string, _limit?: number) => [] as BusEvent[],
+      channelInfo: async (channel: string) => ({ name: channel, channel, unread: 0 }),
+      unreadCount: async (_channel: string, _subscriberId: string) => 0,
+      markRead: async (_channel: string, _subscriberId: string) => {},
     },
 
     shell: {

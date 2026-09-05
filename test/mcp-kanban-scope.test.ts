@@ -110,26 +110,33 @@ describe('workspace-scoped MCP card events', () => {
       }, ctx),
       'Card same-card updated',
     )
-    assert.deepEqual(pushed, [[
-      'workspace-a',
-      'same-card',
-      'card_update',
-      {
-        workspaceId: 'workspace-a',
-        cardId: 'same-card',
-        note: 'scoped update',
-        status: undefined,
-      },
-    ]])
-    assert.deepEqual(rendered, [[
-      'card_update',
-      {
-        workspaceId: 'workspace-a',
-        cardId: 'same-card',
-        note: 'scoped update',
-        status: undefined,
-      },
-    ]])
+    const expectedPayload = {
+      workspaceId: 'workspace-a',
+      cardId: 'same-card',
+      note: 'scoped update',
+      status: undefined,
+    }
+
+    // Events now carry a `_eventId` so the renderer can drop whichever of the
+    // two transports arrives second (see test/kanban-event-dedupe.test.ts).
+    assert.equal(pushed.length, 1)
+    const [pushedWorkspace, pushedCard, pushedEvent, pushedPayload] = pushed[0]
+    assert.equal(pushedWorkspace, 'workspace-a')
+    assert.equal(pushedCard, 'same-card')
+    assert.equal(pushedEvent, 'card_update')
+    const { _eventId: pushedId, ...pushedRest } = pushedPayload as Record<string, unknown>
+    assert.deepEqual(pushedRest, expectedPayload)
+    assert.equal(typeof pushedId, 'string')
+
+    assert.equal(rendered.length, 1)
+    const [renderedEvent, renderedPayload] = rendered[0]
+    assert.equal(renderedEvent, 'card_update')
+    const { _eventId: renderedId, ...renderedRest } = renderedPayload as Record<string, unknown>
+    assert.deepEqual(renderedRest, expectedPayload)
+
+    // The point of the id: both transports must carry the SAME one, or the
+    // renderer cannot tell a duplicate from a second real event.
+    assert.equal(pushedId, renderedId, 'SSE and IPC must share one event id')
   })
 
   test('global callers must name the workspace for card events', async () => {

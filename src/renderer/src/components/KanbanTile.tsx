@@ -572,7 +572,24 @@ export function KanbanTile({ tileId, workspaceId, workspaceDir, width: _width, h
   const handleKanbanEventRef = useRef(handleKanbanEvent)
   handleKanbanEventRef.current = handleKanbanEvent
 
+  // Main stamps `_eventId` on every event it emits over BOTH the SSE stream and
+  // the IPC broadcast (the IPC listener below is documented as an SSE fallback
+  // but is not gated on SSE failing, so both fire). card_complete is not
+  // idempotent — the duplicate advanced the card a second column and appended
+  // duplicate comments — so drop whichever copy arrives second.
+  const seenKanbanEventIds = useRef<Set<string>>(new Set())
+
   const dispatchKanbanEvent = useCallback((event: string, data: any) => {
+    const eventId = data?._eventId
+    if (typeof eventId === 'string') {
+      if (seenKanbanEventIds.current.has(eventId)) return
+      seenKanbanEventIds.current.add(eventId)
+      // Bound the set; ids are monotonic so the oldest are safe to forget.
+      if (seenKanbanEventIds.current.size > 512) {
+        const keep = Array.from(seenKanbanEventIds.current).slice(-256)
+        seenKanbanEventIds.current = new Set(keep)
+      }
+    }
     handleKanbanEventRef.current(event, data)
   }, [])
 

@@ -590,22 +590,59 @@ function createMiniChatWindow(owner: BrowserWindow | null, request: MiniChatWind
   return { ok: true, id: win.webContents.id }
 }
 
+/**
+ * Extensions macOS/Windows hand to an interpreter or launcher rather than a
+ * viewer. `shell.openPath` on any of these is arbitrary code execution with the
+ * user's privileges, so they are refused regardless of where they live.
+ */
+export const EXECUTABLE_OPEN_EXTENSIONS = new Set([
+  '.command', '.app', '.sh', '.bash', '.zsh', '.fish', '.tool', '.workflow',
+  '.scpt', '.scptd', '.applescript', '.osascript', '.action', '.terminal',
+  '.exe', '.bat', '.cmd', '.com', '.msi', '.scr', '.ps1', '.psm1', '.vbs',
+  '.vbe', '.js', '.jse', '.wsf', '.wsh', '.hta', '.jar', '.pkg', '.dmg',
+  '.desktop', '.run', '.bin', '.appimage',
+])
+
+export function hasExecutableExtension(filePath: string): boolean {
+  const lower = filePath.toLowerCase().replace(/[/\\]+$/, '')
+  const dot = lower.lastIndexOf('.')
+  if (dot < 0) return false
+  return EXECUTABLE_OPEN_EXTENSIONS.has(lower.slice(dot))
+}
+
 async function openExternalIfSafe(rawUrl: string, source: 'window' | 'ipc'): Promise<boolean> {
   const trimmed = String(rawUrl ?? '').trim()
   if (trimmed.startsWith('file://')) {
     // Restrict file:// to workspace-scoped paths only — a compromised renderer
     // must not be able to open arbitrary local files via OS default handlers
     // (which can execute .command scripts, launch apps, etc.).
+    //
+    // `validateFsPath(filePath)` with no options did NOT do this: without
+    // `restrictToWorkspaceRoots` assertPathAllowedForFs returns immediately, and
+    // anything under CODESURF_HOME short-circuits before even the sensitive-dir
+    // denylist. Scope against the real workspace roots, and refuse extensions
+    // LaunchServices would execute rather than open.
+    let openTarget: string
     try {
       const filePath = fileURLToPath(trimmed)
-      const { validateFsPath } = await import('./ipc/fs')
-      validateFsPath(filePath)
+      if (hasExecutableExtension(filePath)) {
+        console.warn(`[shell] Blocked executable file:// from ${source}: ${filePath}`)
+        return false
+      }
+      const { validateCanonicalFsPathDetails } = await import('./ipc/fs')
+      const { getAllWorkspaceProjectPaths } = await import('./ipc/workspace')
+      const allowedRoots = await getAllWorkspaceProjectPaths()
+      const validated = await validateCanonicalFsPathDetails(filePath, 'read', {
+        restrictToWorkspaceRoots: true,
+        allowedRoots,
+      })
+      openTarget = validated.operationPath
     } catch (err) {
       console.warn(`[shell] Blocked file:// outside allowed roots from ${source}:`, (err as Error).message)
       return false
     }
     try {
-      const errorMessage = await shell.openPath(fileURLToPath(trimmed))
+      const errorMessage = await shell.openPath(openTarget)
       if (errorMessage) {
         console.warn(`[shell] Failed to open local file from ${source}: ${errorMessage}`)
         return false

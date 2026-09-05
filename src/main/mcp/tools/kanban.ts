@@ -88,6 +88,32 @@ async function listWorkspaceIds(): Promise<string[]> {
   }
 }
 
+/**
+ * Every one of these events is delivered to the renderer TWICE: once over the
+ * workspace SSE stream and once over the IPC broadcast, because KanbanTile
+ * registers both (the IPC listener is documented as an SSE fallback but is not
+ * gated on SSE failing). `card_complete` is not idempotent, so the duplicate
+ * moved the card a second column onward and appended duplicate comments.
+ *
+ * Stamping one id on the payload before both emissions lets the renderer drop
+ * whichever copy arrives second, without either transport having to know about
+ * the other.
+ */
+let kanbanEventSeq = 0
+
+function emitKanbanEvent(
+  ctx: Pick<McpToolContext, 'pushSSE' | 'sendToRenderer'>,
+  workspaceId: string,
+  cardId: string,
+  sseEvent: string,
+  rendererEvent: string,
+  payload: Record<string, unknown>,
+): void {
+  const stamped = { ...payload, _eventId: `kanban-${++kanbanEventSeq}` }
+  ctx.pushSSE(workspaceId, cardId, sseEvent, stamped)
+  ctx.sendToRenderer(rendererEvent, stamped)
+}
+
 export function kanbanStateFile(workspaceId: string, boardTileId: string): string {
   const safeWorkspaceId = assertSafePathSegment(workspaceId, 'workspace_id')
   const safeBoardTileId = assertSafePathSegment(boardTileId, 'board_tile_id')
@@ -448,8 +474,7 @@ export async function handleKanbanTool(
       summary: args.summary,
       nextCol: args.next_col,
     }
-    pushSSE(cardWorkspaceId, cardId, 'card_complete', payload)
-    sendToRenderer('card_complete', payload)
+    emitKanbanEvent({ pushSSE, sendToRenderer }, cardWorkspaceId, cardId, 'card_complete', 'card_complete', payload)
     bus.publish({
       channel: `card:${cardWorkspaceId}:${cardId}`,
       type: 'task',
@@ -466,8 +491,7 @@ export async function handleKanbanTool(
       note: args.note,
       status: args.status,
     }
-    pushSSE(cardWorkspaceId, cardId, 'card_update', payload)
-    sendToRenderer('card_update', payload)
+    emitKanbanEvent({ pushSSE, sendToRenderer }, cardWorkspaceId, cardId, 'card_update', 'card_update', payload)
     bus.publish({
       channel: `card:${cardWorkspaceId}:${cardId}`,
       type: 'progress',
@@ -479,8 +503,7 @@ export async function handleKanbanTool(
 
   if (name === 'card_error') {
     const payload = { workspaceId: cardWorkspaceId, cardId, reason: args.reason }
-    pushSSE(cardWorkspaceId, cardId, 'card_error', payload)
-    sendToRenderer('card_error', payload)
+    emitKanbanEvent({ pushSSE, sendToRenderer }, cardWorkspaceId, cardId, 'card_error', 'card_error', payload)
     bus.publish({
       channel: `card:${cardWorkspaceId}:${cardId}`,
       type: 'notification',
@@ -501,8 +524,7 @@ export async function handleKanbanTool(
       event: args.event,
       data: args.payload ?? {},
     }
-    pushSSE(cardWorkspaceId, cardId, args.event as string, payload)
-    sendToRenderer('canvas_event', payload)
+    emitKanbanEvent({ pushSSE, sendToRenderer }, cardWorkspaceId, cardId, args.event as string, 'canvas_event', payload)
     bus.publish({
       channel: `card:${cardWorkspaceId}:${cardId}`,
       type: 'data',
@@ -519,8 +541,7 @@ export async function handleKanbanTool(
       question: args.question,
       options: args.options ?? [],
     }
-    pushSSE(cardWorkspaceId, cardId, 'input_requested', payload)
-    sendToRenderer('input_requested', payload)
+    emitKanbanEvent({ pushSSE, sendToRenderer }, cardWorkspaceId, cardId, 'input_requested', 'input_requested', payload)
     bus.publish({
       channel: `card:${cardWorkspaceId}:${cardId}`,
       type: 'ask',

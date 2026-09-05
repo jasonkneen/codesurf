@@ -1,4 +1,4 @@
-import { withDefaultSettings, DEFAULT_SETTINGS, type AppSettings } from '../../../shared/types'
+import { withDefaultSettings, DEFAULT_SETTINGS, type AppSettings } from '../../../shared/types.ts'
 
 export const SETTINGS_CACHE_KEY = 'codesurf:settings-cache'
 export const WORKSPACE_TAB_STATE_KEY = 'codesurf:workspace-tabs:v1'
@@ -6,6 +6,42 @@ export const WORKSPACE_TAB_STATE_KEY = 'codesurf:workspace-tabs:v1'
 export type PersistedWorkspaceTabState = {
   openWorkspaceIds: string[]
   currentWorkspaceId: string | null
+}
+
+/**
+ * Strip provider secrets before the settings snapshot is written to
+ * localStorage.
+ *
+ * The main process deliberately moves these keys into the OS keychain on
+ * `settings:set` and only re-fills them in the object handed to the renderer.
+ * Caching that object verbatim would put the plaintext key back on disk in the
+ * unencrypted LevelDB store under the user-data dir — readable by any
+ * user-level process, with no keychain ACL prompt — and would expose it to any
+ * renderer XSS on the web/PWA target. The cache exists to paint the shell
+ * before `settings:get` resolves, and no pre-paint path needs a key.
+ */
+export function redactSettingsForCache(settings: AppSettings): AppSettings {
+  const generationProviders = Object.fromEntries(
+    Object.entries(settings.generationProviders ?? {}).map(([id, provider]) => [
+      id,
+      { ...provider, apiKey: '' },
+    ]),
+  )
+  return {
+    ...settings,
+    generationProviders,
+    omnigent: { ...settings.omnigent, apiKey: '' },
+  }
+}
+
+export function writeCachedSettings(settings: AppSettings): void {
+  if (typeof window === 'undefined') return
+  try {
+    window.localStorage.setItem(SETTINGS_CACHE_KEY, JSON.stringify(redactSettingsForCache(settings)))
+  } catch {
+    // localStorage can be unavailable (private mode, quota); the cache is an
+    // optimisation, so losing it is not an error.
+  }
 }
 
 export function readCachedSettings(): AppSettings {

@@ -10,6 +10,7 @@ import {
   validateMessageFilename,
   validateParticipantId,
   validateTileId,
+  normalizeRelayImpacts,
 } from './validation'
 import type {
   RelayChannel,
@@ -350,7 +351,7 @@ export class CodesurfRelay {
         topics: unique(work.topics ?? participant.work?.topics ?? []),
         collaborators: unique(work.collaborators ?? participant.work?.collaborators ?? []),
         blockers: unique(work.blockers ?? participant.work?.blockers ?? []),
-        impacts: work.impacts ?? participant.work?.impacts ?? [],
+        impacts: normalizeRelayImpacts(work.impacts ?? participant.work?.impacts ?? []),
         updatedAt: stamp.iso,
         updatedTs: stamp.ts,
       },
@@ -850,9 +851,12 @@ export class CodesurfRelay {
         const overlappingFiles = (a.work?.files ?? []).filter(file => (b.work?.files ?? []).includes(file))
         const sameBranch = !!a.work?.branch && a.work?.branch === b.work?.branch
         const sameWorktree = !!a.work?.worktreePath && a.work?.worktreePath === b.work?.worktreePath
+        // Read defensively: a participant.json written before impacts were
+        // normalized may still hold a non-array, and throwing here would take
+        // out every relationship analysis for the whole workspace.
         const impacts = [
-          ...(a.work?.impacts ?? []).filter(impact => impact.targetType === 'agent' && impact.targetId === b.id),
-          ...(b.work?.impacts ?? []).filter(impact => impact.targetType === 'agent' && impact.targetId === a.id),
+          ...normalizeRelayImpacts(a.work?.impacts).filter(impact => impact.targetType === 'agent' && impact.targetId === b.id),
+          ...normalizeRelayImpacts(b.work?.impacts).filter(impact => impact.targetType === 'agent' && impact.targetId === a.id),
         ]
         if (!sharedChannels.length && !overlappingFiles.length && !sameBranch && !sameWorktree && !impacts.length) continue
 
