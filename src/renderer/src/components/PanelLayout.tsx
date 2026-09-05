@@ -748,13 +748,22 @@ export function PanelLayout({ root, getTileLabel, renderTile, onLayoutChange, on
 
       const rootEl = layoutRootRef.current
       const panelId = panelAtPoint(rootEl, ev.clientX, ev.clientY)
-      if (panelId) {
-        setDragTarget({
-          panelId,
-          zone: zoneAtPoint(rootEl, ev.clientX, ev.clientY, panelId, { minEdgePx: dockMinEdgePxRef.current }),
-        })
+      // Commit dragTarget only when the resolved panel/zone actually changes.
+      // Setting a fresh object on every mousemove re-rendered PanelLayout at
+      // pointer rate, which re-invoked the unmemoized LeafPanel and through it
+      // renderTile for every kept-mounted tab (Monaco, xterm, chat, browser) —
+      // dirtying layout that the next event then read back via
+      // panelAtPoint/zoneAtPoint. Most moves resolve to the same target, so this
+      // removes the great majority of those commits.
+      if (!panelId) {
+        setDragTarget(prev => (prev === null ? prev : null))
       } else {
-        setDragTarget(null)
+        const nextZone = zoneAtPoint(rootEl, ev.clientX, ev.clientY, panelId, { minEdgePx: dockMinEdgePxRef.current })
+        setDragTarget(prev => (
+          prev && prev.panelId === panelId && prev.zone === nextZone
+            ? prev
+            : { panelId, zone: nextZone }
+        ))
       }
     }
 

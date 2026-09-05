@@ -73,3 +73,48 @@ describe('M21 — the advertised kanban schema must reach its handler', () => {
     assert.ok(body.includes("return 'Missing tile_id'"), 'non-kanban peer tools still require it')
   })
 })
+
+describe('M35 — dragging must not re-render on every mousemove', () => {
+  const layout = readFileSync(new URL('../src/renderer/src/components/PanelLayout.tsx', import.meta.url), 'utf8')
+
+  it('dragTarget is committed only when it actually changes', () => {
+    // Two handlers are named onMove; anchor on the drag one via setDragTarget.
+    const start = layout.indexOf('const panelId = panelAtPoint(rootEl')
+    const body = layout.slice(start, layout.indexOf('const onUp', start))
+    assert.ok(body.includes('prev.panelId === panelId && prev.zone === nextZone'),
+      'an unchanged target must reuse the previous object')
+    assert.ok(body.includes('? prev'), 'returning prev is what skips the render')
+    assert.equal(/setDragTarget\(\{\n\s*panelId,/.test(body), false,
+      'the unconditional fresh-object commit must be gone')
+  })
+
+  it('a null target is also only committed once', () => {
+    // Two handlers are named onMove; anchor on the drag one via setDragTarget.
+    const start = layout.indexOf('const panelId = panelAtPoint(rootEl')
+    const body = layout.slice(start, layout.indexOf('const onUp', start))
+    assert.ok(body.includes('prev === null ? prev : null'), 'leaving all panels must not re-commit null')
+  })
+
+  it('behaviour: repeated moves over one zone commit once', () => {
+    type T = { panelId: string; zone: string } | null
+    let state: T = null
+    let commits = 0
+    const setDragTarget = (fn: (prev: T) => T) => {
+      const next = fn(state)
+      if (next !== state) { state = next; commits += 1 }
+    }
+    const move = (panelId: string | null, zone: string | null) => {
+      if (!panelId) setDragTarget(prev => (prev === null ? prev : null))
+      else setDragTarget(prev => (prev && prev.panelId === panelId && prev.zone === zone ? prev : { panelId, zone: zone! }))
+    }
+    for (let i = 0; i < 60; i += 1) move('panel-1', 'center')   // one second of dragging
+    assert.equal(commits, 1, '60 mousemoves over one zone must commit once, not 60 times')
+
+    move('panel-1', 'left')
+    assert.equal(commits, 2, 'a real zone change still commits')
+    move(null, null)
+    assert.equal(commits, 3, 'leaving the panels still commits')
+    for (let i = 0; i < 10; i += 1) move(null, null)
+    assert.equal(commits, 3, 'and does not re-commit null')
+  })
+})
