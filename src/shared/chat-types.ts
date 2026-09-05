@@ -92,4 +92,14 @@ export interface ChatMessage {
   provider?: string
   /** User-written margin note "stuck" to this whole message. */
   note?: BlockNote
+  /**
+   * Tile id of the PEER AGENT that injected this message, when it did not come
+   * from the operator. Peer traffic arrives via chat_send_message /
+   * chat_acknowledge and was previously appended as a plain role:'user' turn
+   * whose only provenance was a leading emoji inside the content — so a
+   * prompt-injected agent could post an instruction indistinguishable from
+   * operator input, and the target executed it with its granted permissions.
+   * Absent means the message is operator- or assistant-authored.
+   */
+  peerTileId?: string
 }

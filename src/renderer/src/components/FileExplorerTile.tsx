@@ -752,17 +752,6 @@ export default function FileExplorerTile({
     })
   }, [])
 
-  const loadTree = useCallback(async () => {
-    if (!rootPath) {
-      setTreeEntries([])
-      return
-    }
-    setLoadingTree(true)
-    const rootChildren = await loadOneLevel(rootPath, sortMode).catch(() => [])
-    setTreeEntries(rootChildren)
-    setLoadingTree(false)
-  }, [rootPath, sortMode])
-
   const reloadAll = useCallback(async () => {
     if (!rootPath) {
       loadGit()
@@ -789,6 +778,14 @@ export default function FileExplorerTile({
     loadGit()
   }, [rootPath, sortMode, loadGit])
 
+  // reloadAll's identity changes with sortMode. Holding it in a ref keeps the
+  // collapse below keyed on rootPath ALONE — previously a sort toggle re-ran
+  // this effect, snapped the whole tree closed, and started a reloadAll while
+  // the sort effect concurrently ran loadTree, which sets root-level children
+  // only and therefore discarded the deep subtrees reloadAll was rebuilding.
+  const reloadAllRef = useRef(reloadAll)
+  useEffect(() => { reloadAllRef.current = reloadAll }, [reloadAll])
+
   // Load tree on mount or root change
   useEffect(() => {
     if (!rootPath) {
@@ -798,13 +795,17 @@ export default function FileExplorerTile({
       return
     }
     setExpandedPaths(new Set([rootPath]))
-    void reloadAll()
-  }, [rootPath, reloadAll])
+    void reloadAllRef.current()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rootPath])
 
+  // Sort changes re-read through the SAME path as everything else, preserving
+  // the expanded set instead of collapsing to the root.
   useEffect(() => {
     if (!rootPath) return
-    void loadTree()
-  }, [sortMode, rootPath, loadTree])
+    void reloadAllRef.current()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sortMode, rootPath])
 
   useEffect(() => { loadGit() }, [loadGit])
 

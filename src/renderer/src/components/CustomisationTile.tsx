@@ -415,6 +415,14 @@ export function PromptsSection({ workspacePath, hideHeaderText = false }: { work
 
   // Auto-discover prompts from configured scan locations
   useEffect(() => {
+    // Cancellation token: these scans are started fire-and-forget, and every
+    // dependency (locationText, hiddenPaths) loads asynchronously AFTER mount —
+    // so each section starts one scan against hardcoded defaults and another
+    // when the saved values land, while the first is still walking directories
+    // with serial awaits. Whichever finished last won, so a slow defaults scan
+    // could replace the real discovered set and the user's configured items
+    // vanished until the panel remounted.
+    let cancelled = false
     const scanDirs = async () => {
       const homePath = window.electron.homedir
       const dirs = resolveLocations(locationText, homePath, workspacePath)
@@ -451,6 +459,7 @@ export function PromptsSection({ workspacePath, hideHeaderText = false }: { work
       }
       // Replace previously-discovered prompts so stale entries from removed
       // locations go away; preserve user-authored prompts untouched.
+      if (cancelled) return
       setItems(prev => {
         const userAuthored = prev.filter(p => !p.id.startsWith('discovered-'))
         const userNames = new Set(userAuthored.map(p => p.name))
@@ -458,7 +467,8 @@ export function PromptsSection({ workspacePath, hideHeaderText = false }: { work
         return [...userAuthored, ...freshDiscovered]
       })
     }
-    scanDirs()
+    void scanDirs().catch(error => console.error('[CustomisationTile] discovery scan failed:', error))
+    return () => { cancelled = true }
   }, [workspacePath, locationText])
 
   if (editing) return <PromptEditor item={editing} onSave={handleSave} onCancel={() => setEditing(null)} />
@@ -632,10 +642,20 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
 
   // Auto-discover skills from configured scan locations
   useEffect(() => {
+    // Cancellation token: these scans are started fire-and-forget, and every
+    // dependency (locationText, hiddenPaths) loads asynchronously AFTER mount —
+    // so each section starts one scan against hardcoded defaults and another
+    // when the saved values land, while the first is still walking directories
+    // with serial awaits. Whichever finished last won, so a slow defaults scan
+    // could replace the real discovered set and the user's configured items
+    // vanished until the panel remounted.
+    let cancelled = false
     const scanDirs = async () => {
       const homePath = window.electron.homedir
       const dirs = resolveLocations(locationText, homePath, workspacePath)
-      setUnreadableLocations(await probeUnreadableScanLocations(dirs))
+      const unreadableForScan = await probeUnreadableScanLocations(dirs)
+      if (cancelled) return
+      setUnreadableLocations(unreadableForScan)
       const hiddenSet = new Set(hiddenPaths)
       const discovered: SkillDefinition[] = []
       // Claude-format skills live as sub-folders each containing `SKILL.md`
@@ -678,6 +698,7 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
       }
       // Replace previously-discovered skills so stale entries from removed
       // locations go away; preserve user-authored skills untouched.
+      if (cancelled) return
       setItems(prev => {
         const userAuthored = prev.filter(s => !s.id.startsWith('discovered-'))
         const userNames = new Set(userAuthored.map(s => s.name))
@@ -685,7 +706,8 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
         return [...userAuthored, ...freshDiscovered]
       })
     }
-    scanDirs()
+    void scanDirs().catch(error => console.error('[CustomisationTile] discovery scan failed:', error))
+    return () => { cancelled = true }
   }, [workspacePath, locationText, hiddenPaths])
 
   if (editing) return <SkillEditor item={editing} onSave={handleSave} onCancel={() => setEditing(null)} />
@@ -1170,6 +1192,14 @@ export function AgentsSection({ workspacePath, hideHeaderText = false }: { works
 
   // Auto-discover agents from configured scan locations
   useEffect(() => {
+    // Cancellation token: these scans are started fire-and-forget, and every
+    // dependency (locationText, hiddenPaths) loads asynchronously AFTER mount —
+    // so each section starts one scan against hardcoded defaults and another
+    // when the saved values land, while the first is still walking directories
+    // with serial awaits. Whichever finished last won, so a slow defaults scan
+    // could replace the real discovered set and the user's configured items
+    // vanished until the panel remounted.
+    let cancelled = false
     const scanDirs = async () => {
       const homePath = window.electron.homedir
       const dirs = resolveLocations(locationText, homePath, workspacePath)
@@ -1219,6 +1249,7 @@ export function AgentsSection({ workspacePath, hideHeaderText = false }: { works
       }
       // Replace previously-discovered agents so stale entries from removed
       // locations go away; preserve built-ins and user-authored agents.
+      if (cancelled) return
       setItems(prev => {
         const keepers = prev.filter(a => a.isBuiltin || !a.id.startsWith('discovered-'))
         const keeperNames = new Set(keepers.map(a => a.name))
@@ -1226,7 +1257,8 @@ export function AgentsSection({ workspacePath, hideHeaderText = false }: { works
         return [...keepers, ...freshDiscovered]
       })
     }
-    scanDirs()
+    void scanDirs().catch(error => console.error('[CustomisationTile] discovery scan failed:', error))
+    return () => { cancelled = true }
   }, [workspacePath, locationText])
 
   if (editing) return <AgentEditor item={editing} modes={items} workspacePath={workspacePath} onSave={handleSave} onCancel={() => setEditing(null)} />
