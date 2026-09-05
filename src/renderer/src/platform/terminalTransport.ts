@@ -220,6 +220,21 @@ export class TerminalTransport {
   private readonly WebSocketConstructor: WebSocketConstructor | null
   private readonly readyTimeoutMs: number
   private readonly sessions = new Map<string, TerminalSession>()
+  /**
+   * In-flight create() per tileId.
+   *
+   * create() awaits close(), then the session POST, and only then does
+   * sessions.set() — with no guard in between. Two overlapping calls (a tile
+   * unmounting and immediately remounting on a panel eject or tab switch) both
+   * found no session, both created one on the gateway, and the second set()
+   * overwrote the first. The loser was then unreachable from close()/destroy():
+   * its WebSocket stayed open, `closed` stayed false, and handleSocketMessage
+   * kept emitting into the same tile's listeners (emitData is keyed only by
+   * tileId), so the tile interleaved two shells and one PTY leaked for the life
+   * of the gateway process. Serializing means the second call runs after the
+   * first has registered, and its close() then tears the first down properly.
+   */
+  private readonly pendingCreates = new Map<string, Promise<TerminalSessionResult>>()
   private readonly listeners = new Map<string, TerminalListeners>()
   private readonly pendingResizes = new Map<string, { cols: number, rows: number }>()
   private readonly completedExits = new Map<string, number>()
@@ -241,6 +256,17 @@ export class TerminalTransport {
   }
 
   async create(tileId: string, request: TerminalSessionRequest): Promise<TerminalSessionResult> {
+    const previous = this.pendingCreates.get(tileId)
+    const run = (previous ? previous.catch(() => undefined) : Promise.resolve())
+      .then(() => this.createSession(tileId, request))
+    this.pendingCreates.set(tileId, run)
+    void run.catch(() => undefined).finally(() => {
+      if (this.pendingCreates.get(tileId) === run) this.pendingCreates.delete(tileId)
+    })
+    return run
+  }
+
+  private async createSession(tileId: string, request: TerminalSessionRequest): Promise<TerminalSessionResult> {
     if (!this.fetchImpl) throw new TerminalUnavailableError('This runtime does not provide fetch for terminal sessions')
     if (!this.WebSocketConstructor) throw new TerminalUnavailableError('This runtime does not provide WebSocket terminal sessions')
 

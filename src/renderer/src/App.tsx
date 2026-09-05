@@ -614,7 +614,17 @@ function App(): JSX.Element {
       // user-requested switch to B.
       await handleSwitchWorkspaceRef.current(targetWorkspace.id)
     }
-    init()
+    // init() awaits isFresh() and a Promise.all over workspace.list/getActive/
+    // settings.get with no try/catch. A rejection (corrupt index, permissions,
+    // or codesurfd not yet up on a browser build) unwound before
+    // setSettingsLoaded(true), leaving chrome painted over an empty canvas with
+    // no workspace list, no picker and no onboarding — RootErrorBoundary only
+    // catches render errors, so the sole symptom was an unhandled rejection in
+    // devtools. Always release the gate so the shell can render a usable state.
+    void init().catch(error => {
+      console.error('[App] initial bootstrap failed:', error)
+      setSettingsLoaded(true)
+    })
 
     // Check if agent setup is needed (first run or paths not confirmed)
     // Force with: CODESURF_SHOW_SETUP=1 npm run dev
@@ -912,12 +922,33 @@ function App(): JSX.Element {
     const el = (window as any).electron?.mcp
     if (!el?.onKanban) return
     const cleanup = el.onKanban((event: string, data: any) => {
-      if (data?.workspaceId && data.workspaceId !== workspace?.id) return
+      // mcp:kanban is broadcast to EVERY window, and the payload is copied
+      // verbatim from the MCP tool args with no schema validation. Require the
+      // workspace to match — an absent workspaceId used to match every window,
+      // so one canvas_create_tile ran in all of them.
+      if (!data?.workspaceId || data.workspaceId !== workspace?.id) return
+
+      // Only pass a position when BOTH coordinates are real numbers: an omitted
+      // y produced snapValue(NaN), which findClearPosition accepts and saveCanvas
+      // serialises as "y": null — a tile that cannot be selected, dragged or
+      // panned to after reload.
+      const finitePosition = (Number.isFinite(data.x) && Number.isFinite(data.y))
+        ? { x: Number(data.x), y: Number(data.y) }
+        : undefined
+
       if (event === 'canvas_create_tile') {
-        addTile((data.type ?? 'note') as TileState['type'], data.filePath, data.x !== undefined ? { x: data.x, y: data.y } : undefined)
+        const requestedType = typeof data.type === 'string' && data.type.trim() ? data.type.trim() : 'note'
+        const filePath = typeof data.filePath === 'string' ? data.filePath : undefined
+        addTile(requestedType as TileState['type'], filePath, finitePosition)
       }
       if (event === 'canvas_open_file') {
-        void resolveFileTileType(data.path).then(type => addTile(type, data.path))
+        // extToType does filePath.split('.') — a non-string path threw inside an
+        // uncaught promise while the agent was told the file opened.
+        if (typeof data.path === 'string' && data.path.trim()) {
+          void resolveFileTileType(data.path)
+            .then(type => addTile(type, data.path))
+            .catch(error => console.error('[App] canvas_open_file failed:', error))
+        }
       }
       if (event === 'canvas_pan_to') {
         // Centre world-point (data.x, data.y) on screen.
@@ -925,10 +956,14 @@ function App(): JSX.Element {
         const rect = canvasRef.current?.getBoundingClientRect()
         const cx = rect ? rect.width / 2 : 600
         const cy = rect ? rect.height / 2 : 400
+        // `??` let a non-numeric x through and produced translate(NaNpx, NaNpx),
+        // blanking the canvas. Clamp to finite numbers.
+        const panX = Number.isFinite(data.x) ? Number(data.x) : 0
+        const panY = Number.isFinite(data.y) ? Number(data.y) : 0
         setViewport(prev => ({
           ...prev,
-          tx: cx - (data.x ?? 0) * prev.zoom,
-          ty: cy - (data.y ?? 0) * prev.zoom,
+          tx: cx - panX * prev.zoom,
+          ty: cy - panY * prev.zoom,
         }))
       }
       if (event === 'canvas_list_tiles') {

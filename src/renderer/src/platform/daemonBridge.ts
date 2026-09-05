@@ -119,6 +119,20 @@ function softElectronApi<T extends object>(base: T): T {
 /**
  * Build a partial ElectronAPI that covers bootstrap + collaborative core paths.
  */
+/**
+ * Best-effort host platform, in the same vocabulary as process.platform.
+ *
+ * Preload exposes `platform` as a plain string; on this host it resolved to the
+ * soft-namespace Proxy, so `platform === 'darwin'` was permanently false.
+ */
+function detectHostPlatform(): string {
+  const ua = typeof navigator === 'undefined' ? '' : `${navigator.userAgent ?? ''}`
+  if (/Mac|iPhone|iPad|iPod/i.test(ua)) return 'darwin'
+  if (/Win/i.test(ua)) return 'win32'
+  if (/Linux|Android|CrOS/i.test(ua)) return 'linux'
+  return ''
+}
+
 export function createDaemonBackedElectronApi(): typeof window.electron {
   const busListeners = new Map<string, Set<(event: BusEvent) => void>>()
   let busSeq = 0
@@ -239,12 +253,33 @@ export function createDaemonBackedElectronApi(): typeof window.electron {
         })
       }
     } finally {
+      // Release the connection on EVERY exit path, not just the deliberate
+      // stopJobStream one. A buffer-overflow throw or any read/decode error
+      // previously unwound to the catch above, which only emitted an event —
+      // leaving the body stream locked and the HTTP connection open with the
+      // daemon still producing frames, until repeated retries exhausted the
+      // browser's per-origin socket budget.
+      try { controller.abort() } catch { /* already aborted */ }
       const active = activeJobStreams.get(key)
       if (active?.controller === controller) activeJobStreams.delete(key)
     }
   }
 
   const api = {
+    // Scalars, NOT namespaces. Preload exposes these as plain strings; without
+    // an explicit entry they fell through to softNamespace(name, {}), a truthy
+    // Proxy that stringifies via Object.prototype to "[object Object]" rather
+    // than throwing. Consumers' fallbacks (`homedir ?? ''`,
+    // `homedir || process.env.HOME`) therefore never engaged and paths became
+    // "[object Object]/.claude/skills/…", which 404'd, mapped to ENOENT and was
+    // swallowed — the skills picker, prompt customisation and MCP config all
+    // loaded empty with no error.
+    //
+    // There is no host endpoint carrying a real home directory, so '' is the
+    // honest value: it is falsy, so every documented fallback now works.
+    homedir: '',
+    platform: detectHostPlatform(),
+
     appearance: {
       shouldUseDark: async () => {
         if (typeof window !== 'undefined' && window.matchMedia) {
