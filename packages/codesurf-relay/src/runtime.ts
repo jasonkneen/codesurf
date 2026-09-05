@@ -11,7 +11,12 @@ import type {
   RelayTurnInput,
 } from './types'
 import { CodesurfRelay } from './relay'
-import { sanitizeForPrompt } from './validation'
+import {
+  sanitizeForPrompt,
+  isValidParticipantStatus,
+  normalizeStringList,
+  normalizeRelayImpacts,
+} from './validation'
 
 export interface RelayRuntimeOptions {
   executorFactory: (participant: RelayParticipant, spawn: RelaySpawnRequest) => RelayAgentExecutor
@@ -86,9 +91,46 @@ function sanitizeMessageForPrompt(msg: RelayMessage): { meta: RelayMessage['meta
   }
 }
 
+/**
+ * Parse and VALIDATE a model turn.
+ *
+ * This was a bare JSON.parse + cast on top of a naive first-`{`/last-`}`
+ * extraction, and its output is persisted: `work` flows into updateWorkContext
+ * and `status` straight into setParticipantStatus. A single wrong type there
+ * corrupts participant.json durably — `{"work":{"files":"src/App.tsx"}}` became
+ * ["s","r","c",...] and emitted high-priority "same files" hints into every
+ * peer's prompt. Coerce each field to its declared shape and drop the rest;
+ * a malformed turn should lose its metadata, not poison the workspace.
+ */
 function parseTurnOutput(raw: string): RelayAgentTurnOutput {
   const json = extractJsonBlock(raw)
-  return JSON.parse(json) as RelayAgentTurnOutput
+  const parsed: unknown = JSON.parse(json)
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+    return {} as RelayAgentTurnOutput
+  }
+  const value = parsed as Record<string, unknown>
+  const out: Record<string, unknown> = { ...value }
+
+  if (!isValidParticipantStatus(value.status)) delete out.status
+
+  const work = value.work
+  if (work && typeof work === 'object' && !Array.isArray(work)) {
+    const w = work as Record<string, unknown>
+    // Normalize ONLY keys the model actually sent. updateWorkContext resolves
+    // each field as `work.x ?? participant.work?.x`, so materialising an absent
+    // field as [] would clear previously-stored context instead of leaving it.
+    const normalizedWork: Record<string, unknown> = { ...w }
+    for (const key of ['files', 'topics', 'collaborators', 'blockers'] as const) {
+      if (key in w) normalizedWork[key] = normalizeStringList(w[key])
+    }
+    if ('impacts' in w) normalizedWork.impacts = normalizeRelayImpacts(w.impacts)
+    if ('summary' in w && typeof w.summary !== 'string') delete normalizedWork.summary
+    out.work = normalizedWork
+  } else if ('work' in out) {
+    delete out.work
+  }
+
+  return out as RelayAgentTurnOutput
 }
 
 function isUnconfirmedProviderTermination(error: unknown): boolean {

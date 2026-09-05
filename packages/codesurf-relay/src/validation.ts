@@ -103,3 +103,58 @@ export function normalizeRelayImpacts(value: unknown): RelayImpact[] {
   }
   return out
 }
+
+/** Mailbox names that name a real on-disk directory. */
+const VALID_MAILBOXES = new Set(['inbox', 'sent', 'memory', 'bin'])
+
+/**
+ * Validate a mailbox path segment.
+ *
+ * The union type is erased across IPC — src/main/ipc/relay.ts forwards the raw
+ * argument — so `mailbox` reaches participantMailboxDir/tileMailboxDir as an
+ * arbitrary string while every sibling segment is guarded. moveMessage joins it
+ * into BOTH operands of a renameSync and ensureDir's the destination, making it
+ * an arbitrary rename-and-mkdir primitive:
+ *   moveMessage(ws, 'system', '../../../../.ssh', '../../../../tmp', 'id_rsa')
+ */
+export function validateMailbox(mailbox: string): void {
+  if (!VALID_MAILBOXES.has(mailbox)) {
+    throw new Error(`Invalid relay mailbox: ${JSON.stringify(mailbox)}`)
+  }
+}
+
+/** Status values a model turn may set. Anything else is rejected. */
+const VALID_PARTICIPANT_STATUSES = new Set([
+  'spawning', 'ready', 'running', 'blocked', 'stopped', 'error', 'done',
+])
+
+export function isValidParticipantStatus(value: unknown): boolean {
+  return typeof value === 'string' && VALID_PARTICIPANT_STATUSES.has(value)
+}
+
+/**
+ * Coerce a model-supplied list field to a string array.
+ *
+ * parseTurnOutput is a bare JSON.parse + cast, and `unique()` spreads a string
+ * character-by-character — so `{"work":{"files":"src/App.tsx"}}` became
+ * ["s","r","c",...] in participant.json, overlapped with every other agent that
+ * made the same slip, and emitted high-priority "same files" hints durably.
+ */
+export function normalizeStringList(value: unknown): string[] {
+  if (!Array.isArray(value)) return []
+  return value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0)
+}
+
+/**
+ * True when a directory entry can be a relay storage id.
+ *
+ * listParticipants/listChannels mapped every readdir entry through
+ * validateStorageId, and that throw inside `.map()` rejected the whole
+ * Promise.all — so the broad catch returned [], indistinguishable from "no
+ * participants", with no log. One stray dotfile silently stalled the relay.
+ */
+export function isListableStorageId(name: string): boolean {
+  if (!name || typeof name !== 'string') return false
+  if (name.startsWith('.')) return false
+  return !INVALID_ID_PATTERN.test(name)
+}

@@ -6,6 +6,10 @@ import {
   validateParticipantId,
   normalizeRelayImpacts,
   MAX_RELAY_IMPACTS,
+  validateMailbox,
+  isListableStorageId,
+  normalizeStringList,
+  isValidParticipantStatus,
 } from './validation'
 
 describe('validation', () => {
@@ -170,5 +174,78 @@ describe('normalizeRelayImpacts', () => {
 
   it('result is always safely filterable', () => {
     expect(() => normalizeRelayImpacts('none').filter(i => i.targetType === 'agent')).not.toThrow()
+  })
+})
+
+describe('validateMailbox (M2)', () => {
+  it('accepts the four real mailboxes', () => {
+    for (const m of ['inbox', 'sent', 'memory', 'bin']) {
+      expect(() => validateMailbox(m)).not.toThrow()
+    }
+  })
+
+  it('rejects the traversal that made moveMessage a rename primitive', () => {
+    // moveMessage(ws,'system','../../../../.ssh','../../../../tmp','id_rsa')
+    for (const hostile of [
+      '../../../../../../../Users/me/.ssh',
+      '../../tmp',
+      '..',
+      '/etc',
+      'inbox/../../..',
+      'channel',   // real union member, but not an on-disk mailbox dir
+      'central',
+      '',
+    ]) {
+      expect(() => validateMailbox(hostile)).toThrow(/Invalid relay mailbox/)
+    }
+  })
+})
+
+describe('isListableStorageId (M3)', () => {
+  it('skips the dotfile that silently emptied the relay', () => {
+    expect(isListableStorageId('.DS_Store')).toBe(false)
+    expect(isListableStorageId('.git')).toBe(false)
+    expect(isListableStorageId('.')).toBe(false)
+  })
+
+  it('skips traversal and separator names', () => {
+    for (const bad of ['..', 'a/b', 'a\\b', '']) {
+      expect(isListableStorageId(bad)).toBe(false)
+    }
+  })
+
+  it('keeps real participant and channel ids', () => {
+    for (const good of ['agent-1', 'user_123', 'channel-abc', 'system']) {
+      expect(isListableStorageId(good)).toBe(true)
+    }
+  })
+
+  it('a stray dotfile no longer hides the real participants', () => {
+    const entries = ['.DS_Store', 'agent-1', 'agent-2']
+    expect(entries.filter(isListableStorageId)).toEqual(['agent-1', 'agent-2'])
+  })
+})
+
+describe('turn output coercion (M4)', () => {
+  it('normalizeStringList coerces the string that became char-array paths', () => {
+    expect(normalizeStringList('src/App.tsx')).toEqual([])
+    expect(normalizeStringList(null)).toEqual([])
+    expect(normalizeStringList(undefined)).toEqual([])
+    expect(normalizeStringList(42)).toEqual([])
+    expect(normalizeStringList({})).toEqual([])
+  })
+
+  it('normalizeStringList keeps real string arrays and drops non-strings', () => {
+    expect(normalizeStringList(['a', 'b'])).toEqual(['a', 'b'])
+    expect(normalizeStringList(['a', 1, null, '', 'b'])).toEqual(['a', 'b'])
+  })
+
+  it('isValidParticipantStatus gates the persisted status enum', () => {
+    for (const ok of ['spawning', 'ready', 'running', 'blocked', 'stopped', 'error', 'done']) {
+      expect(isValidParticipantStatus(ok)).toBe(true)
+    }
+    for (const bad of ['ready ', 'RUNNING', 'invented', '', null, 42, {}]) {
+      expect(isValidParticipantStatus(bad)).toBe(false)
+    }
   })
 })

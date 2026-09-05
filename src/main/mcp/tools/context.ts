@@ -13,6 +13,9 @@ import { broadcastToRenderer } from '../../utils/broadcast'
 import { asString, type McpToolContext, type McpToolSchema } from '../types'
 import { errorMessage } from '../../../shared/errors.ts'
 import { assertTileScope } from '../auth'
+import { authorizePeerTileTarget } from '../peer-bridge-authority.ts'
+import { canvasStatePath, ensureWorkspaceStorageMigrated } from '../../storage/workspaceArtifacts'
+import type { TileState } from '../../../shared/types'
 import { projectEvent } from '../../agent-room/projection.ts'
 import {
   MAX_MCP_RESULT_BYTES,
@@ -28,6 +31,26 @@ type UserConfigWorkspaceRef = {
 }
 
 const getContexDir = (): string => CODESURF_HOME
+
+/**
+ * Canvas state for peer-authority checks. Mirrors peer-bridge.ts's reader.
+ */
+async function readCanvasStateForAuthority(
+  workspaceId: string,
+): Promise<{ tiles?: TileState[]; lockedConnections?: unknown[] } | null> {
+  const storageIds = await ensureWorkspaceStorageMigrated(workspaceId)
+  for (const storageId of storageIds) {
+    try {
+      const raw = await fs.readFile(canvasStatePath(storageId), 'utf8')
+      const parsed = JSON.parse(raw) as { tiles?: TileState[]; lockedConnections?: unknown[] }
+      if (Array.isArray(parsed.tiles)) return parsed
+    } catch {
+      // try next alias
+    }
+  }
+  return null
+}
+
 export const MAX_TILE_CONTEXT_KEY_BYTES = 256
 export const MAX_TILE_CONTEXT_VALUE_BYTES = 8 * 1024
 export const MAX_TILE_CONTEXT_TOTAL_BYTES = 64 * 1024
@@ -525,6 +548,19 @@ async function handleContextToolUnbounded(
     const wsErr = assertMcpSafeId(workspaceId)
     if (wsErr) return wsErr
 
+    // Same authority as ext_invoke_action: tile context is read back by the
+    // target tile as trusted state (ctx:image:path steers the image tools), so
+    // writing it into a tile the caller has no wire to is a cross-tile dispatch.
+    const setAuthority = authorizePeerTileTarget({
+      principal: ctx.principal,
+      workspaceId,
+      targetTileId: tileId,
+      canvas: await readCanvasStateForAuthority(workspaceId),
+      // A tile writing its own context is the normal, intended case.
+      allowSelf: true,
+    })
+    if (!setAuthority.ok) return setAuthority.error
+
     try {
       const workspaceRefs = await readWorkspaceRefsFromUserConfig()
       const workspace = workspaceRefs.find(ws => ws.id === workspaceId)
@@ -557,6 +593,19 @@ async function handleContextToolUnbounded(
     if (!peerState.getState(workspaceScope.workspaceId, tileId)) {
       return 'Target block is not registered in this workspace.'
     }
+    // An existence check is not authority. ExtensionTile turns this broadcast
+    // into a codesurf-action-invoke postMessage inside the extension iframe and
+    // acts on it unconditionally, so require the same peer authority every other
+    // cross-tile dispatch does: same workspace, not the caller's own tile, and a
+    // currently connected peer.
+    const extAuthority = authorizePeerTileTarget({
+      principal: ctx.principal,
+      workspaceId: workspaceScope.workspaceId,
+      targetTileId: tileId,
+      canvas: await readCanvasStateForAuthority(workspaceScope.workspaceId),
+      allowSelf: true,
+    })
+    if (!extAuthority.ok) return extAuthority.error
     const params = typeof args.params === 'object' && args.params ? args.params as Record<string, unknown> : {}
     broadcastToRenderer('tileContext:changed', {
       workspaceId: workspaceScope.workspaceId,

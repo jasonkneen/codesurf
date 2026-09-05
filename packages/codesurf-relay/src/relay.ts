@@ -10,6 +10,8 @@ import {
   validateMessageFilename,
   validateParticipantId,
   validateTileId,
+  validateMailbox,
+  isListableStorageId,
   normalizeRelayImpacts,
 } from './validation'
 import type {
@@ -50,8 +52,12 @@ function nowStamp(): { iso: string; ts: number } {
 }
 
 function unique<T>(items: T[]): T[] {
+  // Coerce non-arrays to []: model turn output reaches here uncast, and
+  // Array.from(new Set("src/App.tsx")) yields ["s","r","c",...].
+  if (!Array.isArray(items)) return []
   return Array.from(new Set(items))
 }
+
 
 async function ensureDir(path: string): Promise<void> {
   await fs.mkdir(path, { recursive: true })
@@ -199,6 +205,7 @@ export class CodesurfRelay {
   }
 
   participantMailboxDir(id: string, mailbox: Exclude<RelayMailbox, 'channel' | 'central'>): string {
+    validateMailbox(mailbox)
     return join(this.participantDir(id), 'mailboxes', mailbox)
   }
 
@@ -222,6 +229,7 @@ export class CodesurfRelay {
 
   tileMailboxDir(tileId: string, mailbox: Exclude<RelayMailbox, 'channel' | 'central'>): string {
     validateTileId(tileId)
+    validateMailbox(mailbox)
     return join(this.workspacePath, '.codesurf', tileId, 'messages', mailbox)
   }
 
@@ -234,8 +242,12 @@ export class CodesurfRelay {
         () => fs.readdir(this.paths.participants),
         context,
       )
+      // Filter BEFORE mapping. validateStorageId throws on dot-prefixed names,
+      // and that throw inside .map() rejected the whole Promise.all, so the
+      // broad catch below returned [] — indistinguishable from "no
+      // participants". A single stray .DS_Store silently emptied the relay.
       const participants = await awaitActive(
-        () => Promise.all(entries.map(id => (
+        () => Promise.all(entries.filter(isListableStorageId).map(id => (
           readJson<RelayParticipant | null>(this.participantFile(id), null)
         ))),
         context,
@@ -368,7 +380,7 @@ export class CodesurfRelay {
         context,
       )
       const channels = await awaitActive(
-        () => Promise.all(entries.map(id => (
+        () => Promise.all(entries.filter(isListableStorageId).map(id => (
           readJson<RelayChannel | null>(this.channelFile(id), null)
         ))),
         context,

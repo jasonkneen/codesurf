@@ -58,3 +58,50 @@ export function authorizePeerBridgeTarget(options: {
   }
   return { ok: true, tileType }
 }
+
+/**
+ * The peer-authority half of authorizePeerBridgeTarget, without the
+ * node-tool-exposure requirement.
+ *
+ * For callers that dispatch INTO a tile by a mechanism other than the node-tool
+ * bridge — ext_invoke_action and tile_context_set broadcast `tileContext:changed`,
+ * which ExtensionTile turns into a `codesurf-action-invoke` postMessage — but
+ * which must still obey the same authority: same workspace, never the caller's
+ * own tile, and only a currently connected peer. Those handlers previously did
+ * an existence check alone, so an agent in any tile could drive any other tile
+ * it had no wire to.
+ */
+export function authorizePeerTileTarget(options: {
+  principal: McpPrincipal
+  workspaceId: string
+  targetTileId: string
+  canvas: unknown
+  /** Writing your OWN tile's context is the normal case; only cross-tile reach needs a wire. */
+  allowSelf?: boolean
+}): { ok: true; tileType: string | null } | { ok: false; error: string } {
+  const { principal, workspaceId, targetTileId, canvas, allowSelf = false } = options
+  const tileType = targetTileType(canvas, targetTileId) ?? null
+
+  // A workspace/global token already passed workspace scoping and has no peer
+  // graph to consult — its reach within the workspace is what the token means.
+  if (principal.kind !== 'tile') return { ok: true, tileType }
+
+  if (principal.workspaceId !== workspaceId) {
+    return { ok: false, error: 'Forbidden: target is outside the authenticated workspace' }
+  }
+
+  if (principal.tileId === targetTileId) {
+    if (allowSelf) return { ok: true, tileType }
+    return { ok: false, error: 'Forbidden: peer tools cannot target the caller tile' }
+  }
+
+  // Cross-tile: the caller must have a current wire to the target. If canvas
+  // state cannot be read we cannot prove that, so refuse — fail closed.
+  const connected = resolveAuthoritativeCanvasPeers(canvas, principal.tileId)
+    .some(peer => peer.peerId === targetTileId)
+  if (!connected) {
+    return { ok: false, error: 'Forbidden: target tile is not a current connected peer' }
+  }
+
+  return { ok: true, tileType }
+}
