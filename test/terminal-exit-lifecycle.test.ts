@@ -167,7 +167,10 @@ test('terminal data callback rejects bytes from a superseded PTY before side eff
   const guardIndex = callback.indexOf(guard)
   const bufferMutationIndex = callback.indexOf('session.buffer =')
   const listenerSendIndex = callback.indexOf('listener.send(`terminal:data:${tileId}`, data)')
-  const busBufferMutationIndex = callback.indexOf('buf.data += data')
+  // The bus accumulator is now bounded (M15): `buf.data = (buf.data + data)
+  // .slice(-TERMINAL_BUS_MAX_BUFFER)` instead of an unbounded `+=`. The
+  // ordering contract this test guards is unchanged.
+  const busBufferMutationIndex = callback.indexOf('buf.data = (buf.data + data)')
 
   assert.ok(guardIndex >= 0, 'onData must identity-guard its PTY and session')
   assert.ok(guardIndex < bufferMutationIndex, 'guard must precede session buffer mutation')

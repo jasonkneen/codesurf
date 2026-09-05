@@ -278,6 +278,35 @@ const terminals = new Map<string, TerminalSession>()
 const terminalBuffers = new Map<string, { data: string; timer: ReturnType<typeof setTimeout> | undefined }>()
 const senderTerminalTiles = new WeakMap<WebContents, Set<string>>()
 const terminalSenderCleanupAttached = new WeakSet<WebContents>()
+/** Cap on the bus accumulator; the flush only ever reads the tail. */
+/**
+ * Per-tile serialization lane for terminal:create.
+ *
+ * The handler reads `terminals.get(tileId)` and writes it back many awaits
+ * later (writeTileMcpConfig, mkdir, readFile, proxy resolution), with no lock in
+ * between. TerminalTile is deliberately mounted twice per tileId, and each mount
+ * calls startPty(), so two calls could both observe `existing === undefined`,
+ * both spawn, and the second `set` would replace the first — leaving a PTY that
+ * destroy/detach/killAllChatProcesses can no longer reach and whose onData
+ * returns early. Queuing per tile means the second call runs after the first has
+ * registered its session and therefore takes the existing-session reuse branch.
+ *
+ * Shaped like runWatchSubscriptionOperation in ipc/fs.ts.
+ */
+const terminalCreateLanes = new Map<string, Promise<unknown>>()
+
+function runTerminalCreateLane<T>(tileId: string, operation: () => Promise<T>): Promise<T> {
+  const previous = terminalCreateLanes.get(tileId) ?? Promise.resolve()
+  const current = previous.catch(() => undefined).then(operation)
+  terminalCreateLanes.set(tileId, current)
+  void current.catch(() => undefined).finally(() => {
+    if (terminalCreateLanes.get(tileId) === current) terminalCreateLanes.delete(tileId)
+  })
+  return current
+}
+
+const TERMINAL_BUS_MAX_BUFFER = 4096
+
 const TERMINAL_BUS_DEBOUNCE = 800 // ms
 
 function trackTerminalSender(sender: WebContents, tileId: string): void {
@@ -336,8 +365,13 @@ export function registerTerminalIPC(): void {
       ipcSchemas.stringArray.optional(),
     ] as const,
     handler: async (event, tileId, workspaceId, workspaceDir, launchBin, launchArgs) => {
+    return runTerminalCreateLane(tileId, async () => {
     if (!isValidAgentRoomId(workspaceId) || !isValidAgentRoomId(tileId)) {
-      return { error: 'Invalid terminal workspace or tile ID' }
+      // Throw, don't resolve: a resolved value is treated as success by the
+      // caller (TerminalTile destructures { buffer } and sets ptyReady), which
+      // renders a normal xterm surface that silently swallows all input. The
+      // caller's existing .catch(showTerminalUnavailable) handles a rejection.
+      throw new Error('Invalid terminal workspace or tile ID')
     }
     // Validate workspaceDir against path traversal — the renderer supplies this
     // and it controls where the PTY spawns, where .codesurf dirs are created, and
@@ -347,7 +381,7 @@ export function registerTerminalIPC(): void {
       workspaceDir = validateFsPath(workspaceDir)
     } catch (err) {
       console.warn(`[terminal] Blocked workspaceDir outside allowed roots: ${workspaceDir}`, (err as Error).message)
-      return { error: `Access denied: ${(err as Error).message}` }
+      throw new Error(`Access denied: ${(err as Error).message}`)
     }
 
     const existing = terminals.get(tileId)
@@ -355,7 +389,7 @@ export function registerTerminalIPC(): void {
     let preResolvedManagedLocalProxy: ResolvedTerminalManagedLocalProxy | null = null
     if (existing) {
       if (existing.workspaceId !== workspaceId) {
-        return { error: 'Terminal tile ID is already active in another workspace' }
+        throw new Error('Terminal tile ID is already active in another workspace')
       }
 
       // A chat terminal is a view over a specific provider session. Reusing a
@@ -699,7 +733,14 @@ export function registerTerminalIPC(): void {
         buf = { data: '', timer: undefined }
         terminalBuffers.set(tileId, buf)
       }
-      buf.data += data
+      // Bounded like session.buffer above. This is a reset-on-every-chunk
+      // debounce with no maximum wait, so a PTY emitting at least one chunk per
+      // TERMINAL_BUS_DEBOUNCE (yes, tail -f, a verbose build) never flushed and
+      // the accumulator grew at PTY throughput until `buf.data + data` threw
+      // RangeError: Invalid string length inside this unguarded onData listener
+      // — fatal for the main process. flushTerminalToBus keeps only the last
+      // 200 chars anyway, so nothing beyond the cap was ever used.
+      buf.data = (buf.data + data).slice(-TERMINAL_BUS_MAX_BUFFER)
       if (buf.timer) clearTimeout(buf.timer)
       buf.timer = setTimeout(() => flushTerminalToBus(tileId), TERMINAL_BUS_DEBOUNCE)
     })
@@ -716,6 +757,7 @@ export function registerTerminalIPC(): void {
     })
 
     return { cols: 80, rows: 24, buffer: '' }
+    })
     },
   })
 
@@ -739,6 +781,16 @@ export function registerTerminalIPC(): void {
     handler: (_evt, tileId, dirPath) => {
     const session = terminals.get(tileId)
     if (!session) return
+    // A CR in the path is an Enter keypress to the line editor, and a following
+    // \x03 aborts the PS2 continuation back to a fresh prompt — so trailing text
+    // in a directory name runs as its own command. Quoting cannot prevent this;
+    // the bytes must not reach the PTY at all. Renderer-reachable: the File
+    // Explorer passes filesystem entry paths straight in, and POSIX filenames
+    // may legally contain \r and \x03. Reject rather than strip, so a hostile
+    // name is visible instead of silently becoming a different directory.
+    if (/[\x00-\x1f\x7f]/.test(dirPath)) {
+      throw new Error('Refusing to cd: path contains control characters')
+    }
     const shellBase = (session.shell.split(/[/\\]/).pop() || '').toLowerCase()
     // \x15 = Ctrl-U (clear current input line), then the platform-appropriate
     // cd syntax, then \r (enter)
