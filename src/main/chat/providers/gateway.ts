@@ -105,10 +105,16 @@ interface GatewayChatMessage {
 function buildGatewayMessages(req: ChatRequest): GatewayChatMessage[] {
   const messages: GatewayChatMessage[] = []
   for (const message of getPreparedMessages(req)) {
-    const role = message.role
-    if (role !== 'user' && role !== 'assistant' && role !== 'system') continue
     const content = String(message.content ?? '')
     if (!content.trim()) continue
+    // `req.messages` is renderer/IPC supplied and stripUntrustedPrivilegedChatContext
+    // does not filter it, so a caller could previously inject role:'system' and get
+    // a second privileged channel beside buildSystemPrompt(req) — steering the real
+    // canvas toolset for up to MAX_TOOL_STEPS. Normalize exactly as
+    // provider-history.ts does: only a genuine assistant turn keeps its role,
+    // everything else is untrusted user data. The host prompt stays the only
+    // system content.
+    const role: GatewayChatMessage['role'] = message.role === 'assistant' ? 'assistant' : 'user'
     messages.push({ role, content })
   }
   return messages
@@ -199,7 +205,11 @@ export function chatGateway(req: ChatRequest): void {
   }
 
   const system = buildSystemPrompt(req)
-  const tools = buildToolSet(req, scope, principal)
+  // Honour the tile's MCP toggle, as claude.ts does. Without this a user who
+  // disabled MCP still handed the remote model canvas_*, kanban, bus and context
+  // tools; nothing downstream re-checks. With toolCount === 0 the spread below
+  // already degrades to a tool-free turn.
+  const tools = req.mcpEnabled === false ? ({} as ToolSet) : buildToolSet(req, scope, principal)
   const toolCount = Object.keys(tools).length
   log('chatGateway starting', { model: req.model, messages: messages.length, tools: toolCount })
 

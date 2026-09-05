@@ -33,6 +33,23 @@ import { isProviderAcceptanceEvent } from '../provider-acceptance.ts'
 const hermesSessionIds = new Map<string, string>()
 
 /** Hermes often re-emits the full thinking/text snapshot; keep only the new tail. */
+/**
+ * Keys a Hermes stream event may contribute. Anything else the CLI prints —
+ * notably workspaceId/cardId — is dropped rather than forwarded.
+ */
+const HERMES_EVENT_PASSTHROUGH_KEYS = ['type', 'text', 'toolId', 'toolName', 'error', 'sessionId'] as const
+
+function pickKnownHermesEventFields(evt: Record<string, unknown>): Record<string, unknown> {
+  const out: Record<string, unknown> = {}
+  for (const key of HERMES_EVENT_PASSTHROUGH_KEYS) {
+    const value = evt[key]
+    if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') {
+      out[key] = value
+    }
+  }
+  return out
+}
+
 function hermesSnapshotTail(incoming: string, accumulated: string): string {
   if (!incoming) return ''
   if (accumulated === incoming || (accumulated && accumulated.endsWith(incoming))) return ''
@@ -276,9 +293,14 @@ export function chatHermes(req: ChatRequest): void {
           // always get a final 'done' even if Hermes exits mid-stream.
           break
         default:
-          // Forward unrecognized event verbatim; the renderer can filter.
+          // Forward only known keys. Every other case in this switch builds a
+          // fixed-shape literal with typeof guards; this branch used to spread
+          // whatever the CLI printed, and an unrecognized `type` from an older or
+          // quiet-mode binary could carry workspaceId/cardId that overrode the
+          // authenticated scope. runtime.ts now also puts scope last, so this is
+          // belt and braces.
           if (isProviderAcceptanceEvent(evt)) noteProviderAcceptance()
-          sendStream(scope, evt as Record<string, unknown>)
+          sendStream(scope, pickKnownHermesEventFields(evt))
       }
     }
   }

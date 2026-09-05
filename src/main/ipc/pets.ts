@@ -14,7 +14,7 @@
 import { ipcMain } from 'electron'
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'fs'
 import { homedir } from 'os'
-import { extname, join, resolve } from 'path'
+import { extname, join } from 'path'
 import { CODESURF_HOME } from '../paths'
 import { assertSafePathSegment, resolveInside } from '../security/pathSegments'
 import type {
@@ -94,7 +94,20 @@ function loadBundleMetadata(
     }
   }
 
-  let spritesheetPath = resolve(bundleDir, raw.spritesheetPath as string)
+  // Contain the manifest-supplied path inside the bundle and require a real
+  // image extension. A bare resolve() let `"spritesheetPath":
+  // "../../../../.ssh/id_rsa"` escape: the bytes were read and returned to the
+  // renderer as `data:image/webp;base64,...` regardless of real content type.
+  // This path bypasses ipc/fs.ts entirely — validateFsPath returns early for
+  // anything under CODESURF_HOME before the sensitive-dir denylist — and the
+  // renderer can freely write ~/.codesurf/pets/<id>/pet.json.
+  let spritesheetPath: string
+  try {
+    spritesheetPath = resolveInside(bundleDir, raw.spritesheetPath as string)
+  } catch {
+    return null
+  }
+  if (mimeFor(spritesheetPath) === 'application/octet-stream') return null
   if (!existsSync(spritesheetPath)) {
     for (const fallback of ['spritesheet.webp', 'spritesheet.png']) {
       const candidate = join(bundleDir, fallback)

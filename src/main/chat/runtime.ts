@@ -115,9 +115,12 @@ export function sendStream(scope: ChatStreamScope, event: Record<string, unknown
   roomStreamAccumulator.record(scope, event)
 
   broadcastToRenderer('agent:stream', {
+    ...event,
+    // Scope LAST: it is the authenticated attribution for this turn. Spreading
+    // the event last let a provider-supplied workspaceId/cardId overwrite it and
+    // broadcast forged stream state into a tile the user never ran.
     workspaceId: scope.workspaceId,
     cardId: scope.cardId,
-    ...event,
   })
 }
 

@@ -10,6 +10,8 @@
  */
 
 import { bus } from './event-bus'
+import { resolvePeerWorkspaceScope } from './mcp/peer-scope.ts'
+import { scopeBusChannel } from './mcp/tools/bus.ts'
 import { createServer, type Server, IncomingMessage, ServerResponse } from 'http'
 import { constants as fsConstants, promises as fs } from 'fs'
 import { join, sep } from 'path'
@@ -562,14 +564,22 @@ export async function executeImageEditTool(
 
 async function handleLocalTool(name: string, args: Record<string, unknown>, principal: McpPrincipal): Promise<string | null> {
   if (name === 'ask') {
+    // Scope the caller-supplied channel exactly as mcp/tools/bus.ts does. These
+    // two branches published straight to `args.channel`, so a tile token scoped
+    // to workspace A could emit onto workspace B's channel — the same call via
+    // update_task is refused as cross-workspace.
+    const scope = resolvePeerWorkspaceScope(principal, args.workspace_id)
+    if (!scope.ok) return scope.error
+    const channel = scopeBusChannel(scope.workspaceId, args.channel)
+    if (!channel) return 'Forbidden: invalid or cross-workspace channel'
     const evt = bus.publish({
-      channel: args.channel as string,
+      channel,
       type: 'ask',
       source: 'mcp',
       payload: { question: args.question, options: args.options ?? [] }
     })
     sendToRenderer('bus:event', evt)
-    return `Question asked on ${args.channel}: "${args.question}"`
+    return `Question asked on ${channel}: "${args.question}"`
   }
 
   if (name === 'reload_objective') {
@@ -595,8 +605,12 @@ async function handleLocalTool(name: string, args: Record<string, unknown>, prin
   }
 
   if (name === 'pause_task') {
+    const scope = resolvePeerWorkspaceScope(principal, args.workspace_id)
+    if (!scope.ok) return scope.error
+    const channel = scopeBusChannel(scope.workspaceId, args.channel)
+    if (!channel) return 'Forbidden: invalid or cross-workspace channel'
     const evt = bus.publish({
-      channel: args.channel as string,
+      channel,
       type: 'task',
       source: 'mcp',
       payload: { task_id: args.task_id, status: 'paused', action: 'update', reason: args.reason }
@@ -1174,7 +1188,14 @@ export async function startMCPServer(): Promise<number> {
     })
 
     mcpHttpServer = server
+    // A bare async function as an EventEmitter listener: Node discards the
+    // returned promise, so an await that rejects in here (fs.mkdir, getAllTools,
+    // the 0600 config write) neither settles the outer promise nor reaches
+    // server.on('error'), which only observes socket errors. startMCPServer()
+    // then hangs forever and index.ts's .then/.catch logs nothing. Everything
+    // below is wrapped so a failure closes the server and rejects.
     server.listen(0, '127.0.0.1', async () => {
+      try {
       const addr = server.address() as { port: number }
       serverPort = addr.port
 
@@ -1245,6 +1266,12 @@ export async function startMCPServer(): Promise<number> {
 
       mcpLog.info(`Kanban server running on port ${serverPort}`)
       resolve(serverPort)
+      } catch (error) {
+        mcpLog.error('MCP server startup failed after listen', error)
+        serverPort = null
+        try { server.close() } catch { /* already closing */ }
+        reject(error instanceof Error ? error : new Error(String(error)))
+      }
     })
 
     server.on('error', reject)
