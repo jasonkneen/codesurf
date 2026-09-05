@@ -24,6 +24,20 @@ import {
   shouldInjectHostBridge,
 } from './webviewManager'
 
+/**
+ * Cross-instance de-duplication for the shared `webview:new-window` channel.
+ * Returns true when this event was already claimed by another listener.
+ */
+const POPUP_CLAIM_WINDOW_MS = 250
+let lastClaimedPopup: { url: string; at: number } = { url: '', at: 0 }
+
+function claimPopupUrl(url: string): boolean {
+  const now = Date.now()
+  if (url === lastClaimedPopup.url && now - lastClaimedPopup.at < POPUP_CLAIM_WINDOW_MS) return true
+  lastClaimedPopup = { url, at: now }
+  return false
+}
+
 export type BrowserMode = 'desktop' | 'mobile'
 
 export interface BrowserNavigationState {
@@ -386,6 +400,16 @@ export function useBrowserWebviewLifecycle({
 
   useEffect(() => {
     const unsubscribe = window.electron?.browserTile?.onNewWindow?.((event: { url: string }) => {
+      // `webview:new-window` is a SHARED channel: main sends one message to the
+      // parent WebContents with no guest or tile identity, and every mounted
+      // BrowserTile has a listener — so one target="_blank" click opened one
+      // tile per open browser tile, or launched N external browsers.
+      //
+      // Main carries no attribution to filter on, so collapse the fan-out here:
+      // the first listener to see a given URL claims it and the rest ignore it.
+      // Cross-instance because the claim lives at module scope, and it survives
+      // an owner tile unmounting, which a single-owner election would not.
+      if (claimPopupUrl(event.url)) return
       // Page-controlled data: main denies the popup, so Chromium never applied
       // its local-resource check. normalizeOpenableHref accepts any scheme and
       // re-emits file:// as a local path, which App.tsx then mounts as a

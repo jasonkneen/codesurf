@@ -77,7 +77,10 @@ describe('M36 — a page-controlled popup URL must not reach the file opener', (
   it('the renderer re-checks with the same allowlist as the address bar', () => {
     // The `(event: { url: string })` annotation contains a '})', so slice by
     // a generous window rather than by the first brace pair.
-    const body = lifecycle.slice(lifecycle.indexOf('onNewWindow'), lifecycle.indexOf('onNewWindow') + 600)
+    // Slice to the end of the callback rather than a fixed window, so adding
+    // comments or another guard cannot silently drop this assertion.
+    const start = lifecycle.indexOf('onNewWindow')
+    const body = lifecycle.slice(start, lifecycle.indexOf('return () => unsubscribe?.()', start))
     assert.ok(body.includes('isAllowedBrowserUrl(event.url)'), 'belt and braces')
     assert.equal(/if \(event\.url\) void dispatchOpenLink/.test(lifecycle), false,
       'the unguarded dispatch must be gone')

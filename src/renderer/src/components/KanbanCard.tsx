@@ -161,7 +161,14 @@ function CardAgentRunner({
 
     let cancelled = false
 
-    void (async () => {
+    // Keep the create promise so cleanup can chain off it. terminal:destroy
+    // reads the session map and, when the session is not there yet, skips both
+    // tmuxKillSession and pty.kill() — so a cleanup landing during the tens-to-
+    // hundreds of ms that create takes (dynamic import, path validation, proxy
+    // resolution, spawn) was a no-op, and the create then inserted a live PTY
+    // that nothing referenced. Orphaned agent processes accumulated for the life
+    // of the app.
+    const createPromise = (async () => {
       try {
         await window.electron?.terminal?.create(termId, workspaceId, workspaceDir)
         if (cancelled) return
@@ -175,7 +182,11 @@ function CardAgentRunner({
 
     return () => {
       cancelled = true
-      void window.electron?.terminal?.destroy(termId, workspaceId).catch(() => {})
+      // Destroy only once the create has settled, so the session exists to kill.
+      void createPromise
+        .catch(() => {})
+        .then(() => window.electron?.terminal?.destroy(termId, workspaceId))
+        .catch(() => {})
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [termId, workspaceId, workspaceDir, Boolean(launchCmd)])

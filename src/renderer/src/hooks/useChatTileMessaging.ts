@@ -180,6 +180,8 @@ export function useChatTileMessaging(options: UseChatTileMessagingOptions): UseC
   } = options
 
   const isFlushingQueuedTurnRef = useRef(false)
+  /** Monotonic id for the in-flight dispatch; bumped by stopStreaming and each new send. */
+  const dispatchGenerationRef = useRef(0)
 
   const logQueueEvent = useCallback((
     type: 'enqueue' | 'dispatch' | 'delete' | 'complete' | 'clear' | 'reorder',
@@ -321,6 +323,14 @@ export function useChatTileMessaging(options: UseChatTileMessagingOptions): UseC
       isStreaming: true,
     }
 
+    // Stop pressed during the pre-send awaits (buildRecentEditContext, chat.send)
+    // used to be a silent no-op: chat.stop has no job to cancel yet, and the
+    // continuation then ran unconditionally and adopted the job. Nothing sets
+    // isStreaming back to true, so the Stop button never returned and the agent
+    // ran unsupervised — executing tools and writing files — with the composer
+    // showing Send. Stamp this dispatch so it can detect being superseded.
+    const dispatchGeneration = ++dispatchGenerationRef.current
+
     setPreserveSessionSummary(linkedSessionEntryId ? true : false)
     setMessagesSafe(optimisticMessages)
     setIsStreaming(true)
@@ -395,6 +405,13 @@ export function useChatTileMessaging(options: UseChatTileMessagingOptions): UseC
       }
       if (result && typeof result === 'object' && 'jobId' in result && typeof (result as { jobId?: unknown }).jobId === 'string') {
         const nextJobId = (result as { jobId: string }).jobId
+        // Stop (or a newer send) landed while we were awaiting. The job exists
+        // now, so cancel it for real rather than adopting it into a tile whose
+        // UI already returned to the idle state.
+        if (dispatchGeneration !== dispatchGenerationRef.current) {
+          void window.electron?.chat?.stop?.(workspaceId, tileId)
+          return false
+        }
         setJobId(nextJobId)
         setJobSequence(0)
         lastJobSequenceRef.current = 0
@@ -667,6 +684,9 @@ export function useChatTileMessaging(options: UseChatTileMessagingOptions): UseC
   }, [setMessagesSafe, workspaceId, tileId, stickToBottomRef])
 
   const stopStreaming = useCallback(() => {
+    // Invalidate any dispatch still inside its pre-send awaits so it cannot
+    // adopt a job after the user has already stopped.
+    dispatchGenerationRef.current += 1
     window.electron?.chat?.stop?.(workspaceId, tileId)
     setIsStreaming(false)
     setJobId(null)
