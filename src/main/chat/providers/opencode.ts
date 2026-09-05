@@ -427,6 +427,20 @@ export function chatOpencode(
       const INACTIVITY_MS = 5 * 60_000
       let streamTimeoutHandle: ReturnType<typeof setTimeout> | null = null
 
+      // Suspend while we are blocked on a HUMAN, not on the stream. The
+      // permission await below sits inside the `for await` loop, so no events
+      // are consumed while it is pending and resetStreamTimeout() never re-arms
+      // — but the already-armed 5-minute timer keeps counting. It would fire
+      // mid-prompt, abort the session and emit `done`, so the chat rendered
+      // finished with the permission chip still on screen and the click landed
+      // on an aborted session with the turn's work lost.
+      const suspendStreamTimeout = (): void => {
+        if (streamTimeoutHandle !== null) {
+          clearTimeout(streamTimeoutHandle)
+          streamTimeoutHandle = null
+        }
+      }
+
       const resetStreamTimeout = (): void => {
         if (streamTimeoutHandle !== null) clearTimeout(streamTimeoutHandle)
         streamTimeoutHandle = setTimeout(() => {
@@ -608,7 +622,15 @@ export function chatOpencode(
                 }
 
                 const toolUseIDHint = typeof permReq.id === 'string' ? permReq.id : null
-                const result = await resolveInlineToolPermission(scope, permissionRequest, toolUseIDHint)
+                suspendStreamTimeout()
+                let result: Awaited<ReturnType<typeof resolveInlineToolPermission>>
+                try {
+                  result = await resolveInlineToolPermission(scope, permissionRequest, toolUseIDHint)
+                } finally {
+                  // Re-arm only if the turn is still live; the finally block
+                  // below clears it on teardown.
+                  if (!isDone) resetStreamTimeout()
+                }
 
                 if ('error' in result) {
                   log('opencode permission error:', result.error)

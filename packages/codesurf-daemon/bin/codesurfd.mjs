@@ -3420,14 +3420,18 @@ const server = createServer(async (req, res) => {
         return
       }
       try {
-        sendJson(res, 200, await installWorkspaceSkill({
+        const installed = await installWorkspaceSkill({
           workspaceId,
           workspaceDir,
           cardId: typeof body?.cardId === 'string' ? body.cardId : null,
           zipPath,
           scope,
           overwrite: body?.overwrite === true,
-        }))
+        })
+        // A newly installed skill must appear in the next job's skills prompt,
+        // not after 64 cache evictions or a daemon restart.
+        stableContextLoads.invalidate(scope === 'workspace' ? workspaceId : undefined)
+        sendJson(res, 200, installed)
       } catch (error) {
         sendJson(res, 400, { error: error instanceof Error ? error.message : String(error) })
       }
@@ -4189,6 +4193,9 @@ const server = createServer(async (req, res) => {
       const body = await parseRequestBody(req)
       writeSettings(typeof body?.settings === 'object' && body.settings ? body.settings : {})
       refreshDreamingSettings()
+      // Settings feed the assembled memory/skills prompts; drop the cache so
+      // the next job rebuilds them instead of replaying a pre-change snapshot.
+      stableContextLoads.invalidate()
       const state = readWorkspaceState()
       sendJson(res, 200, state.settings)
       return
