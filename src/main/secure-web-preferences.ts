@@ -1,6 +1,21 @@
 import type { WebContents, WebPreferences } from 'electron'
 import { formatGuestWebviewTagPreferences } from '../shared/guest-webview-preferences.ts'
 
+/**
+ * Only http(s) popup URLs may be forwarded to the renderer. The address-bar
+ * ingress is already guarded by isAllowedBrowserUrl/normalizeUrl; this is the
+ * matching guard for the window.open path.
+ */
+function isForwardableGuestUrl(value: unknown): boolean {
+  if (typeof value !== 'string' || !value) return false
+  try {
+    const protocol = new URL(value).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
 export { formatGuestWebviewTagPreferences }
 
 /**
@@ -55,8 +70,13 @@ export function attachGuestWebviewSecurityHandlers(contents: WebContents): void 
   // the URL to the renderer via IPC, and deny the popup.
   contents.on('did-attach-webview', (_event, guestContents) => {
     guestContents.setWindowOpenHandler(details => {
-      // Forward to the parent renderer so BrowserTile can route through dispatchOpenLink
-      if (!contents.isDestroyed()) {
+      // Forward to the parent renderer so BrowserTile can route through
+      // dispatchOpenLink. Because the popup is DENIED, Chromium's own
+      // local-resource check never runs and this URL is pure page data — so a
+      // page could hand us `file:///Users/victim/proj/.env` and the renderer
+      // would open a code tile showing its contents. Only http(s) is ever
+      // forwarded; the renderer re-checks as well.
+      if (!contents.isDestroyed() && isForwardableGuestUrl(details.url)) {
         contents.send('webview:new-window', { url: details.url })
       }
       return { action: 'deny' }

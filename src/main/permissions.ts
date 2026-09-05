@@ -253,7 +253,12 @@ async function promptForPermission(request: ToolPermissionRequest): Promise<Tool
     // next to "Deny" since both are negative decisions; the rest are
     // scopes of positive approval.
     buttons: ['Deny', 'Never', 'Allow Once', 'This Session', 'All Day', 'Always'],
-    defaultId: 2,
+    // Deny is the default: this modal is agent-initiated, so the
+    // Return-activated button must not be an approval. A stack of prompts
+    // cleared with repeated Return presses would otherwise grant each one —
+    // for terminal_send_input that is shell-command injection into a live
+    // terminal. Matches security/permissionBoundary.ts, which defaults to Deny.
+    defaultId: 0,
     cancelId: 0,
     noLink: true,
     title: 'Tool Permission',

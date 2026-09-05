@@ -607,7 +607,21 @@ export function SkillsSection({ workspacePath, hideHeaderText = false }: { works
   const handleDelete = useCallback(async (item: SkillDefinition) => {
     if (item.id.startsWith('discovered-')) {
       const sourcePath = item.id.slice('discovered-'.length)
-      await window.electron.fs.deleteFile(sourcePath).catch(() => {})
+      // This unlinks a real file on disk — often a checked-in
+      // <workspace>/.claude/skills/**/SKILL.md — with no trash step. The button
+      // reads "Delete", so say plainly that it removes the file, and name it.
+      const confirmed = window.confirm(
+        `Permanently delete the skill file?\n\n${sourcePath}\n\nThis cannot be undone and does not go to the Trash.`,
+      )
+      if (!confirmed) return
+      try {
+        await window.electron.fs.deleteFile(sourcePath)
+      } catch (err) {
+        // Do NOT tombstone a path we failed to delete: hiding it made the
+        // failure invisible while the file stayed on disk.
+        window.alert(`Could not delete "${sourcePath}": ${err instanceof Error ? err.message : String(err)}`)
+        return
+      }
       if (!hiddenPaths.includes(sourcePath)) {
         saveHidden([...hiddenPaths, sourcePath])
       }

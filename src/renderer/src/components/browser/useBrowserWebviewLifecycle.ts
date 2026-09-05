@@ -386,7 +386,12 @@ export function useBrowserWebviewLifecycle({
 
   useEffect(() => {
     const unsubscribe = window.electron?.browserTile?.onNewWindow?.((event: { url: string }) => {
-      if (event.url) void dispatchOpenLink(event.url)
+      // Page-controlled data: main denies the popup, so Chromium never applied
+      // its local-resource check. normalizeOpenableHref accepts any scheme and
+      // re-emits file:// as a local path, which App.tsx then mounts as a
+      // code/note/image tile — so a `file:///…/.env` link would render the
+      // file. Match the address-bar ingress and accept only http(s).
+      if (event.url && isAllowedBrowserUrl(event.url)) void dispatchOpenLink(event.url)
     })
     return () => unsubscribe?.()
   }, [])

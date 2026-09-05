@@ -21,6 +21,24 @@ async function exists(path: string): Promise<boolean> {
   }
 }
 
+/** True when the path exists and is itself a symlink (does NOT follow it). */
+async function isSymlink(path: string): Promise<boolean> {
+  try {
+    return (await fs.lstat(path)).isSymbolicLink()
+  } catch {
+    return false
+  }
+}
+
+/** True when both paths resolve to the same real directory. */
+async function resolvesToSame(a: string, b: string): Promise<boolean> {
+  try {
+    return (await fs.realpath(a)) === (await fs.realpath(b))
+  } catch {
+    return false
+  }
+}
+
 /** Recursively copy src into dest, skipping files that already exist in dest. */
 async function mergeDir(src: string, dest: string): Promise<void> {
   await fs.mkdir(dest, { recursive: true })
@@ -77,6 +95,26 @@ async function migrateHomeDirectory(): Promise<void> {
     await fs.rename(LEGACY_HOME, CODESURF_HOME)
     migrationLog.info(`Renamed ${LEGACY_HOME} -> ${CODESURF_HOME}`)
   } else {
+    // Both exist — but `exists()` uses fs.access, which FOLLOWS symlinks. A
+    // user who relocated app data with `~/.codesurf -> ~/.contex` satisfied
+    // both checks, mergeDir then copied the directory into itself (so every
+    // destination already existed and nothing was copied), and the rm below
+    // destroyed the only copy: all workspaces, canvas state, secrets and
+    // permissions, leaving ~/.codesurf dangling. Bail before deleting anything
+    // if either path is a symlink or they resolve to the same directory.
+    if (await resolvesToSame(LEGACY_HOME, CODESURF_HOME)) {
+      migrationLog.warn(
+        `Skipping migration: ${CODESURF_HOME} and ${LEGACY_HOME} resolve to the same directory`,
+      )
+      return
+    }
+    if (await isSymlink(CODESURF_HOME) || await isSymlink(LEGACY_HOME)) {
+      migrationLog.warn(
+        `Skipping migration: one of ${CODESURF_HOME} / ${LEGACY_HOME} is a symlink; refusing to delete`,
+      )
+      return
+    }
+
     // Both exist: merge legacy into new (new wins on conflict)
     migrationLog.info(`Merging ${LEGACY_HOME} into ${CODESURF_HOME}`)
     await mergeDir(LEGACY_HOME, CODESURF_HOME)

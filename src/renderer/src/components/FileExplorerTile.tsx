@@ -951,6 +951,15 @@ export default function FileExplorerTile({
   }, [reloadAll])
 
   const handleDelete = useCallback(async (entry: FsEntry) => {
+    // fs:deleteFile ends in fs.rm(recursive, force) — no trash, no undo — and
+    // this sits one row below "Reveal in Finder" in the context menu, so a
+    // misclick could remove an entire tree silently. Name the exact path.
+    const confirmed = window.confirm(
+      entry.isDir
+        ? `Permanently delete the folder "${entry.path}" and everything inside it?\n\nThis cannot be undone and does not go to the Trash.`
+        : `Permanently delete "${entry.path}"?\n\nThis cannot be undone and does not go to the Trash.`,
+    )
+    if (!confirmed) return
     try {
       await window.electron.fs.deleteFile(entry.path)
       setExpandedPaths(prev => removePathPrefixes(prev, entry.path))
@@ -958,6 +967,7 @@ export default function FileExplorerTile({
       if (creatingIn && (creatingIn.dir === entry.path || creatingIn.dir.startsWith(`${entry.path}/`))) cancelCreate()
     } catch (err) {
       console.error('Delete failed:', err)
+      window.alert(`Could not delete "${entry.path}": ${err instanceof Error ? err.message : String(err)}`)
     }
     await reloadAll()
   }, [renamingPath, creatingIn, cancelCreate, reloadAll])
