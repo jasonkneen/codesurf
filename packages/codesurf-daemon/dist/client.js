@@ -80,6 +80,14 @@ async function waitForReconnect(delayMs, signal) {
 function isActiveJobState(state) {
     return state?.status === 'queued' || state?.status === 'running';
 }
+/** Idempotency key for a job start; Web Crypto when present, otherwise a random string. */
+function makeStartRequestId() {
+    const webCrypto = globalThis.crypto;
+    if (typeof webCrypto?.randomUUID === 'function')
+        return webCrypto.randomUUID();
+    const part = () => Math.random().toString(36).slice(2);
+    return `${Date.now().toString(36)}-${part()}-${part()}`;
+}
 export function createDaemonClient(hooks) {
     const defaultTimeoutMs = hooks.requestTimeoutMs ?? 5_000;
     async function requestWithPolicy(path, options) {
@@ -324,7 +332,13 @@ export function createDaemonClient(hooks) {
         /** Escape hatch for routes the typed surface doesn't cover. */
         request,
         startChatJob(requestBody) {
-            return request('/chat/job/start', { body: { request: requestBody } });
+            // D1: a caller that retries a job start after an unknown outcome (lost
+            // response, timeout) must reuse the same startRequestId so the daemon
+            // coalesces onto the job the first attempt created instead of executing
+            // the prompt twice. Generate one when the caller hasn't supplied it.
+            const supplied = typeof requestBody.startRequestId === 'string' ? requestBody.startRequestId.trim() : '';
+            const startRequestId = supplied || makeStartRequestId();
+            return request('/chat/job/start', { body: { request: { ...requestBody, startRequestId } } });
         },
         streamJobEvents,
         getJobState(jobId) {

@@ -242,6 +242,14 @@ export interface DaemonChatJobRequest {
    */
   agentId?: string | null
   messages?: DaemonChatMessage[]
+  /**
+   * D1: client-supplied idempotency key for job start. A retry after an
+   * unknown outcome (lost response, timeout) should reuse the same value so
+   * the daemon coalesces onto the job the first attempt created instead of
+   * executing the prompt twice. `createDaemonClient().startChatJob` generates
+   * one automatically when the caller does not supply it.
+   */
+  startRequestId?: string | null
   [key: string]: unknown
 }
 

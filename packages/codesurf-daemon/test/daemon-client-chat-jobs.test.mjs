@@ -60,8 +60,14 @@ test('typed chat-job client methods call daemon routes with bearer auth', async 
     '/chat/job/cancel',
     '/chat/job/permission/answer',
   ])
-  assert.deepEqual(calls[0].body, {
-    request: { provider: 'claude', model: 'm', messages: [{ role: 'user', content: 'hi' }] },
+  // D1: startChatJob injects a generated startRequestId idempotency key.
+  assert.equal(typeof calls[0].body.request.startRequestId, 'string')
+  assert.ok(calls[0].body.request.startRequestId.length > 0)
+  const { startRequestId, ...requestWithoutIdempotencyKey } = calls[0].body.request
+  assert.deepEqual(requestWithoutIdempotencyKey, {
+    provider: 'claude',
+    model: 'm',
+    messages: [{ role: 'user', content: 'hi' }],
   })
   assert.equal(calls[1].search, '?jobId=job-1')
   assert.deepEqual(calls[2].body, { jobId: 'job-1' })
@@ -911,4 +917,75 @@ test('cancel and permission mutations use the declared no-retry policy', async t
     '/chat/job/permission/answer',
   ])
   assert.equal(calls.invalidated, true)
+})
+
+// D1: startChatJob injects a client-generated idempotency key so a caller
+// that retries the mutation after an unknown outcome (lost response, manual
+// retry after a timeout error) can resend the exact same startRequestId and
+// have the daemon coalesce onto the job the first attempt created.
+test('D1: startChatJob generates a startRequestId when the caller omits one', async t => {
+  const originalFetch = globalThis.fetch
+  const calls = []
+  t.after(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  globalThis.fetch = async (url, options = {}) => {
+    const body = typeof options.body === 'string' ? JSON.parse(options.body) : null
+    calls.push(body)
+    return jsonResponse({ id: 'job-1', status: 'running', lastSequence: 0 })
+  }
+
+  const client = makeClient(calls)
+  await client.startChatJob({ provider: 'claude', model: 'm', messages: [{ role: 'user', content: 'hi' }] })
+
+  const startRequestId = calls[0].request.startRequestId
+  assert.equal(typeof startRequestId, 'string')
+  assert.ok(startRequestId.length > 0)
+})
+
+test('D1: a caller-supplied startRequestId is sent unchanged', async t => {
+  const originalFetch = globalThis.fetch
+  const calls = []
+  t.after(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  globalThis.fetch = async (url, options = {}) => {
+    const body = typeof options.body === 'string' ? JSON.parse(options.body) : null
+    calls.push(body)
+    return jsonResponse({ id: 'job-1', status: 'running', lastSequence: 0 })
+  }
+
+  const client = makeClient(calls)
+  await client.startChatJob({
+    provider: 'claude',
+    model: 'm',
+    messages: [{ role: 'user', content: 'hi' }],
+    startRequestId: 'caller-key-1',
+  })
+
+  assert.equal(calls[0].request.startRequestId, 'caller-key-1')
+})
+
+test('D1: separate startChatJob calls get distinct startRequestIds', async t => {
+  const originalFetch = globalThis.fetch
+  const calls = []
+  t.after(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  globalThis.fetch = async (url, options = {}) => {
+    const body = typeof options.body === 'string' ? JSON.parse(options.body) : null
+    calls.push(body)
+    return jsonResponse({ id: 'job-1', status: 'running', lastSequence: 0 })
+  }
+
+  const client = makeClient(calls)
+  const requestBody = { provider: 'claude', model: 'm', messages: [{ role: 'user', content: 'hi' }] }
+  await client.startChatJob(requestBody)
+  await client.startChatJob(requestBody)
+
+  assert.equal(calls.length, 2)
+  assert.notEqual(calls[0].request.startRequestId, calls[1].request.startRequestId)
 })

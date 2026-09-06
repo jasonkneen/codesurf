@@ -1713,6 +1713,20 @@ export function createChatJobManager({
   const MAX_CONCURRENT_JOBS = Math.max(1, Number(maxConcurrentJobs) || 4)
   let activeJobCount = 0
   const jobQueue = [] // { live, request, workspaceDir }
+  // D3: once shutdown begins the manager is irreversibly closing — no new
+  // starts are admitted and the queue is never pumped again, so a running
+  // job's unwind cannot launch a job that shutdown's cancel sweep never saw.
+  let closing = false
+
+  // D1: idempotent start. A client that retries POST /chat/job/start after an
+  // unknown outcome (lost response, timeout) sends the same startRequestId; the
+  // retry must resolve to the job the first attempt created instead of
+  // executing the prompt a second time. Pending promises are stored so an
+  // in-flight duplicate coalesces; failed starts are dropped so a retry can
+  // try again; the map is bounded FIFO so it cannot grow without limit.
+  const START_REQUEST_ID_MAX_LENGTH = 200
+  const START_REQUEST_MEMORY = 1000
+  const startRequestsById = new Map() // startRequestId -> Promise<metadata>
 
   // Harness backend (@ai-sdk/harness) is opt-in per request and loaded lazily so
   // its ai@7-canary dependency graph never enters the daemon process unless a
@@ -4107,7 +4121,8 @@ export function createChatJobManager({
   // daemon-01: dispatch queued jobs while a concurrency slot is free. Called
   // after every enqueue (startJob) and every job completion (runJob finally).
   function pumpJobQueue() {
-    while (activeJobCount < MAX_CONCURRENT_JOBS && jobQueue.length > 0) {
+    // D3: shutdown terminalized the queue itself; never launch after it began.
+    while (!closing && activeJobCount < MAX_CONCURRENT_JOBS && jobQueue.length > 0) {
       const next = jobQueue.shift()
       if (!next?.live || !liveJobs.has(next.live.id)) continue // cancelled while queued
       activeJobCount += 1
@@ -4122,13 +4137,48 @@ export function createChatJobManager({
     }
   }
 
+  function normalizeStartRequestId(value) {
+    if (typeof value !== 'string') return null
+    const trimmed = value.trim()
+    if (!trimmed || trimmed.length > START_REQUEST_ID_MAX_LENGTH) return null
+    return trimmed
+  }
+
+  function rejectIfClosing() {
+    if (closing) throw new Error('Daemon is shutting down')
+  }
+
+  // D1: idempotent start — a client retry after an unknown outcome (lost
+  // response, timeout) sends the same startRequestId and coalesces onto the
+  // job the first attempt created instead of executing the prompt twice.
   async function startJob(request) {
+    rejectIfClosing()
+    const startRequestId = normalizeStartRequestId(request?.startRequestId)
+    if (!startRequestId) return await createJob(request)
+    const existing = startRequestsById.get(startRequestId)
+    if (existing) return await existing
+    const pending = createJob(request)
+    startRequestsById.set(startRequestId, pending)
+    pending.catch(() => {
+      if (startRequestsById.get(startRequestId) === pending) startRequestsById.delete(startRequestId)
+    })
+    while (startRequestsById.size > START_REQUEST_MEMORY) {
+      const oldest = startRequestsById.keys().next().value
+      if (oldest === undefined) break
+      startRequestsById.delete(oldest)
+    }
+    return await pending
+  }
+
+  async function createJob(request) {
     const id = randomUUID()
     const effectiveProjectContext = applyProjectContextPolicy({
       executionTarget: request?.executionTarget,
       projectContext: request?.projectContext ?? { workspaceDir: request?.workspaceDir },
     })
     const workspaceDir = await ensureProvisionedWorkspace(homeDir, effectiveProjectContext)
+    // D3: shutdown may have begun while the workspace was being provisioned.
+    rejectIfClosing()
     const initialPrompt = extractTaskLabelFromRequest(request)
     // daemon-01: if every slot is busy, persist as 'queued' from the start so
     // the dashboard/getJobState reflect reality; pumpJobQueue flips it to
@@ -4756,6 +4806,9 @@ export function createChatJobManager({
   // queries or spawned codex/opencode/hermes CLI children (which run with
   // file-write access and would otherwise keep running, reparented to init).
   async function shutdown() {
+    // D3: close first, irreversibly. Every start from here on is rejected and
+    // pumpJobQueue is inert, so nothing can be launched behind this sweep.
+    closing = true
     const jobs = Array.from(liveJobs.values())
     const cancellationResults = await Promise.all(jobs.map(async live => {
       try {
