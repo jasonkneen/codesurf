@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict'
+import { daemonUrl, daemonFile, daemonSource } from './helpers/daemon-path.mjs'
 import { spawn, type ChildProcess } from 'node:child_process'
 import { EventEmitter } from 'node:events'
 import { mkdtemp, readFile, rm } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import {
-  __test as processTreeTest,
+const { __test: processTreeTest,
   processTreeSpawnOptions,
-  terminateProcessTree,
-} from '../packages/codesurf-daemon/bin/process-tree.mjs'
+  terminateProcessTree, } = await import(daemonUrl('bin/process-tree.mjs'))
 import { ChatProcessLifecycle } from '../src/main/chat/chat-process-lifecycle.ts'
 
 async function waitForFirstJsonLine(proc: ChildProcess): Promise<{ childPid: number }> {

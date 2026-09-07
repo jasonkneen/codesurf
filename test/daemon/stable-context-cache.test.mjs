@@ -1,10 +1,9 @@
 import assert from 'node:assert/strict'
+import { daemonUrl, daemonFile, daemonSource } from '../helpers/daemon-path.mjs'
 import { describe, it } from 'node:test'
 import { readFileSync } from 'node:fs'
-import {
-  createStableContextLoadCache,
-  DEFAULT_STABLE_CONTEXT_TTL_MS,
-} from '../../packages/codesurf-daemon/bin/stable-context-load-cache.mjs'
+const { createStableContextLoadCache,
+  DEFAULT_STABLE_CONTEXT_TTL_MS, } = await import(daemonUrl('bin/stable-context-load-cache.mjs'))
 
 function fakeClock() {
   let t = 1_000
@@ -68,7 +67,7 @@ describe('M1 — stable context cache must not outlive an edit', () => {
 
 describe('M1 — the write paths invalidate', () => {
   const daemon = readFileSync(
-    new URL('../../packages/codesurf-daemon/bin/codesurfd.mjs', import.meta.url), 'utf8')
+    daemonFile('bin/codesurfd.mjs'), 'utf8')
 
   it('skills install drops the cache', () => {
     const handler = daemon.slice(daemon.indexOf("url.pathname === '/skills/install'"))

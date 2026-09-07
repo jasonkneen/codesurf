@@ -6,34 +6,29 @@
 //    and AgentMode.tools reaches options.tools (the SDK's built-in restriction).
 //  - isToolAllowedByAgent casing/normalization.
 import { test } from 'node:test'
+import { daemonUrl, daemonFile, daemonSource } from '../helpers/daemon-path.mjs'
 import assert from 'node:assert/strict'
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { mkdtemp as mkdtempP, mkdir as mkdirP, rm as rmP, writeFile as writeFileP } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import {
-  createHarnessRunner,
-  isToolAllowedByAgent,
-} from '../../packages/codesurf-daemon/bin/harness-runtime.mjs'
-import { PI_HARNESS_UNAVAILABLE_ERROR } from '../../packages/codesurf-daemon/bin/harness-policy.mjs'
-import {
-  createChatJobManager,
+const { createHarnessRunner,
+  isToolAllowedByAgent, } = await import(daemonUrl('bin/harness-runtime.mjs'))
+const { PI_HARNESS_UNAVAILABLE_ERROR } = await import(daemonUrl('bin/harness-policy.mjs'))
+const { createChatJobManager,
   buildCodexExecArgs,
   hermesToolsetsForRequest,
   revalidateDaemonContextRequest,
-  shouldUseHarness,
-} from '../../packages/codesurf-daemon/bin/chat-jobs.mjs'
-import {
-  CODEX_SDK_CONFIG_ISOLATION_GAP,
+  shouldUseHarness, } = await import(daemonUrl('bin/chat-jobs.mjs'))
+const { CODEX_SDK_CONFIG_ISOLATION_GAP,
   buildCodexSdkThreadOptions,
   shouldUseCodexSdkProvider,
-  startCodexSdkThread,
-} from '../../packages/codesurf-daemon/bin/codex-sdk-provider.mjs'
-import { isCodexSdkEnabled } from '../../packages/codesurf-daemon/bin/codex-sdk-settings.mjs'
+  startCodexSdkThread, } = await import(daemonUrl('bin/codex-sdk-provider.mjs'))
+const { isCodexSdkEnabled } = await import(daemonUrl('bin/codex-sdk-settings.mjs'))
 import { CHAT_CONTEXT_LIMITS } from '@codesurf/daemon/context-composer'
 // Daemon-side AgentMode→tool mapping (Codex sandbox / Hermes toolsets).
-import * as daemonAgentTools from '../../packages/codesurf-daemon/bin/agent-mode-tools.mjs'
+const daemonAgentTools = await import(daemonUrl('bin/agent-mode-tools.mjs'))
 // Runtime providers' shared mapping module (the SAME code chatClaude/chatCodex/
 // chatHermes import). Pure + type-only, so node's type-stripping loads it here.
 import * as runtimeAgentTools from '../../src/main/chat/agent-mode-tools.ts'
@@ -46,12 +41,10 @@ import { resolveActiveChatMode } from '../../src/renderer/src/hooks/chatModeReso
 // seeding load-race). Dependency-injected loader, no window/JSX, so node's
 // type-stripping loads it here.
 import { resolveDispatchAgentMode } from '../../src/renderer/src/hooks/agentModeDispatch.ts'
-import {
-  CODEX_DENY_ALL_ERROR,
+const { CODEX_DENY_ALL_ERROR,
   HARNESS_READS_UNENFORCEABLE_ERROR,
-  agentModeUnresolved as daemonAgentModeUnresolved,
-  AGENT_MODE_UNRESOLVED_ERROR as DAEMON_AGENT_MODE_UNRESOLVED_ERROR,
-} from '../../packages/codesurf-daemon/bin/agent-mode-tools.mjs'
+  agentModeUnresolved: daemonAgentModeUnresolved,
+  AGENT_MODE_UNRESOLVED_ERROR: DAEMON_AGENT_MODE_UNRESOLVED_ERROR, } = await import(daemonUrl('bin/agent-mode-tools.mjs'))
 // Runtime provider payload builders — the SAME pure functions chatClaude/
 // chatCodex/chatHermes call. Importing them lets the suite assert the REAL
 // constructed payload + fail-closed throws (not a source regex). Dependency-free,
@@ -75,13 +68,11 @@ import {
   DEFAULT_PERSONAS as SHARED_DEFAULT_AGENT_MODES,
   overlayPersonas as sharedOverlayAgentModes,
 } from '../../src/shared/agentModes.ts'
-import {
-  resolveAuthoritativeAgentMode as resolveAuthoritativeDaemon,
-  AGENT_MODE_RESOLUTION_DENIED_ERROR as DAEMON_DENIED,
-  DEFAULT_PERSONAS as DAEMON_DEFAULT_AGENT_MODES,
-  overlayPersonas as daemonOverlayAgentModes,
-  listPersonas as daemonListPersonas,
-} from '../../packages/codesurf-daemon/bin/agent-mode-resolver.mjs'
+const { resolveAuthoritativeAgentMode: resolveAuthoritativeDaemon,
+  AGENT_MODE_RESOLUTION_DENIED_ERROR: DAEMON_DENIED,
+  DEFAULT_PERSONAS: DAEMON_DEFAULT_AGENT_MODES,
+  overlayPersonas: daemonOverlayAgentModes,
+  listPersonas: daemonListPersonas, } = await import(daemonUrl('bin/agent-mode-resolver.mjs'))
 
 const ROOT_DIR = dirname(dirname(dirname(fileURLToPath(import.meta.url))))
 const TEST_TMP_ROOT = join(ROOT_DIR, '.tmp', 'daemon-tests')
@@ -1359,7 +1350,7 @@ test('daemon: the chosen permission mode round-trips through job metadata (#2b)'
   assert.equal(restore({ provider: 'claude' }), 'default', 'a legacy job without a stored mode falls back to default')
 
   // Guard the read-back SITE: codesurfd must read metadata.mode, not hardcode it.
-  const codesurfd = readFileSync(join(ROOT_DIR, 'packages/codesurf-daemon/bin/codesurfd.mjs'), 'utf8')
+  const codesurfd = daemonSource('bin/codesurfd.mjs')
   assert.match(codesurfd, /mode:\s*typeof metadata\.mode === 'string'/, 'codesurfd must reconstruct mode from metadata.mode')
 })
 
@@ -1613,7 +1604,7 @@ test('chat:send wires authoritative resolution as a chokepoint above the runtime
 })
 
 test('daemon runJob adds gated defense-in-depth re-resolution (#root-fix daemon)', () => {
-  const src = readFileSync(join(ROOT_DIR, 'packages/codesurf-daemon/bin/chat-jobs.mjs'), 'utf8')
+  const src = daemonSource('bin/chat-jobs.mjs')
   assert.match(src, /resolveAuthoritativeAgentMode\(/, 'runJob must re-resolve authoritatively (defense in depth)')
   // Gated on a PRESENT local agents.json so the cloud (no .codesurf) trusts main's
   // shipped value rather than failing closed on a custom id.
@@ -1629,7 +1620,7 @@ test('daemon runJob adds gated defense-in-depth re-resolution (#root-fix daemon)
 // come ONLY from trusted disk, never from any caller-supplied payload.
 
 test('daemon runJob PRE-START resolves an agentId-only request before the unresolved fail-close (#cli-persona wiring)', () => {
-  const src = readFileSync(join(ROOT_DIR, 'packages/codesurf-daemon/bin/chat-jobs.mjs'), 'utf8')
+  const src = daemonSource('bin/chat-jobs.mjs')
   const preStartIdx = src.indexOf('if (request.agentId && request.agentMode == null) {')
   assert.ok(preStartIdx >= 0, 'runJob must pre-start resolve when agentId is present and agentMode is absent')
   const unresolvedIdx = src.indexOf('if (agentModeUnresolved(request)) {')

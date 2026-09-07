@@ -2,6 +2,7 @@
 
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import { dirname, join, resolve } from 'node:path'
 import process from 'node:process'
@@ -10,10 +11,14 @@ import {
   getDaemonRuntimeEntries,
 } from '@codesurf/daemon/package-layout'
 
+const require = createRequire(import.meta.url)
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const OUT_ROOT = join(ROOT, 'release', 'npm')
 const PACKAGE_DIR = join(OUT_ROOT, 'package')
-const DAEMON_DIR = join(ROOT, 'packages', 'codesurf-daemon')
+// Phase 0: the daemon is no longer vendored under this repo. The canonical
+// @codesurf/daemon is an installed dependency (file: to the engine repo in
+// dev; a registry version once published) — release embedding sources from it.
+const DAEMON_DIR = dirname(require.resolve('@codesurf/daemon/package.json'))
 
 const args = new Set(process.argv.slice(2))
 const skipAppBuild = args.has('--skip-app-build')
@@ -139,15 +144,9 @@ function main() {
     run(process.platform === 'win32' ? 'npm.cmd' : 'npm', ['run', 'build'])
   } else {
     log('Skipping app build')
-    run(
-      process.platform === 'win32' ? 'npm.cmd' : 'npm',
-      ['--prefix', 'packages/codesurf-daemon', 'run', 'build'],
-    )
+    // Canonical daemon dist is built and committed in the engine repo
+    // (grok-cli); copyDaemonPackage below fails on any missing runtime entry.
   }
-  run(
-    process.platform === 'win32' ? 'npm.cmd' : 'npm',
-    ['--prefix', 'packages/codesurf-daemon', 'run', 'verify:dist'],
-  )
 
   assertExists('dist-electron/main/index.js')
   assertExists('dist-electron/renderer/index.html')

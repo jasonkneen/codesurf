@@ -2,9 +2,23 @@ import { readFileSync } from 'node:fs'
 import { resolve } from 'node:path'
 import type { ElectrobunConfig } from 'electrobun'
 
-const daemonPackagePath = 'packages/codesurf-daemon'
+// Phase 0: the daemon is no longer vendored here. Source it from the canonical
+// engine repo (grok-cli) as a sibling of this checkout; destination inside the
+// app bundle keeps the historical 'packages/codesurf-daemon' layout the
+// packaged runtime expects. Swap for registry resolution once @codesurf/daemon
+// is published (npm: the file: dependency below then becomes a version range).
+const daemonPackagePath = resolve(
+  process.cwd(),
+  '..',
+  '..',
+  'Documents',
+  'GitHub',
+  'grok-cli',
+  'packages',
+  'codesurf-daemon',
+)
 const daemonManifest = JSON.parse(
-  readFileSync(resolve(process.cwd(), daemonPackagePath, 'package.json'), 'utf8'),
+  readFileSync(resolve(daemonPackagePath, 'package.json'), 'utf8'),
 ) as { files?: unknown }
 
 // Electrobun bundles this config before evaluating it and cannot load workspace
@@ -36,8 +50,8 @@ function daemonRuntimeEntries(files: unknown): string[] {
 
 const daemonRuntimeCopy = Object.fromEntries(
   daemonRuntimeEntries(daemonManifest.files).map(entry => [
-    `${daemonPackagePath}/${entry}`,
-    `${daemonPackagePath}/${entry}`,
+    resolve(daemonPackagePath, entry),
+    `packages/codesurf-daemon/${entry}`,
   ]),
 )
 

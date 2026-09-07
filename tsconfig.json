@@ -19,8 +19,6 @@
       "@codesurf/chat-bridge": ["packages/codesurf-chat-bridge/src/index.ts"],
       "@codesurf/chat-bridge/*": ["packages/codesurf-chat-bridge/src/*"],
       "@codesurf/plugin": ["packages/codesurf-plugin/src/index.ts"],
-      "@codesurf/daemon": ["packages/codesurf-daemon/src/index.ts"],
-      "@codesurf/daemon/*": ["packages/codesurf-daemon/src/*"]
     }
   },
   "include": ["src/**/*.ts", "src/**/*.tsx", "packages/**/*.ts"],

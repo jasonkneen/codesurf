@@ -1,17 +1,16 @@
 import assert from 'node:assert/strict'
+import { daemonUrl, daemonFile, daemonSource } from '../helpers/daemon-path.mjs'
 import { describe, test } from 'node:test'
 import { mkdtemp, mkdir, writeFile } from 'node:fs/promises'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
-import {
-  fetchGatewayModels,
+const { fetchGatewayModels,
   loadCanvasToolBridge,
-  mapGatewayModels as daemonMapGatewayModels,
+  mapGatewayModels: daemonMapGatewayModels,
   resolveGatewayApiKey,
   runGatewayJob,
-  selectGatewayTools as daemonSelectGatewayTools,
-  tileMcpConfigPath,
-} from '../../packages/codesurf-daemon/bin/gateway-provider.mjs'
+  selectGatewayTools: daemonSelectGatewayTools,
+  tileMcpConfigPath, } = await import(daemonUrl('bin/gateway-provider.mjs'))
 import {
   mapGatewayModels as runtimeMapGatewayModels,
   selectGatewayTools as runtimeSelectGatewayTools,

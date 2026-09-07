@@ -1,5 +1,10 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+const require = createRequire(import.meta.url)
+const daemonDir = dirname(require.resolve('@codesurf/daemon/package.json'))
+const daemonSource = (binName) => readFileSync(join(daemonDir, 'bin', binName), 'utf8')
 import { describe, test } from 'node:test'
 import { expect } from './node-expect.ts'
 import {
@@ -314,22 +319,22 @@ describe('agent CLI contract builders', () => {
 
   test('daemon chat routing recognizes OpenCode, Hermes, and Omnigent as daemon-capable providers', () => {
     const ipcSource = readFileSync(`${process.cwd()}/src/main/ipc/chat.ts`, 'utf8')
-    const daemonSource = readFileSync(`${process.cwd()}/packages/codesurf-daemon/bin/chat-jobs.mjs`, 'utf8')
+    const chatJobsSource = daemonSource('chat-jobs.mjs')
 
     expect(ipcSource).toContain("return provider === 'claude' || provider === 'codex' || provider === 'opencode' || provider === 'hermes' || provider === 'omnigent'")
     expect(ipcSource).toContain('Supported daemon providers: Claude, Codex, OpenCode, Hermes, and Omnigent.')
-    expect(daemonSource).toContain("request.provider === 'hermes'")
-    expect(daemonSource).toContain("request.provider === 'omnigent'")
-    expect(daemonSource).toContain('Daemon execution is only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway right now')
+    expect(chatJobsSource).toContain("request.provider === 'hermes'")
+    expect(chatJobsSource).toContain("request.provider === 'omnigent'")
+    expect(chatJobsSource).toContain('Daemon execution is only implemented for Claude, Codex, OpenCode, Hermes, Omnigent, and AI Gateway right now')
   })
 
   test('Claude bypass mode passes the SDK dangerous-skip confirmation flag', () => {
     const claudeSource = readFileSync(`${process.cwd()}/src/main/chat/providers/claude.ts`, 'utf8')
-    const daemonSource = readFileSync(`${process.cwd()}/packages/codesurf-daemon/bin/chat-jobs.mjs`, 'utf8')
+    const chatJobsSource = daemonSource('chat-jobs.mjs')
     const relaySource = readFileSync(`${process.cwd()}/src/main/relay/provider-executor.ts`, 'utf8')
 
     expect(claudeSource).toContain("...(permMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {})")
-    expect(daemonSource).toContain("...(permMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {})")
+    expect(chatJobsSource).toContain("...(permMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {})")
     expect(relaySource).toContain("...(claudePermissionMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {})")
   })
 

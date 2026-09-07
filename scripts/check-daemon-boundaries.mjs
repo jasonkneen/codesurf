@@ -1,10 +1,14 @@
 import { existsSync } from 'node:fs'
 import { readFile, readdir } from 'node:fs/promises'
+import { createRequire } from 'node:module'
 import { dirname, extname, join, relative, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { getDaemonRuntimeEntries } from '@codesurf/daemon/package-layout'
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+const require = createRequire(import.meta.url)
+// Phase 0: the canonical daemon is an installed dependency; no local copy exists.
+const CANONICAL_DIR = dirname(require.resolve('@codesurf/daemon/package.json'))
 const PRODUCTION_ROOTS = ['src', 'scripts', 'electrobun']
 const TOP_LEVEL_FILES = ['bin/codesurf.cjs', 'electrobun.config.ts', 'electron.vite.config.ts']
 const LEGACY_ROOT_DAEMON_SHIMS = [
@@ -87,7 +91,7 @@ for (const file of files) {
 
 const rootManifest = JSON.parse(await readFile(join(ROOT, 'package.json'), 'utf8'))
 const daemonManifest = JSON.parse(
-  await readFile(join(ROOT, 'packages', 'codesurf-daemon', 'package.json'), 'utf8'),
+  await readFile(join(CANONICAL_DIR, 'package.json'), 'utf8'),
 )
 const runtimeEntries = getDaemonRuntimeEntries(daemonManifest).sort()
 for (const [label, patterns] of [
@@ -95,8 +99,8 @@ for (const [label, patterns] of [
   ['Electron package', rootManifest.build?.files],
 ]) {
   const actual = packagedDaemonEntries(patterns)
-  if (!sameEntries(actual, runtimeEntries)) {
-    violations.push(`${label}: daemon files ${JSON.stringify(actual)} do not match package contract ${JSON.stringify(runtimeEntries)}`)
+  if (actual.length > 0) {
+    violations.push(`${label}: source manifests must not embed a local daemon copy (found ${JSON.stringify(actual)})`)
   }
 }
 

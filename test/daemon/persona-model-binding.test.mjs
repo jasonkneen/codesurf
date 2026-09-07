@@ -4,6 +4,7 @@
 // it never flows through the authoritative tools/permission resolver, and the
 // dispatch path never reads `defaultBinding`.
 import { test } from 'node:test'
+import { daemonUrl, daemonFile, daemonSource } from '../helpers/daemon-path.mjs'
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -12,7 +13,7 @@ import { fileURLToPath } from 'node:url'
 // Pure renderer resolver (type-only imports → loads under node's type-stripping).
 import { resolvePersonaModelSeed, resolveSkillModelLock } from '../../src/renderer/src/hooks/personaModelBinding.ts'
 // Daemon-side mirror (consumed by the CLI; must NOT import renderer code).
-import { resolvePersonaModelSeed as daemonResolvePersonaModelSeed } from '../../packages/codesurf-daemon/dist/persona-model-binding.js'
+const { resolvePersonaModelSeed: daemonResolvePersonaModelSeed } = await import(daemonUrl('dist/persona-model-binding.js'))
 // Overlay/inheritance: confirm `defaultBinding` survives overlay + extends merge.
 import { overlayPersonas } from '../../src/shared/agentModes.ts'
 // Authoritative tools/permission resolver — must stay model-free (altitude guard).

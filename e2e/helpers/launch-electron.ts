@@ -8,7 +8,7 @@ import {
 import { tmpdir } from 'node:os'
 import { join, resolve } from 'node:path'
 import { _electron as electron, type ElectronApplication, type Page } from '@playwright/test'
-import { createDaemonManager } from '../../packages/codesurf-daemon/src/manager.ts'
+import { createDaemonManager } from '@codesurf/daemon/manager'
 import { runIsolatedElectronCleanup, withCleanupTimeout } from './cleanup-steps'
 import { resolveElectronExecutable } from './electron-path'
 

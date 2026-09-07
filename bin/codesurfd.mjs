@@ -1,6 +1,12 @@
 #!/usr/bin/env node
-// Launcher shim. Source of truth: packages/codesurf-daemon/bin/codesurfd.mjs
-// This file is preserved so package.json "bin" (codesurfd), electron-builder
-// packaging, and any external scripts that target ./bin/codesurfd.mjs continue
-// to work after the daemon was extracted to @codesurf/daemon.
-import('../packages/codesurf-daemon/bin/codesurfd.mjs')
+// Launcher shim. Canonical implementation lives in @codesurf/daemon (the
+// codesurf engine repo, grok-cli); this repo consumes it as a dependency.
+// package.json "bin", electron-builder packaging, and external scripts keep
+// targeting this file; it resolves the canonical daemon binary and forwards.
+import { createRequire } from 'node:module'
+import { dirname, join } from 'node:path'
+import { pathToFileURL } from 'node:url'
+const require = createRequire(import.meta.url)
+const manifestPath = require.resolve('@codesurf/daemon/package.json')
+const daemonBin = join(dirname(manifestPath), 'bin', 'codesurfd.mjs')
+await import(pathToFileURL(daemonBin).href)

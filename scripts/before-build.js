@@ -24,11 +24,8 @@ exports.default = async function (context) {
   const targetPlatform = context.platform && context.platform.name
   console.log('[before-build] Target platform:', targetPlatform)
 
-  execSync('npm --prefix packages/codesurf-daemon run verify:dist', {
-    cwd: path.join(__dirname, '..'),
-    stdio: 'inherit',
-  })
-
+  // Phase 0: daemon dist is built and contract-verified in the canonical engine
+  // repo (grok-cli); nothing to rebuild/verify here.
   if (targetPlatform === 'windows') {
     patchNodePtyWin()
 

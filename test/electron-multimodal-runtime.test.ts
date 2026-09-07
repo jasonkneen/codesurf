@@ -1,15 +1,14 @@
 import assert from 'node:assert/strict'
+import { daemonUrl, daemonFile, daemonSource } from './helpers/daemon-path.mjs'
 import { describe, test } from 'node:test'
 import { mkdir, mkdtemp, realpath, rename, rm, stat, writeFile } from 'node:fs/promises'
 import { join } from 'node:path'
 import { tmpdir } from 'node:os'
-import { fileIdentity } from '../packages/codesurf-daemon/bin/secure-file-reader.mjs'
-import {
-  attachmentCapabilityStatsForTests,
+const { fileIdentity } = await import(daemonUrl('bin/secure-file-reader.mjs'))
+const { attachmentCapabilityStatsForTests,
   disposeAttachmentCapabilities,
-  issueAttachmentCapabilities,
-} from '../packages/codesurf-daemon/bin/attachment-capabilities.mjs'
-import { expandFileReferences } from '../packages/codesurf-daemon/bin/file-references.mjs'
+  issueAttachmentCapabilities, } = await import(daemonUrl('bin/attachment-capabilities.mjs'))
+const { expandFileReferences } = await import(daemonUrl('bin/file-references.mjs'))
 import { routeHostForAttachments } from '../src/main/chat/attachment-route-policy.ts'
 import {
   buildClaudePromptWithImages,

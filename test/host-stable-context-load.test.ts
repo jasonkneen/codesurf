@@ -1,9 +1,15 @@
 import { describe, test } from 'node:test'
 import { readFileSync } from 'node:fs'
-import { resolve } from 'node:path'
+import { createRequire } from 'node:module'
+import { dirname, join, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { expect } from './node-expect.ts'
 import { hostShouldPrefetchStableContext } from '../src/main/chat/hostStableContextLoad.ts'
-import { createStableContextLoadCache } from '../packages/codesurf-daemon/bin/stable-context-load-cache.mjs'
+const require = createRequire(import.meta.url)
+const daemonDir = dirname(require.resolve('@codesurf/daemon/package.json'))
+const { createStableContextLoadCache } = await import(
+  pathToFileURL(join(daemonDir, 'bin', 'stable-context-load-cache.mjs')).href,
+)
 
 describe('hostShouldPrefetchStableContext', () => {
   test('skips host /memory/load and /skills/list when a daemon will rebuild them', () => {
