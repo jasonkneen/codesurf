@@ -169,8 +169,8 @@ test('security-sensitive build tools remain on the reviewed exact versions', asy
 
 test('CI and release jobs exercise the declared minimum Node runtime', async () => {
   const workflowPaths = [
-    resolve(ROOT_DIR, '.github/workflows/ci.yml'),
-    resolve(ROOT_DIR, '.github/workflows/release-on-tag.yml'),
+    resolve(ROOT_DIR, '..', '..', '.github/workflows/ci.yml'),
+    resolve(ROOT_DIR, '..', '..', '.github/workflows/release-on-tag.yml'),
   ]
   for (const path of workflowPaths) {
     const workflow = await readFile(path, 'utf8')
@@ -192,7 +192,7 @@ test('CI and release jobs exercise the declared minimum Node runtime', async () 
   assert.match(ciWorkflow, /runs-on: ubuntu-latest/)
   assert.match(ciWorkflow, /npm run test:unit:core/)
   assert.match(ciWorkflow, /npm run test:packages/)
-  assert.match(ciWorkflow, /npm --prefix "\$\{VERIFY_WORKTREE\}" ci --omit=dev/)
+  assert.match(ciWorkflow, /npm --prefix "\$\{VERIFY_WORKTREE\}\/apps\/desktop" ci --omit=dev/)
   assert.match(ciWorkflow, /npm run build:web && npm run verify:web-build/)
   assert.match(ciWorkflow, /npm run test:npm-package/)
   assert.match(ciWorkflow, /npm run verify:electrobun-runtime/)
@@ -215,8 +215,8 @@ test('CI and release jobs exercise the declared minimum Node runtime', async () 
 
 test('CI and release workflows preserve fail-closed artifact and release boundaries', async () => {
   const [ciWorkflow, releaseWorkflow, electronPlaywright, webPlaywright] = await Promise.all([
-    readFile(resolve(ROOT_DIR, '.github/workflows/ci.yml'), 'utf8'),
-    readFile(resolve(ROOT_DIR, '.github/workflows/release-on-tag.yml'), 'utf8'),
+    readFile(resolve(ROOT_DIR, '..', '..', '.github/workflows/ci.yml'), 'utf8'),
+    readFile(resolve(ROOT_DIR, '..', '..', '.github/workflows/release-on-tag.yml'), 'utf8'),
     readFile(resolve(ROOT_DIR, 'e2e/playwright.config.ts'), 'utf8'),
     readFile(resolve(ROOT_DIR, 'e2e/web.playwright.config.ts'), 'utf8'),
   ])

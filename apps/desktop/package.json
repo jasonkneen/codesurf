@@ -39,7 +39,7 @@
     "check:daemon-interface": "node scripts/daemon-interface.mjs",
     "update:daemon-interface": "node scripts/daemon-interface.mjs --update",
     "lint": "eslint . --max-warnings 0",
-    "format:check": "prettier --check package.json .prettierrc.json eslint.config.mjs \".github/workflows/*.{yml,yaml}\"",
+    "format:check": "prettier --check package.json .prettierrc.json eslint.config.mjs \"../../.github/workflows/*.{yml,yaml}\"",
     "check": "npm run lint && npm run format:check && npm run check:daemon-boundaries && npm run typecheck",
     "typecheck": "npm run typecheck:go",
     "typecheck:tsc": "tsc -p tsconfig.json --noEmit",
@@ -138,7 +138,7 @@
   "dependencies": {
     "@ai-sdk/gateway": "^4.0.60",
     "@anthropic-ai/claude-agent-sdk": "0.2.141",
-    "@codesurf/daemon": "file:../../Documents/GitHub/grok-cli/packages/codesurf-daemon",
+    "@codesurf/daemon": "file:../../packages/codesurf-daemon",
     "@mcp-ui/client": "^7.1.1",
     "@monaco-editor/react": "^4.7.0",
     "@openai/codex-sdk": "^0.139.0",

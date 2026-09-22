@@ -18,7 +18,8 @@ import { MAX_EXTENSION_TEXT_RESOURCE_BYTES } from '../src/main/extensions/resour
 
 const projectRoot = resolve(process.cwd())
 const projectRequire = createRequire(join(projectRoot, 'package.json'))
-const localDaemonRoot = realpathSync(join(projectRoot, 'packages', 'codesurf-daemon'))
+// The monorepo's shared daemon package, two levels up from apps/desktop.
+const localDaemonRoot = realpathSync(join(projectRoot, '..', '..', 'packages', 'codesurf-daemon'))
 const resolvedDaemonManifest = realpathSync(
   projectRequire.resolve('@codesurf/daemon/package.json'),
 )

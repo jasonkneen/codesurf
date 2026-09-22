@@ -16,8 +16,8 @@ async function readJson(path) {
 test('daemon SDK pins match the monorepo root resolutions', async () => {
   const [rootLock, daemonPackage, daemonLock] = await Promise.all([
     readJson(join(ROOT_DIR, 'package-lock.json')),
-    readJson(join(ROOT_DIR, 'packages', 'codesurf-daemon', 'package.json')),
-    readJson(join(ROOT_DIR, 'packages', 'codesurf-daemon', 'package-lock.json')),
+    readJson(join(ROOT_DIR, '..', '..', 'packages', 'codesurf-daemon', 'package.json')),
+    readJson(join(ROOT_DIR, '..', '..', 'packages', 'codesurf-daemon', 'package-lock.json')),
   ])
 
   for (const dependency of SDK_DEPENDENCIES) {

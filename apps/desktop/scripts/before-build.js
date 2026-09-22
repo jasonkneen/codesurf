@@ -25,7 +25,7 @@ exports.default = async function (context) {
   console.log('[before-build] Target platform:', targetPlatform)
 
   // Phase 0: daemon dist is built and contract-verified in the canonical engine
-  // repo (grok-cli); nothing to rebuild/verify here.
+  // monorepo (packages/codesurf-daemon); nothing to rebuild/verify here.
   if (targetPlatform === 'windows') {
     patchNodePtyWin()
 

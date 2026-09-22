@@ -17,6 +17,39 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  cli:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/cli
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@v2
+
+      - name: Install workspace dependencies (apps/cli + packages/*)
+        run: bun install --frozen-lockfile
+        working-directory: .
+
+      - name: Typecheck
+        run: bun run typecheck
+
+      - name: Lint
+        run: bunx biome check src/
+
+      - name: Test
+        run: bun run test:all
+
+      - name: Test shared packages (plugin-api, runtime)
+        run: bunx vitest run packages/plugin-api packages/runtime
+        working-directory: .
+
+      - name: Build
+        run: bun run build
+
   daemon-package-isolation:
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -45,6 +78,9 @@ jobs:
 
   windows-process-containment:
     runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -59,6 +95,9 @@ jobs:
 
   linux-core-contract:
     runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -73,7 +112,7 @@ jobs:
 
       - name: Install package test dependencies
         run: |
-          npm --prefix packages/codesurf-daemon ci
+          npm --prefix ../../packages/codesurf-daemon ci
           npm --prefix packages/codesurf-relay ci
           npm --prefix packages/codesurf-terminal-gateway ci
 
@@ -99,6 +138,9 @@ jobs:
 
   build-and-test:
     runs-on: macos-latest
+    defaults:
+      run:
+        working-directory: apps/desktop
     steps:
       - name: Check out repository
         uses: actions/checkout@v4
@@ -120,7 +162,7 @@ jobs:
 
       - name: Install package test dependencies
         run: |
-          npm --prefix packages/codesurf-daemon ci
+          npm --prefix ../../packages/codesurf-daemon ci
           npm --prefix packages/codesurf-relay ci
           npm --prefix packages/codesurf-terminal-gateway ci
           npm --prefix apps/chat-app ci
@@ -132,8 +174,8 @@ jobs:
         run: |
           npm audit --audit-level=low
           npm audit --omit=dev --audit-level=low
-          npm --prefix packages/codesurf-daemon audit --audit-level=low
-          npm --prefix packages/codesurf-daemon audit --omit=dev --audit-level=low
+          npm --prefix ../../packages/codesurf-daemon audit --audit-level=low
+          npm --prefix ../../packages/codesurf-daemon audit --omit=dev --audit-level=low
           npm --prefix packages/codesurf-relay audit --audit-level=low
           npm --prefix packages/codesurf-relay audit --omit=dev --audit-level=low
           npm --prefix packages/codesurf-terminal-gateway audit --audit-level=low
@@ -168,8 +210,8 @@ jobs:
         with:
           name: web-smoke-failure-artifacts
           path: |
-            playwright-report/
-            test-results/
+            apps/desktop/playwright-report/
+            apps/desktop/test-results/
           if-no-files-found: ignore
           retention-days: 7
 
@@ -191,8 +233,8 @@ jobs:
         with:
           name: e2e-failure-artifacts
           path: |
-            playwright-report/
-            test-results/
+            apps/desktop/playwright-report/
+            apps/desktop/test-results/
           if-no-files-found: ignore
           retention-days: 7
 
@@ -213,5 +255,5 @@ jobs:
           trap cleanup EXIT
 
           git worktree add --detach "${VERIFY_WORKTREE}" HEAD
-          npm --prefix "${VERIFY_WORKTREE}" ci --omit=dev
-          npm --prefix "${VERIFY_WORKTREE}" audit --omit=dev --audit-level=low
+          npm --prefix "${VERIFY_WORKTREE}/apps/desktop" ci --omit=dev
+          npm --prefix "${VERIFY_WORKTREE}/apps/desktop" audit --omit=dev --audit-level=low

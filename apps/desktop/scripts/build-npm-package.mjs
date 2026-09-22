@@ -145,7 +145,7 @@ function main() {
   } else {
     log('Skipping app build')
     // Canonical daemon dist is built and committed in the engine repo
-    // (grok-cli); copyDaemonPackage below fails on any missing runtime entry.
+    // (monorepo packages/codesurf-daemon); copyDaemonPackage below fails on any missing runtime entry.
   }
 
   assertExists('dist-electron/main/index.js')
