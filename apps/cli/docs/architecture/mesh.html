@@ -1,0 +1,160 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CodeSurf — Architecture</title>
+<script src="https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js"></script>
+<style>
+  :root { --bg:#0e1117; --panel:#151a23; --border:#262e3d; --fg:#d8dee9; --dim:#9aa4b5; --acc:#4c8dff; --green:#22c55e; --amber:#f59e0b; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:15px/1.6 -apple-system, "SF Pro Text", system-ui, sans-serif; }
+  header { padding:28px 32px 20px; border-bottom:1px solid var(--border); background:linear-gradient(180deg,#131821,#0e1117); }
+  header h1 { margin:0 0 6px; font-size:24px; letter-spacing:.3px; }
+  header .sub { color:var(--dim); max-width:760px; }
+  main { max-width:1080px; margin:0 auto; padding:28px 24px 80px; }
+  .card { background:var(--panel); border:1px solid var(--border); border-radius:12px; padding:20px 22px; margin:26px 0; }
+  .card h2 { margin:0 0 6px; font-size:18px; color:var(--acc); }
+  .card .tag { display:inline-block; font-size:12px; letter-spacing:.6px; text-transform:uppercase; color:var(--fg); background:#1d2433; border:1px solid var(--border); border-radius:999px; padding:2px 9px; margin-left:8px; vertical-align:3px; }
+  .card p { color:var(--dim); margin:8px 0 14px; }
+  .card ul, .card ol { color:var(--dim); padding-left:20px; margin:8px 0; }
+  .card li { margin:3px 0; }
+  code { font:13px ui-monospace, "JetBrains Mono", monospace; background:#0c1018; border:1px solid var(--border); border-radius:4px; padding:1px 6px; }
+  pre { background:#0c1018; border:1px solid var(--border); border-radius:8px; padding:12px 14px; overflow-x:auto; }
+  pre code { border:0; background:transparent; padding:0; }
+  .mermaid { text-align:center; background:#0c1018; border:1px solid var(--border); border-radius:10px; padding:14px; margin:10px 0 4px; }
+  .pill { display:inline-block; font-size:11px; font-weight:600; letter-spacing:.5px; padding:3px 10px; border-radius:999px; margin:2px 4px 2px 0; }
+  .pill.local { color:var(--green); background:rgba(34,197,94,.12); border:1px solid rgba(34,197,94,.4); }
+  .pill.wire { color:var(--acc); background:rgba(76,141,255,.12); border:1px solid rgba(76,141,255,.4); }
+  .pill.node { color:var(--amber); background:rgba(245,158,11,.12); border:1px solid rgba(245,158,11,.4); }
+</style>
+</head>
+<body>
+<header>
+  <h1>CodeSurf — Architecture</h1>
+  <div class="sub">One engine, two run modes (serverless client vs. wire front), over a versioned relay mesh. Interactive diagrams below.</div>
+</header>
+<main>
+
+  <div class="card">
+    <h2>The mode spectrum <span class="tag">core concept</span></h2>
+    <p>
+      <span class="pill local">● serverless (default)</span>
+      <span class="pill wire">● wire (—connect)</span>
+      <span class="pill node">node</span>
+    </p>
+    <p>Every session runs the <em>same</em> engine capabilities. The only difference is <strong>where the Agent lives</strong>:</p>
+    <ul>
+      <li><strong>Mode 1 — serverless:</strong> the TUI owns its in-process Agent. Kill it and processing stops (only an externally-spawned CLI it delegated to keeps going).</li>
+      <li><strong>Mode 2 — wire:</strong> <code>codesurf --connect ws://&lt;node&gt;</code> turns the TUI into a thin front. A <code>codesurf node</code> owns the sessions: the TUI hands off a task, streams responses live, sends follow-ups — and killing the TUI does <em>not</em> stop the node's turn (client-death resilience).</li>
+    </ul>
+    <div class="mermaid">
+      flowchart LR
+        subgraph M1["Mode 1 — serverless"]
+          TUI1["OpenTUI (owns Agent)"]
+          TURN1["in-process turn"]
+        end
+        subgraph M2["Mode 2 — wire front"]
+          FRONT["OpenTUI — front<br/>(SessionStreamClient)"]
+          NODE["codesurf node<br/>(owns sessions)"]
+          HUB["hub"]
+        end
+        TUI1 --> TURN1
+        FRONT -- "ws // --connect" --> NODE
+        FRONT -- "hand off + follow-ups" --> NODE
+        NODE --> HUB
+        NODE -. "live chunks back" .-> FRONT
+        style M1 fill:#14220e,stroke:#2c5a1e
+        style M2 fill:#0e1722,stroke:#24527c
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>The relay mesh <span class="tag">fleet scale</span></h2>
+    <p>
+      A <strong>logical mesh over physical spokes</strong>: every client holds one web socket to a hub; the hub registers,
+      discovers, routes, and forwards. Thousands of clients, relays, gateways, and nodes hang off hubs while the logical
+      topology stays any-to-any. The relay envelope is a bounded command fabric; live turn streaming rides a separate
+      <code>op:&quot;session&quot;</code> channel on the same socket.
+    </p>
+    <div class="mermaid">
+      flowchart TB
+        subgraph CL["clients / fronts"]
+          C1["TUI front"]
+          C2["headless —connect"]
+          C3["MCP / ACP / OpenAI gateway"]
+        end
+        subgraph HUBS["hubs (registry + forwarder)"]
+          H1["hub"]
+          H2["hub"]
+        end
+        subgraph ND["worker nodes (codesurf node)"]
+          N1["node: sessions + jobs + traces"]
+          N2["node: compute jobHost"]
+          N3["node: fleet + load"]
+        end
+        C1 -- "one WS spoke" --> H1
+        C2 -- "one WS spoke" --> H1
+        C3 -- "gateway" --> H2
+        H1 -- "delegate / route" --> N1
+        H1 -- "route/job" --> N2
+        H2 -- "delegate" --> N3
+        H1 --- H2
+        style HUBS fill:#0e1722,stroke:#24527c
+        style ND fill:#14220e,stroke:#2c5a1e
+        style CL fill:#221a0e,stroke:#5c4a24
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Control plane vs. data plane <span class="tag">wire protocol</span></h2>
+    <p>
+      The relay envelope (<code>delegate_request / delegate_reply</code>, versioned, steward-gated, bounded) is the
+      command plane for session/job/fleet/trace ops. Live turn content streams over the same socket as
+      <code>op:&quot;session&quot;</code> frames — <em>create, message, subscribe, status, destroy</em> in, and
+      <em>chunk / done / created / error</em> back. The hub ignores <code>session</code> frames; the node's
+      <code>SessionStreamServer</code> bridges them to its session host.
+    </p>
+    <div class="mermaid">
+      sequenceDiagram
+        participant F as Front (SessionStreamClient)
+        participant N as Node (SessionStreamServer + NodeSessionHost)
+        F->>N: {op:&quot;session&quot;, action:&quot;create&quot;}
+        N-->>F: {event:&quot;created&quot;, session}
+        F->>N: {action:&quot;message&quot;, session, text}
+        loop per turn
+          N-->>F: {event:&quot;chunk&quot;, chunk: StreamChunk}
+        end
+        N-->>F: {event:&quot;done&quot;, finished}
+        opt front dies mid-turn
+          Note right of N: client-death resilience: NodeSessionHost keeps the turn;
+          Note right of N: reaper evicts abandoned sessions later
+        end
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>— what these pieces are <span class="tag">components</span></h2>
+    <ul>
+      <li><code>codesurf</code> — the TUI + headless client (serverless by default; <code>--connect</code> makes it a front).</li>
+      <li><code>codesurf node</code> — an <code>EngineNode</code>: hub + <code>NodeSessionHost</code> (sessions that outlive fronts) + job host + fleet telemetry + tracing + an auto-reaper.</li>
+      <li><code>codesurf serve</code> — gateway surface (OpenAI/ACP/MCP) over the same engine.</li>
+      <li><strong>Reaping</strong> — session TTL/idle eviction, finished-job + trace TTL cleanup (the abandoned-session guard).</li>
+      <li><strong>PTC</strong> — programmatic tool calls (<code>CODESURF_TOOL_PRESENTATION=code|both</code>).</li>
+    </ul>
+  </div>
+
+  <div class="card">
+    <h2>Getting started <span class="tag">quick links</span></h2>
+    <p>
+      See <a href="../user/cli.md">docs/user/cli.md</a>, <a href="../user/ptc.md">PTC</a>, and
+      <a href="../README.md">top-level README</a> for usage. This page is <code>docs/architecture/mesh.html</code>.
+    </p>
+  </div>
+
+</main>
+<script>
+  mermaid.initialize({ startOnLoad:true, theme:"dark", themeVariables:{ darkMode:true, background:"#0c1018", primaryColor:"#151a23", primaryBorderColor:"#262e3d", primaryTextColor:"#d8dee9", lineColor:"#4c8dff" } });
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "lib": ["ES2022", "DOM"],
+    "strict": true,
+    "jsx": "react-jsx",
+    "skipLibCheck": true,
+    "moduleResolution": "Bundler",
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "noEmit": true,
+    "baseUrl": ".",
+    "paths": {
+      "@opentui/react": ["src/ui-web/opentui-dom/index.ts"],
+      "@opentui/react/*": ["src/ui-web/opentui-dom/*"]
+    }
+  },
+  "include": ["src/ui-web/**/*"]
+}

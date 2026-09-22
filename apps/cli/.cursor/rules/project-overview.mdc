@@ -1,0 +1,65 @@
+---
+description: Project overview and architecture reference
+globs: "**/*"
+alwaysApply: true
+---
+
+# Codesurf — Project Overview
+
+Codesurf (`codesurf`) is an open-source AI coding agent powered by Grok that brings AI assistance directly into the terminal.
+
+## Tech Stack
+
+- **Language**: TypeScript (ES2022, ESNext modules)
+- **Runtime**: Bun (primary)
+- **UI Framework**: React with [OpenTUI](https://github.com/anomalyco/opentui) for terminal rendering
+- **Build**: `tsc` (TypeScript compiler)
+- **Package Manager**: Bun
+- **API Client**: OpenAI SDK (for OpenAI-compatible xAI API)
+- **Tools**: Bash-only (all file operations via shell commands)
+- **Search**: X Search API + Web Search via xAI Responses API
+
+## Architecture
+
+```
+src/
+├── index.ts          # CLI entry point (Commander.js + OpenTUI)
+├── agent/
+│   └── agent.ts      # Agent — orchestrates client, bash tool, search
+├── grok/
+│   ├── client.ts     # Grok API client (Chat Completions + Responses API)
+│   ├── models.ts     # Model definitions and metadata
+│   └── tools.ts      # Tool schemas (bash, search_web, search_x)
+├── tools/
+│   └── bash.ts       # Bash command execution
+├── ui/
+│   └── app.tsx       # OpenTUI React terminal UI
+├── utils/
+│   ├── settings.ts   # User and project settings
+│   ├── git-root.ts   # Resolve git repository root for AGENTS.md discovery
+│   └── instructions.ts # AGENTS.md (ecosystem) custom instructions
+└── types/
+    └── index.ts      # Shared TypeScript types
+```
+
+## Key Patterns
+
+- **Agent loop**: `Agent.processMessage()` is an async generator that yields `StreamChunk` objects — the LLM responds, tools execute, results feed back until no more tool calls remain.
+- **Bash-only tools**: The agent uses bash for everything (file editing, searching, git, builds, etc.).
+- **X Search & Web Search**: Integrated via the xAI Responses API for real-time information.
+- **Settings hierarchy**: Environment variables → User-level (`~/.codesurf/user-settings.json`) → Project-level (`.codesurf/settings.json`). Legacy `~/.grok/` and `.grok/` are read as fallback if the new paths don't exist.
+- **Custom instructions**: `~/.codesurf/AGENTS.md`, then `AGENTS.override.md` / `AGENTS.md` per directory from git root through the workspace cwd (Codex-style merge).
+- **ESM only**: The project uses `"type": "module"` — all imports use `.js` extensions for compiled output.
+
+## Latest Grok Models
+
+- grok-4.3 (recommended flagship reasoning)
+- grok-4.20-non-reasoning (recommended non-reasoning)
+- grok-4.20-multi-agent-0309 (multi-agent, 2M context)
+- grok-4.20-0309-reasoning (reasoning, 2M context)
+- grok-3-mini (compact model with reasoning effort controls)
+
+## CI/CD
+
+- **typecheck.yml**: Runs `tsc --noEmit` on push/PR to `main`/`develop`.
+- **security.yml**: Runs `npm audit` and TruffleHog secret scanning.

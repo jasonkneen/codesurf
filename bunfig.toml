@@ -1,0 +1,4 @@
+[install]
+# One node_modules at the root, as when packages/ lived inside the CLI:
+# packages/* resolve their type roots by walking up to it.
+linker = "hoisted"

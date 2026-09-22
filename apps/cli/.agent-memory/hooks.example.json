@@ -1,0 +1,58 @@
+{
+  "_README": [
+    "Example hook configuration for the Oppie persona system.",
+    "",
+    "Why this lives here, not in .codesurf/settings.json:",
+    "  src/hooks/config.ts deliberately ignores project-level hooks because a",
+    "  malicious repo could otherwise execute arbitrary unsandboxed commands.",
+    "  Hooks must be opted into per-machine via ~/.codesurf/user-settings.json.",
+    "",
+    "How to install:",
+    "  1. Open ~/.codesurf/user-settings.json (create if missing).",
+    "  2. Merge the `hooks` block below into your settings.",
+    "  3. Replace <REPO> with the absolute path to this repo on your machine.",
+    "  4. Restart any running codesurf session.",
+    "",
+    "What each hook does:",
+    "  - SessionStart: prints HEARTBEAT.md to stderr so you see pending items at startup.",
+    "  - UserPromptSubmit: nothing yet — wire here if you want a turn-counter.",
+    "  - SessionEnd:   appends a one-line entry to MEMORY.md update log.",
+    "  - Stop:         reminds you to run a DREAMING pass if the session was substantive.",
+    "",
+    "Note: `additionalContext` outputs are NOT yet consumed by the agent loop;",
+    "these hooks are observability and side-effect hooks for now. Turn-based",
+    "context injection requires an agent.ts change tracked under HEARTBEAT phase 3."
+  ],
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "test -f <REPO>/HEARTBEAT.md && cat <REPO>/HEARTBEAT.md >&2 || true"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "printf '\\n- **%s** — session ended (auto)\\n' \"$(date -u +%Y-%m-%dT%H:%M:%SZ)\" >> <REPO>/.agent-memory/MEMORY.md"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"additionalContext\":\"Heartbeat: consider whether DREAMING.md or MEMORY.md needs an update before the next session.\"}'"
+          }
+        ]
+      }
+    ]
+  }
+}

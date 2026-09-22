@@ -1,0 +1,3400 @@
+{
+  "version": 3,
+  "scope": "recursive",
+  "included_features": [
+    "codesurf-daemon",
+    "chat-cli",
+    "chat-policy",
+    "chat-session-store",
+    "client",
+    "context-budget",
+    "context-composer",
+    "contextual-fragments",
+    "contracts",
+    "daemon",
+    "fixtures",
+    "manager",
+    "node-tools",
+    "package-layout",
+    "paths",
+    "peer-authority-policy",
+    "peer-context-policy",
+    "peer-context-serialization",
+    "persona-model-binding",
+    "process-tree",
+    "prompt-conventions",
+    "secure-file-reader",
+    "sse"
+  ],
+  "included_feature_ids": [
+    "f_17a2e36a8c358bc7b1433695717a92ce",
+    "f_716a63e4495808a88cad44979d2fafc6",
+    "f_6b00ff8df0886a9b65416e14acd83474",
+    "f_9efd52c28c3b38453e3005557b30cb17",
+    "f_1d0a1f27ae70993ddcb39502abe3edb2",
+    "f_e319607b9c6705ba67b7cb2c40cc8826",
+    "f_7754b3e830f1376f869566e7885287a4",
+    "f_82986311ea6bf299c96564c78de023e9",
+    "f_4d63aaa250f8b1418bfc492959bb3e64",
+    "f_84a71d368a0fb9444efc939585fe9d50",
+    "f_bbef6b811b11a33a2642fed5ad2145ff",
+    "f_0b1f6ccc9803323bae7b57de0352ee39",
+    "f_76a80109257fe78b8450b61c2d3a7be8",
+    "f_b64cd6f1a1cc843abcc2205558563297",
+    "f_20b23fe7620e51d012883bab1c4847e9",
+    "f_dcabd26d35692194b67ab1ed17574045",
+    "f_3220fc524e88af10c859c7d448af52c5",
+    "f_11909655e8644bc2b0d044c637aa83ff",
+    "f_541fe53fd5737b20befc4f96f50a8a57",
+    "f_9e6cd746cb7db0d635c3cb8cf9694b45",
+    "f_5b9c2a520d559a7cac2455ff21202223",
+    "f_ae2eef32e1fd9d3c56742a243ba7d906",
+    "f_98cf524c5863633eac6ded1aeae62eaf"
+  ],
+  "domain": "codesurf-daemon",
+  "query": "codesurf-daemon",
+  "feature": "codesurf-daemon",
+  "feature_id": "f_17a2e36a8c358bc7b1433695717a92ce",
+  "frozen_at": "2026-08-11T23:02:10Z",
+  "contracts": [
+    {
+      "name": "AGENT_MODE_RESOLUTION_DENIED_ERROR",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/bin/agent-mode-resolver.mjs",
+      "signature": "export { AGENT_MODE_RESOLUTION_DENIED_ERROR }",
+      "outputs": [
+        "AGENT_MODE_RESOLUTION_DENIED_ERROR"
+      ],
+      "line": 9,
+      "surface": "production"
+    },
+    {
+      "name": "DEFAULT_PERSONAS",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/bin/agent-mode-resolver.mjs",
+      "signature": "export { DEFAULT_PERSONAS }",
+      "outputs": [
+        "DEFAULT_PERSONAS"
+      ],
+      "line": 9,
+      "surface": "production"
+    },
+    {
+      "name": "overlayPersonas",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-resolver.mjs",
+      "signature": "export function overlayPersonas(loaded)",
+      "inputs": [
+        "loaded"
+      ],
+      "line": 47,
+      "surface": "production"
+    },
+    {
+      "name": "findPersonaById",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-resolver.mjs",
+      "signature": "export function findPersonaById(personas, personaId)",
+      "inputs": [
+        "personas",
+        "personaId"
+      ],
+      "line": 63,
+      "surface": "production"
+    },
+    {
+      "name": "resolveAuthoritativeAgentMode",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-resolver.mjs",
+      "signature": "export function resolveAuthoritativeAgentMode(options)",
+      "inputs": [
+        "options"
+      ],
+      "line": 70,
+      "surface": "production"
+    },
+    {
+      "name": "listPersonas",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-resolver.mjs",
+      "signature": "export function listPersonas(options)",
+      "inputs": [
+        "options"
+      ],
+      "line": 83,
+      "surface": "production"
+    },
+    {
+      "name": "resolveAgentToolAllowList",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function resolveAgentToolAllowList(agentMode)",
+      "inputs": [
+        "agentMode"
+      ],
+      "line": 13,
+      "surface": "production"
+    },
+    {
+      "name": "agentModeUnresolved",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function agentModeUnresolved(req)",
+      "inputs": [
+        "req"
+      ],
+      "line": 26,
+      "surface": "production"
+    },
+    {
+      "name": "normalizeToolName",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function normalizeToolName(name)",
+      "inputs": [
+        "name"
+      ],
+      "line": 37,
+      "surface": "production"
+    },
+    {
+      "name": "isToolAllowedByAgent",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function isToolAllowedByAgent(toolName, allowList)",
+      "inputs": [
+        "toolName",
+        "allowList"
+      ],
+      "line": 45,
+      "surface": "production"
+    },
+    {
+      "name": "harnessReadsUnenforceable",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function harnessReadsUnenforceable(allowList)",
+      "inputs": [
+        "allowList"
+      ],
+      "line": 65,
+      "surface": "production"
+    },
+    {
+      "name": "allowListGrantsWrite",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function allowListGrantsWrite(allowList)",
+      "inputs": [
+        "allowList"
+      ],
+      "line": 79,
+      "surface": "production"
+    },
+    {
+      "name": "codexShouldForceReadOnly",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function codexShouldForceReadOnly(allowList)",
+      "inputs": [
+        "allowList"
+      ],
+      "line": 87,
+      "surface": "production"
+    },
+    {
+      "name": "codexDenyAllUnsupported",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function codexDenyAllUnsupported(allowList)",
+      "inputs": [
+        "allowList"
+      ],
+      "line": 98,
+      "surface": "production"
+    },
+    {
+      "name": "codexSandboxApprovalFlags",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function codexSandboxApprovalFlags(mode, allowList)",
+      "inputs": [
+        "mode",
+        "allowList"
+      ],
+      "line": 128,
+      "surface": "production"
+    },
+    {
+      "name": "hermesToolsetsFromAllowList",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/agent-mode-tools.mjs",
+      "signature": "export function hermesToolsetsFromAllowList(allowList)",
+      "inputs": [
+        "allowList"
+      ],
+      "line": 154,
+      "surface": "production"
+    },
+    {
+      "name": "sanitizeAttachmentDisplayName",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function sanitizeAttachmentDisplayName(value)",
+      "inputs": [
+        "value"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "assertOwnedTempSecurityBoundary",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function assertOwnedTempSecurityBoundary({ stat, canonicalPath, canonicalUserProfilePath = null, currentUid, platform = process.platform, subject = 'Owned temporary attachment', } = {})",
+      "inputs": [
+        "{ stat, canonicalPath, canonicalUserProfilePath = null, currentUid, platform = process.platform, subject = 'Owned temporary attachment', } = {}"
+      ],
+      "line": 46,
+      "surface": "production"
+    },
+    {
+      "name": "resolveOwnedTempSecurityContext",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function resolveOwnedTempSecurityContext()",
+      "line": 71,
+      "surface": "production"
+    },
+    {
+      "name": "issueAttachmentCapabilities",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function issueAttachmentCapabilities({ workspaceId, cardId, paths, ownedTemporary = false, ownedTempRoot = null, } = {})",
+      "inputs": [
+        "{ workspaceId, cardId, paths, ownedTemporary = false, ownedTempRoot = null, } = {}"
+      ],
+      "line": 244,
+      "surface": "production"
+    },
+    {
+      "name": "reserveAttachmentCapabilities",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function reserveAttachmentCapabilities({ capabilities, workspaceId, cardId, sampleBytes = 16 * 1024, } = {})",
+      "inputs": [
+        "{ capabilities, workspaceId, cardId, sampleBytes = 16 * 1024, } = {}"
+      ],
+      "line": 336,
+      "surface": "production"
+    },
+    {
+      "name": "getReservedAttachmentCapability",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function getReservedAttachmentCapability(reservation, capability)",
+      "inputs": [
+        "reservation",
+        "capability"
+      ],
+      "line": 393,
+      "surface": "production"
+    },
+    {
+      "name": "rollbackAttachmentCapabilityReservation",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function rollbackAttachmentCapabilityReservation(reservation)",
+      "inputs": [
+        "reservation"
+      ],
+      "line": 403,
+      "surface": "production"
+    },
+    {
+      "name": "commitAttachmentCapabilityReservation",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function commitAttachmentCapabilityReservation( reservation, { deferOwnedCapabilities = [] } = {}, )",
+      "inputs": [
+        "reservation",
+        "{ deferOwnedCapabilities = [] } = {}"
+      ],
+      "line": 423,
+      "surface": "production"
+    },
+    {
+      "name": "preflightAttachmentCapabilities",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function preflightAttachmentCapabilities(args = {})",
+      "inputs": [
+        "args = {}"
+      ],
+      "line": 460,
+      "surface": "production"
+    },
+    {
+      "name": "disposeAttachmentCapabilities",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function disposeAttachmentCapabilities()",
+      "line": 469,
+      "surface": "production"
+    },
+    {
+      "name": "expireAttachmentCapabilitiesForTests",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function expireAttachmentCapabilitiesForTests()",
+      "line": 477,
+      "surface": "production"
+    },
+    {
+      "name": "sweepStaleOwnedTempAttachments",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function sweepStaleOwnedTempAttachments({ ownedTempRoot, now = Date.now(), ttlMs = OWNED_TEMP_ATTACHMENT_TTL_MS, protectedPaths = [], } = {})",
+      "inputs": [
+        "{ ownedTempRoot, now = Date.now(), ttlMs = OWNED_TEMP_ATTACHMENT_TTL_MS, protectedPaths = [], } = {}"
+      ],
+      "line": 481,
+      "surface": "production"
+    },
+    {
+      "name": "attachmentCapabilityStatsForTests",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-capabilities.mjs",
+      "signature": "export function attachmentCapabilityStatsForTests()",
+      "line": 578,
+      "surface": "production"
+    },
+    {
+      "name": "createAttachmentSelectionRegistry",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/attachment-selections.mjs",
+      "signature": "export function createAttachmentSelectionRegistry({ storePath, ownedTempRoot, now = () => Date.now(), receiptTtlMs = SELECTION_RECEIPT_TTL_MS, } = {})",
+      "inputs": [
+        "{ storePath, ownedTempRoot, now = () => Date.now()",
+        "receiptTtlMs = SELECTION_RECEIPT_TTL_MS",
+        "} = {}"
+      ],
+      "line": 250,
+      "surface": "production"
+    },
+    {
+      "name": "revalidateDaemonContextRequest",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/chat-jobs.mjs",
+      "signature": "export function revalidateDaemonContextRequest(request = {})",
+      "inputs": [
+        "request = {}"
+      ],
+      "line": 834,
+      "surface": "production"
+    },
+    {
+      "name": "buildCodexExecArgs",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/chat-jobs.mjs",
+      "signature": "export function buildCodexExecArgs(request, workspaceDir, instructionPrompt = '', options = {})",
+      "inputs": [
+        "request",
+        "workspaceDir",
+        "instructionPrompt = ''",
+        "options = {}"
+      ],
+      "line": 1023,
+      "surface": "production"
+    },
+    {
+      "name": "shouldUseHarness",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/chat-jobs.mjs",
+      "signature": "export function shouldUseHarness(request)",
+      "inputs": [
+        "request"
+      ],
+      "line": 1092,
+      "surface": "production"
+    },
+    {
+      "name": "hermesToolsetsForRequest",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/chat-jobs.mjs",
+      "signature": "export function hermesToolsetsForRequest(request)",
+      "inputs": [
+        "request"
+      ],
+      "line": 1103,
+      "surface": "production"
+    },
+    {
+      "name": "createSseSubscriberRegistry",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/chat-jobs.mjs",
+      "signature": "export function createSseSubscriberRegistry({ maxQueuedEvents = 256, maxQueuedBytes = 1024 * 1024, drainTimeoutMs = 30_000, heartbeatMs = 15_000, } = {})",
+      "inputs": [
+        "{ maxQueuedEvents = 256, maxQueuedBytes = 1024 * 1024, drainTimeoutMs = 30_000, heartbeatMs = 15_000, } = {}"
+      ],
+      "line": 1271,
+      "surface": "production"
+    },
+    {
+      "name": "createChatJobManager",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/chat-jobs.mjs",
+      "signature": "export function createChatJobManager({ homeDir, checkpointStore = null, claudeQuery = query, codexSdkFactory = null, harnessRunnerFactory = null, maxConcurrentJobs = 4, subscriberMaxQueuedEvents = 256, subscriberMaxQueuedBytes = 1024 * 1024, subscriberDrainTimeoutMs = 30_000, heartbeatMs = 15_000, timelineMaxQueuedEvents = 512, timelineMaxQueuedBytes = 4 * 1024 * 1024, timelineMaxFailedRecords = 128, timelineAppendMaxAttempts = 3, timelineAppendRetryDelayMs = 25, timelineAppend = (path, data) => fs.appendFile(path, data, 'utf8'), timelineReadStream = path => createReadStream(path), metadataWrite = (path, data) => fs.writeFile(path, data, 'utf8'), })",
+      "inputs": [
+        "{ homeDir, checkpointStore = null, claudeQuery = query, codexSdkFactory = null, harnessRunnerFactory = null, maxConcurrentJobs = 4, subscriberMaxQueuedEvents = 256, subscriberMaxQueuedBytes = 1024 * 1024, subscriberDrainTimeoutMs = 30_000, heartbeatMs = 15_000, timelineMaxQueuedEvents = 512, timelineMaxQueuedBytes = 4 * 1024 * 1024, timelineMaxFailedRecords = 128, timelineAppendMaxAttempts = 3, timelineAppendRetryDelayMs = 25, timelineAppend = (path, data) => fs.appendFile(path, data, 'utf8')",
+        "timelineReadStream = path => createReadStream(path), metadataWrite = (path",
+        "data) => fs.writeFile(path, data, 'utf8'), }"
+      ],
+      "line": 1583,
+      "surface": "production"
+    },
+    {
+      "name": "createCheckpointStore",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/checkpoints.mjs",
+      "signature": "export function createCheckpointStore({ assertSafeId, atomicWriteJson, materializeWorkspace, readJsonFile, readWorkspaceState, runtimeSessionStatePath, workspaceContexDir, })",
+      "inputs": [
+        "{ assertSafeId, atomicWriteJson, materializeWorkspace, readJsonFile, readWorkspaceState, runtimeSessionStatePath, workspaceContexDir, }"
+      ],
+      "line": 152,
+      "surface": "production"
+    },
+    {
+      "name": "shouldUseCodexSdkProvider",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-provider.mjs",
+      "signature": "export function shouldUseCodexSdkProvider(request)",
+      "inputs": [
+        "request"
+      ],
+      "line": 24,
+      "surface": "production"
+    },
+    {
+      "name": "normalizeCodexSdkMode",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-provider.mjs",
+      "signature": "export function normalizeCodexSdkMode(mode)",
+      "inputs": [
+        "mode"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "codexSdkModePolicy",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-provider.mjs",
+      "signature": "export function codexSdkModePolicy(mode, allowList)",
+      "inputs": [
+        "mode",
+        "allowList"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "buildCodexSdkThreadOptions",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-provider.mjs",
+      "signature": "export function buildCodexSdkThreadOptions(request, workspaceDir)",
+      "inputs": [
+        "request",
+        "workspaceDir"
+      ],
+      "line": 47,
+      "surface": "production"
+    },
+    {
+      "name": "startCodexSdkThread",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-provider.mjs",
+      "signature": "export function startCodexSdkThread(codex, request, threadOptions)",
+      "inputs": [
+        "codex",
+        "request",
+        "threadOptions"
+      ],
+      "line": 61,
+      "surface": "production"
+    },
+    {
+      "name": "createCodexSdkClient",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-provider.mjs",
+      "signature": "export function createCodexSdkClient({ codexSdkFactory = null, env = undefined, config = undefined } = {})",
+      "inputs": [
+        "{ codexSdkFactory = null, env = undefined, config = undefined } = {}"
+      ],
+      "line": 81,
+      "surface": "production"
+    },
+    {
+      "name": "isCodexSdkEnabled",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/codex-sdk-settings.mjs",
+      "signature": "export function isCodexSdkEnabled({ settings, env = process.env, provider } = {})",
+      "inputs": [
+        "{ settings, env = process.env, provider } = {}"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "getIncludedContextBuckets",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-buckets.mjs",
+      "signature": "export function getIncludedContextBuckets(executionTarget = 'local')",
+      "inputs": [
+        "executionTarget = 'local'"
+      ],
+      "line": 3,
+      "surface": "production"
+    },
+    {
+      "name": "buildContextBucketBundle",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-buckets.mjs",
+      "signature": "export function buildContextBucketBundle(context, promptOverride)",
+      "inputs": [
+        "context",
+        "promptOverride"
+      ],
+      "line": 9,
+      "surface": "production"
+    },
+    {
+      "name": "describeContextBucketsForTool",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-buckets.mjs",
+      "signature": "export function describeContextBucketsForTool(bundle, promptOverride)",
+      "inputs": [
+        "bundle",
+        "promptOverride"
+      ],
+      "line": 20,
+      "surface": "production"
+    },
+    {
+      "name": "buildContextBucketToolInput",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-buckets.mjs",
+      "signature": "export function buildContextBucketToolInput(bundle, promptOverride)",
+      "inputs": [
+        "bundle",
+        "promptOverride"
+      ],
+      "line": 53,
+      "surface": "production"
+    },
+    {
+      "name": "utf8ByteLength",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function utf8ByteLength(value)",
+      "inputs": [
+        "value"
+      ],
+      "line": 21,
+      "surface": "production"
+    },
+    {
+      "name": "truncationMarker",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function truncationMarker(reason, originalBytes, maxBytes)",
+      "inputs": [
+        "reason",
+        "originalBytes",
+        "maxBytes"
+      ],
+      "line": 48,
+      "surface": "production"
+    },
+    {
+      "name": "truncateUtf8",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function truncateUtf8(value, maxBytes, { reason = 'context byte limit', originalBytes, } = {})",
+      "inputs": [
+        "value",
+        "maxBytes",
+        "{ reason = 'context byte limit', originalBytes, } = {}"
+      ],
+      "line": 53,
+      "surface": "production"
+    },
+    {
+      "name": "truncateUtf8Buffer",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function truncateUtf8Buffer(value, maxBytes, options = {})",
+      "inputs": [
+        "value",
+        "maxBytes",
+        "options = {}"
+      ],
+      "line": 100,
+      "surface": "production"
+    },
+    {
+      "name": "boundContextWithReservedSuffix",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function boundContextWithReservedSuffix( value, suffixValue, maxBytes, { reason = 'context byte limit', suffixReason = reason, } = {}, )",
+      "inputs": [
+        "value",
+        "suffixValue",
+        "maxBytes",
+        "{ reason = 'context byte limit', suffixReason = reason, } = {}"
+      ],
+      "line": 128,
+      "surface": "production"
+    },
+    {
+      "name": "budgetInstructionFragments",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function budgetInstructionFragments(fragments, { maxSections = MAX_INSTRUCTION_SECTIONS, maxBytes = MAX_AGGREGATE_INSTRUCTION_BYTES, reservedBytes = 0, } = {})",
+      "inputs": [
+        "fragments",
+        "{ maxSections = MAX_INSTRUCTION_SECTIONS, maxBytes = MAX_AGGREGATE_INSTRUCTION_BYTES, reservedBytes = 0, } = {}"
+      ],
+      "line": 207,
+      "surface": "production"
+    },
+    {
+      "name": "formatInstructionBudgetNotice",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function formatInstructionBudgetNotice(budget, extraNotices = [])",
+      "inputs": [
+        "budget",
+        "extraNotices = []"
+      ],
+      "line": 315,
+      "surface": "production"
+    },
+    {
+      "name": "previewContextToolInput",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/context-budget.mjs",
+      "signature": "export function previewContextToolInput(value)",
+      "inputs": [
+        "value"
+      ],
+      "line": 332,
+      "surface": "production"
+    },
+    {
+      "name": "expandFileReferences",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/file-references.mjs",
+      "signature": "export function expandFileReferences({ message, workspaceId, cardId, workspaceDir, executionTarget = 'local', maxReferences = DEFAULT_MAX_REFERENCES, maxBytesPerFile = DEFAULT_MAX_BYTES_PER_FILE, supportedImageMediaTypes, attachmentSelections, attachmentSelectionRegistry, } = {})",
+      "inputs": [
+        "{ message, workspaceId, cardId, workspaceDir, executionTarget = 'local', maxReferences = DEFAULT_MAX_REFERENCES, maxBytesPerFile = DEFAULT_MAX_BYTES_PER_FILE, supportedImageMediaTypes, attachmentSelections, attachmentSelectionRegistry, } = {}"
+      ],
+      "line": 149,
+      "surface": "production"
+    },
+    {
+      "name": "isToolAllowedByAgent",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/bin/harness-runtime.mjs",
+      "signature": "export { isToolAllowedByAgent }",
+      "outputs": [
+        "isToolAllowedByAgent"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "PI_HARNESS_UNAVAILABLE_ERROR",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/bin/harness-runtime.mjs",
+      "signature": "export { PI_HARNESS_UNAVAILABLE_ERROR }",
+      "outputs": [
+        "PI_HARNESS_UNAVAILABLE_ERROR"
+      ],
+      "line": 44,
+      "surface": "production"
+    },
+    {
+      "name": "LocalHostSandboxProvider",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/bin/harness-runtime.mjs",
+      "signature": "export class LocalHostSandboxProvider",
+      "outputs": [
+        "class LocalHostSandboxProvider"
+      ],
+      "line": 230,
+      "surface": "production"
+    },
+    {
+      "name": "pumpHarnessStream",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-runtime.mjs",
+      "signature": "export function pumpHarnessStream(stream, jobId, appendEvent)",
+      "inputs": [
+        "stream",
+        "jobId",
+        "appendEvent"
+      ],
+      "line": 268,
+      "surface": "production"
+    },
+    {
+      "name": "createHarnessRunner",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-runtime.mjs",
+      "signature": "export function createHarnessRunner({ homeDir, createAgent, bindWorkspace: bindWorkspaceImpl = bindWorkspace } = {})",
+      "inputs": [
+        "{ homeDir, createAgent, bindWorkspace: bindWorkspaceImpl = bindWorkspace } = {}"
+      ],
+      "line": 364,
+      "surface": "production"
+    },
+    {
+      "name": "isHarnessEnabled",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-settings.mjs",
+      "signature": "export function isHarnessEnabled({ settings, env, provider } = {})",
+      "inputs": [
+        "{ settings, env, provider } = {}"
+      ],
+      "line": 14,
+      "surface": "production"
+    },
+    {
+      "name": "isGitRepo",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function isGitRepo(dir)",
+      "inputs": [
+        "dir"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "repoToplevel",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function repoToplevel(dir)",
+      "inputs": [
+        "dir"
+      ],
+      "line": 38,
+      "surface": "production"
+    },
+    {
+      "name": "createSessionWorktree",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function createSessionWorktree({ workspaceDir, worktreeRoot, sessionId })",
+      "inputs": [
+        "{ workspaceDir, worktreeRoot, sessionId }"
+      ],
+      "line": 64,
+      "surface": "production"
+    },
+    {
+      "name": "changedFiles",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function changedFiles(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 79,
+      "surface": "production"
+    },
+    {
+      "name": "ignoredCreated",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function ignoredCreated(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 89,
+      "surface": "production"
+    },
+    {
+      "name": "changedFilesAbsolute",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function changedFilesAbsolute(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 94,
+      "surface": "production"
+    },
+    {
+      "name": "ignoredCreatedAbsolute",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function ignoredCreatedAbsolute(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 98,
+      "surface": "production"
+    },
+    {
+      "name": "diffWorktree",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function diffWorktree(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 104,
+      "surface": "production"
+    },
+    {
+      "name": "applyPaths",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function applyPaths(wt, relPaths)",
+      "inputs": [
+        "wt",
+        "relPaths"
+      ],
+      "line": 126,
+      "surface": "production"
+    },
+    {
+      "name": "applyWorktree",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function applyWorktree(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 151,
+      "surface": "production"
+    },
+    {
+      "name": "removeWorktree",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/harness-worktree.mjs",
+      "signature": "export function removeWorktree(wt)",
+      "inputs": [
+        "wt"
+      ],
+      "line": 155,
+      "surface": "production"
+    },
+    {
+      "name": "loadInstructionContext",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/instruction-context.mjs",
+      "signature": "export function loadInstructionContext({ homeDir, workspaceDir, executionTarget = 'local', } = {})",
+      "inputs": [
+        "{ homeDir, workspaceDir, executionTarget = 'local', } = {}"
+      ],
+      "line": 8,
+      "surface": "production"
+    },
+    {
+      "name": "buildInstructionPrompt",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/instruction-context.mjs",
+      "signature": "export function buildInstructionPrompt(context)",
+      "inputs": [
+        "context"
+      ],
+      "line": 29,
+      "surface": "production"
+    },
+    {
+      "name": "loadMemoryContext",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/memory-loader.mjs",
+      "signature": "export function loadMemoryContext({ homeDir, workspaceDir, projectPaths = [], executionTarget = 'local', } = {})",
+      "inputs": [
+        "{ homeDir, workspaceDir, projectPaths = [], executionTarget = 'local', } = {}"
+      ],
+      "line": 17,
+      "surface": "production"
+    },
+    {
+      "name": "buildMemoryPrompt",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/memory-loader.mjs",
+      "signature": "export function buildMemoryPrompt(context)",
+      "inputs": [
+        "context"
+      ],
+      "line": 166,
+      "surface": "production"
+    },
+    {
+      "name": "describeMemoryContextForTool",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/memory-loader.mjs",
+      "signature": "export function describeMemoryContextForTool(context, promptOverride)",
+      "inputs": [
+        "context",
+        "promptOverride"
+      ],
+      "line": 198,
+      "surface": "production"
+    },
+    {
+      "name": "normalizeOmnigentServerRoot",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function normalizeOmnigentServerRoot(value)",
+      "inputs": [
+        "value"
+      ],
+      "line": 21,
+      "surface": "production"
+    },
+    {
+      "name": "omnigentEndpointUrl",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function omnigentEndpointUrl(baseUrl, path)",
+      "inputs": [
+        "baseUrl",
+        "path"
+      ],
+      "line": 26,
+      "surface": "production"
+    },
+    {
+      "name": "omnigentAuthHeaders",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function omnigentAuthHeaders(apiKey)",
+      "inputs": [
+        "apiKey"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "decodeOmnigentModelId",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function decodeOmnigentModelId(modelId)",
+      "inputs": [
+        "modelId"
+      ],
+      "line": 37,
+      "surface": "production"
+    },
+    {
+      "name": "extractOmnigentSessionId",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function extractOmnigentSessionId(payload)",
+      "inputs": [
+        "payload"
+      ],
+      "line": 55,
+      "surface": "production"
+    },
+    {
+      "name": "parseOmnigentHosts",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function parseOmnigentHosts(payload)",
+      "inputs": [
+        "payload"
+      ],
+      "line": 70,
+      "surface": "production"
+    },
+    {
+      "name": "chooseOmnigentHost",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function chooseOmnigentHost(hosts)",
+      "inputs": [
+        "hosts"
+      ],
+      "line": 100,
+      "surface": "production"
+    },
+    {
+      "name": "buildOmnigentSessionBody",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function buildOmnigentSessionBody({ agentId, hostId, title, workspace } = {})",
+      "inputs": [
+        "{ agentId, hostId, title, workspace } = {}"
+      ],
+      "line": 110,
+      "surface": "production"
+    },
+    {
+      "name": "parseOmnigentServerUrl",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function parseOmnigentServerUrl(output)",
+      "inputs": [
+        "output"
+      ],
+      "line": 119,
+      "surface": "production"
+    },
+    {
+      "name": "parseOmnigentStatusJson",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function parseOmnigentStatusJson(output)",
+      "inputs": [
+        "output"
+      ],
+      "line": 124,
+      "surface": "production"
+    },
+    {
+      "name": "parseOmnigentSseChunk",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function parseOmnigentSseChunk(chunk)",
+      "inputs": [
+        "chunk"
+      ],
+      "line": 139,
+      "surface": "production"
+    },
+    {
+      "name": "mapOmnigentStreamEvent",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-provider.mjs",
+      "signature": "export function mapOmnigentStreamEvent(raw)",
+      "inputs": [
+        "raw"
+      ],
+      "line": 180,
+      "surface": "production"
+    },
+    {
+      "name": "resolveOmnigentSettings",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/omnigent-settings.mjs",
+      "signature": "export function resolveOmnigentSettings({ settings, env = process.env } = {})",
+      "inputs": [
+        "{ settings, env = process.env } = {}"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "processTreeSpawnOptions",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/process-tree.mjs",
+      "signature": "export function processTreeSpawnOptions(options = {})",
+      "inputs": [
+        "options = {}"
+      ],
+      "line": 254,
+      "surface": "production"
+    },
+    {
+      "name": "terminateProcessTree",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/process-tree.mjs",
+      "signature": "export function terminateProcessTree(proc, options = {})",
+      "inputs": [
+        "proc",
+        "options = {}"
+      ],
+      "line": 267,
+      "surface": "production"
+    },
+    {
+      "name": "applyProjectContextPolicy",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/project-context.mjs",
+      "signature": "export function applyProjectContextPolicy({ executionTarget = 'local', projectContext = {} } = {})",
+      "inputs": [
+        "{ executionTarget = 'local', projectContext = {} } = {}"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "fileIdentity",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/secure-file-reader.mjs",
+      "signature": "export function fileIdentity(stat)",
+      "inputs": [
+        "stat"
+      ],
+      "line": 5,
+      "surface": "production"
+    },
+    {
+      "name": "assertFileIdentity",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/secure-file-reader.mjs",
+      "signature": "export function assertFileIdentity(stat, expected, label = 'File')",
+      "inputs": [
+        "stat",
+        "expected",
+        "label = 'File'"
+      ],
+      "line": 15,
+      "surface": "production"
+    },
+    {
+      "name": "openNoFollowFile",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/secure-file-reader.mjs",
+      "signature": "export function openNoFollowFile(path, expectedIdentity, label = 'File')",
+      "inputs": [
+        "path",
+        "expectedIdentity",
+        "label = 'File'"
+      ],
+      "line": 29,
+      "surface": "production"
+    },
+    {
+      "name": "readHandlePrefix",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/secure-file-reader.mjs",
+      "signature": "export function readHandlePrefix(handle, byteCount, maxBytes, includeOverflowByte = false)",
+      "inputs": [
+        "handle",
+        "byteCount",
+        "maxBytes",
+        "includeOverflowByte = false"
+      ],
+      "line": 41,
+      "surface": "production"
+    },
+    {
+      "name": "readVerifiedFile",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/secure-file-reader.mjs",
+      "signature": "export function readVerifiedFile({ path, identity, maxBytes, label = 'Attachment', beforeFinalStat, })",
+      "inputs": [
+        "{ path, identity, maxBytes, label = 'Attachment', beforeFinalStat, }"
+      ],
+      "line": 59,
+      "surface": "production"
+    },
+    {
+      "name": "ensureCodeSurfStructure",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/session-index.mjs",
+      "signature": "export function ensureCodeSurfStructure(codesurfHome, workspacePath)",
+      "inputs": [
+        "codesurfHome",
+        "workspacePath"
+      ],
+      "line": 59,
+      "surface": "production"
+    },
+    {
+      "name": "listExternalSessionEntries",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/session-index.mjs",
+      "signature": "export function listExternalSessionEntries(codesurfHome, workspacePath, options)",
+      "inputs": [
+        "codesurfHome",
+        "workspacePath",
+        "options"
+      ],
+      "line": 1071,
+      "surface": "production"
+    },
+    {
+      "name": "findSessionEntryById",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/session-index.mjs",
+      "signature": "export function findSessionEntryById(codesurfHome, workspacePath, id)",
+      "inputs": [
+        "codesurfHome",
+        "workspacePath",
+        "id"
+      ],
+      "line": 1094,
+      "surface": "production"
+    },
+    {
+      "name": "getExternalSessionChatState",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/session-index.mjs",
+      "signature": "export function getExternalSessionChatState(codesurfHome, workspacePath, id)",
+      "inputs": [
+        "codesurfHome",
+        "workspacePath",
+        "id"
+      ],
+      "line": 1385,
+      "surface": "production"
+    },
+    {
+      "name": "invalidateExternalSessionCache",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/session-index.mjs",
+      "signature": "export function invalidateExternalSessionCache(workspacePath)",
+      "inputs": [
+        "workspacePath"
+      ],
+      "line": 1400,
+      "surface": "production"
+    },
+    {
+      "name": "buildSkillSelectionPrompt",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/skills-index.mjs",
+      "signature": "export function buildSkillSelectionPrompt({ skills, selection })",
+      "inputs": [
+        "{ skills, selection }"
+      ],
+      "line": 404,
+      "surface": "production"
+    },
+    {
+      "name": "createSkillsIndex",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/bin/skills-index.mjs",
+      "signature": "export function createSkillsIndex({ homeDir, userHomeDir })",
+      "inputs": [
+        "{ homeDir, userHomeDir }"
+      ],
+      "line": 583,
+      "surface": "production"
+    },
+    {
+      "name": "StableSessionContextCache",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/bin/stable-session-context.mjs",
+      "signature": "export class StableSessionContextCache",
+      "outputs": [
+        "class StableSessionContextCache"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "buildDist",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/scripts/build-dist.mjs",
+      "signature": "export function buildDist({ outDir = join(packageDir, 'dist'), clean = true, stdio = 'inherit', } = {})",
+      "inputs": [
+        "{ outDir = join(packageDir, 'dist'), clean = true, stdio = 'inherit', } = {}"
+      ],
+      "line": 16,
+      "surface": "production"
+    },
+    {
+      "name": "compareDistTrees",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/scripts/verify-dist.mjs",
+      "signature": "export function compareDistTrees(expectedDir, actualDir)",
+      "inputs": [
+        "expectedDir",
+        "actualDir"
+      ],
+      "line": 19,
+      "surface": "production"
+    },
+    {
+      "name": "verifyDist",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/scripts/verify-dist.mjs",
+      "signature": "export function verifyDist({ committedDir = join(packageDir, 'dist'), build = buildDist, } = {})",
+      "inputs": [
+        "{ committedDir = join(packageDir, 'dist'), build = buildDist, } = {}"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "parseChatArgs",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-cli.ts",
+      "signature": "export function parseChatArgs(argv: string[]): ParsedChatArgs",
+      "inputs": [
+        "argv: string[]"
+      ],
+      "outputs": [
+        "ParsedChatArgs"
+      ],
+      "line": 121,
+      "surface": "production"
+    },
+    {
+      "name": "resolveChatArgs",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-cli.ts",
+      "signature": "export function resolveChatArgs( parsed: ParsedChatArgs, homeDir: string, personaSeed: PersonaModelSeed | null = null, ): ResolvedChatArgs",
+      "inputs": [
+        "parsed: ParsedChatArgs",
+        "homeDir: string",
+        "personaSeed: PersonaModelSeed | null = null"
+      ],
+      "outputs": [
+        "ResolvedChatArgs"
+      ],
+      "line": 208,
+      "surface": "production"
+    },
+    {
+      "name": "buildStartRequest",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-cli.ts",
+      "signature": "export function buildStartRequest(params: { args: ResolvedChatArgs prior: ChatCliSession | null message: string workspaceId: string }): DaemonChatJobRequest",
+      "inputs": [
+        "params: { args: ResolvedChatArgs prior: ChatCliSession | null message: string workspaceId: string }"
+      ],
+      "outputs": [
+        "DaemonChatJobRequest"
+      ],
+      "line": 309,
+      "surface": "production"
+    },
+    {
+      "name": "runCodesurfChatCli",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-cli.ts",
+      "signature": "export function runCodesurfChatCli(argv: string[], options: ChatCliRunOptions = {}): Promise<number>",
+      "inputs": [
+        "argv: string[]",
+        "options: ChatCliRunOptions = {}"
+      ],
+      "outputs": [
+        "Promise<number>"
+      ],
+      "line": 768,
+      "surface": "production"
+    },
+    {
+      "name": "ChatPolicyErrorCode",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export type ChatPolicyErrorCode",
+      "outputs": [
+        "type ChatPolicyErrorCode"
+      ],
+      "line": 12,
+      "surface": "production"
+    },
+    {
+      "name": "ChatPolicyError",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export class ChatPolicyError",
+      "outputs": [
+        "class ChatPolicyError"
+      ],
+      "line": 20,
+      "surface": "production"
+    },
+    {
+      "name": "PolicyPersonaBinding",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export interface PolicyPersonaBinding",
+      "outputs": [
+        "interface PolicyPersonaBinding"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "PolicyPersona",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export interface PolicyPersona",
+      "outputs": [
+        "interface PolicyPersona"
+      ],
+      "line": 35,
+      "surface": "production"
+    },
+    {
+      "name": "overlayAuthoritativePersonas",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function overlayAuthoritativePersonas(document: unknown): PolicyPersona[]",
+      "inputs": [
+        "document: unknown"
+      ],
+      "outputs": [
+        "PolicyPersona[]"
+      ],
+      "line": 217,
+      "surface": "production"
+    },
+    {
+      "name": "resolveAuthoritativePersona",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function resolveAuthoritativePersona(options: { agentId: unknown workspaceRoot: unknown }): Promise<{ ok: true, agentMode: PolicyPersona | null } | { ok: false, error: string }>",
+      "inputs": [
+        "options: { agentId: unknown workspaceRoot: unknown }"
+      ],
+      "outputs": [
+        "Promise<{ ok: true, agentMode: PolicyPersona | null } | { ok: false, error: string }>"
+      ],
+      "line": 361,
+      "surface": "production"
+    },
+    {
+      "name": "listAuthoritativePersonas",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function listAuthoritativePersonas(workspaceRoot: unknown): Promise<PolicyPersona[]>",
+      "inputs": [
+        "workspaceRoot: unknown"
+      ],
+      "outputs": [
+        "Promise<PolicyPersona[]>"
+      ],
+      "line": 387,
+      "surface": "production"
+    },
+    {
+      "name": "bindChatRequestToWorkspace",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function bindChatRequestToWorkspace( request: T, workspace: { id: string, path: string }, ): Promise<T & { workspaceId: string, workspaceDir: string }>",
+      "inputs": [
+        "request: T",
+        "workspace: { id: string, path: string }"
+      ],
+      "outputs": [
+        "Promise<T & { workspaceId: string, workspaceDir: string }>"
+      ],
+      "line": 399,
+      "surface": "production"
+    },
+    {
+      "name": "assertProviderPersonaEnforceable",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function assertProviderPersonaEnforceable(providerValue: unknown, persona: PolicyPersona | null): void",
+      "inputs": [
+        "providerValue: unknown",
+        "persona: PolicyPersona | null"
+      ],
+      "outputs": [
+        "void"
+      ],
+      "line": 444,
+      "surface": "production"
+    },
+    {
+      "name": "codexExecPermissionArgs",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function codexExecPermissionArgs(modeValue: unknown): string[]",
+      "inputs": [
+        "modeValue: unknown"
+      ],
+      "outputs": [
+        "string[]"
+      ],
+      "line": 460,
+      "surface": "production"
+    },
+    {
+      "name": "stripUntrustedPrivilegedChatContext",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-policy.ts",
+      "signature": "export function stripUntrustedPrivilegedChatContext(request: T): T",
+      "inputs": [
+        "request: T"
+      ],
+      "outputs": [
+        "T"
+      ],
+      "line": 488,
+      "surface": "production"
+    },
+    {
+      "name": "ChatCliSession",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export interface ChatCliSession",
+      "outputs": [
+        "interface ChatCliSession"
+      ],
+      "line": 5,
+      "surface": "production"
+    },
+    {
+      "name": "ChatCliSessionStore",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export interface ChatCliSessionStore",
+      "outputs": [
+        "interface ChatCliSessionStore"
+      ],
+      "line": 19,
+      "surface": "production"
+    },
+    {
+      "name": "ChatCliSessionIdentity",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export interface ChatCliSessionIdentity",
+      "outputs": [
+        "interface ChatCliSessionIdentity"
+      ],
+      "line": 25,
+      "surface": "production"
+    },
+    {
+      "name": "chatCliSessionStorePath",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function chatCliSessionStorePath(homeDir: string): string",
+      "inputs": [
+        "homeDir: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 33,
+      "surface": "production"
+    },
+    {
+      "name": "normalizeChatCliSessionIdentity",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function normalizeChatCliSessionIdentity( identity: ChatCliSessionIdentity, )",
+      "inputs": [
+        "identity: ChatCliSessionIdentity"
+      ],
+      "line": 37,
+      "surface": "production"
+    },
+    {
+      "name": "chatCliSessionKey",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function chatCliSessionKey(identity: ChatCliSessionIdentity): string",
+      "inputs": [
+        "identity: ChatCliSessionIdentity"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 47,
+      "surface": "production"
+    },
+    {
+      "name": "readChatCliSessionStore",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function readChatCliSessionStore(homeDir: string): ChatCliSessionStore",
+      "inputs": [
+        "homeDir: string"
+      ],
+      "outputs": [
+        "ChatCliSessionStore"
+      ],
+      "line": 78,
+      "surface": "production"
+    },
+    {
+      "name": "writeChatCliSessionStore",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function writeChatCliSessionStore(homeDir: string, store: ChatCliSessionStore): void",
+      "inputs": [
+        "homeDir: string",
+        "store: ChatCliSessionStore"
+      ],
+      "outputs": [
+        "void"
+      ],
+      "line": 94,
+      "surface": "production"
+    },
+    {
+      "name": "readChatCliSession",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function readChatCliSession(homeDir: string, identity: ChatCliSessionIdentity): ChatCliSession | null",
+      "inputs": [
+        "homeDir: string",
+        "identity: ChatCliSessionIdentity"
+      ],
+      "outputs": [
+        "ChatCliSession | null"
+      ],
+      "line": 102,
+      "surface": "production"
+    },
+    {
+      "name": "upsertChatCliSession",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function upsertChatCliSession(homeDir: string, session: Omit<ChatCliSession, 'key' | 'updatedAt' | 'agentId'> & { key?: string updatedAt?: string agentId?: string | null }): ChatCliSession",
+      "inputs": [
+        "homeDir: string",
+        "session: Omit<ChatCliSession, 'key' | 'updatedAt' | 'agentId'> & { key?: string updatedAt?: string agentId?: string | null }"
+      ],
+      "outputs": [
+        "ChatCliSession"
+      ],
+      "line": 107,
+      "surface": "production"
+    },
+    {
+      "name": "clearChatCliSession",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/chat-session-store.ts",
+      "signature": "export function clearChatCliSession(homeDir: string, identity: ChatCliSessionIdentity): void",
+      "inputs": [
+        "homeDir: string",
+        "identity: ChatCliSessionIdentity"
+      ],
+      "outputs": [
+        "void"
+      ],
+      "line": 132,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonClientHooks",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/client.ts",
+      "signature": "export interface DaemonClientHooks",
+      "outputs": [
+        "interface DaemonClientHooks"
+      ],
+      "line": 30,
+      "surface": "production"
+    },
+    {
+      "name": "RequestOptions",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/client.ts",
+      "signature": "export interface RequestOptions",
+      "outputs": [
+        "interface RequestOptions"
+      ],
+      "line": 48,
+      "surface": "production"
+    },
+    {
+      "name": "StreamJobEventsOptions",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/client.ts",
+      "signature": "export interface StreamJobEventsOptions",
+      "outputs": [
+        "interface StreamJobEventsOptions"
+      ],
+      "line": 90,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonClient",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/client.ts",
+      "signature": "export type DaemonClient",
+      "outputs": [
+        "type DaemonClient"
+      ],
+      "line": 102,
+      "surface": "production"
+    },
+    {
+      "name": "createDaemonClient",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/client.ts",
+      "signature": "export function createDaemonClient(hooks: DaemonClientHooks)",
+      "inputs": [
+        "hooks: DaemonClientHooks"
+      ],
+      "line": 177,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_SKILLS_SUMMARY_BYTES",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/context-budget.ts",
+      "signature": "export { MAX_SKILLS_SUMMARY_BYTES }",
+      "outputs": [
+        "MAX_SKILLS_SUMMARY_BYTES"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "previewContextToolInput",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/context-budget.ts",
+      "signature": "export { previewContextToolInput }",
+      "outputs": [
+        "previewContextToolInput"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "truncateUtf8",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/context-budget.ts",
+      "signature": "export { truncateUtf8 }",
+      "outputs": [
+        "truncateUtf8"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "ChatContextFragmentKind",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/context-composer.ts",
+      "signature": "export type ChatContextFragmentKind",
+      "outputs": [
+        "type ChatContextFragmentKind"
+      ],
+      "line": 44,
+      "surface": "production"
+    },
+    {
+      "name": "ChatContextComposerInput",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/context-composer.ts",
+      "signature": "export interface ChatContextComposerInput",
+      "outputs": [
+        "interface ChatContextComposerInput"
+      ],
+      "line": 58,
+      "surface": "production"
+    },
+    {
+      "name": "ComposedChatContextFragment",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/context-composer.ts",
+      "signature": "export interface ComposedChatContextFragment",
+      "outputs": [
+        "interface ComposedChatContextFragment"
+      ],
+      "line": 73,
+      "surface": "production"
+    },
+    {
+      "name": "ComposedChatContext",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/context-composer.ts",
+      "signature": "export interface ComposedChatContext",
+      "outputs": [
+        "interface ComposedChatContext"
+      ],
+      "line": 83,
+      "surface": "production"
+    },
+    {
+      "name": "composeChatContext",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/context-composer.ts",
+      "signature": "export function composeChatContext(input: ChatContextComposerInput): ComposedChatContext",
+      "inputs": [
+        "input: ChatContextComposerInput"
+      ],
+      "outputs": [
+        "ComposedChatContext"
+      ],
+      "line": 168,
+      "surface": "production"
+    },
+    {
+      "name": "ContextualPromptFragment",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/contextual-fragments.ts",
+      "signature": "export interface ContextualPromptFragment",
+      "outputs": [
+        "interface ContextualPromptFragment"
+      ],
+      "line": 11,
+      "surface": "production"
+    },
+    {
+      "name": "createContextualPromptFragment",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/contextual-fragments.ts",
+      "signature": "export function createContextualPromptFragment( owner: Owner, text: string, maxUtf8Bytes: number, volatility: ContextualPromptFragment<Owner>['volatility'] = 'per-turn', ): ContextualPromptFragment<Owner>",
+      "inputs": [
+        "owner: Owner",
+        "text: string",
+        "maxUtf8Bytes: number",
+        "volatility: ContextualPromptFragment<Owner>['volatility'] = 'per-turn'"
+      ],
+      "outputs": [
+        "ContextualPromptFragment<Owner>"
+      ],
+      "line": 18,
+      "surface": "production"
+    },
+    {
+      "name": "createDaemonManager",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { createDaemonManager }",
+      "outputs": [
+        "createDaemonManager"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "resolveDaemonScriptFromCandidates",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { resolveDaemonScriptFromCandidates }",
+      "outputs": [
+        "resolveDaemonScriptFromCandidates"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "createDaemonClient",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { createDaemonClient }",
+      "outputs": [
+        "createDaemonClient"
+      ],
+      "line": 9,
+      "surface": "production"
+    },
+    {
+      "name": "parseSseJsonBuffer",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { parseSseJsonBuffer }",
+      "outputs": [
+        "parseSseJsonBuffer"
+      ],
+      "line": 17,
+      "surface": "production"
+    },
+    {
+      "name": "chatCliSessionKey",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { chatCliSessionKey }",
+      "outputs": [
+        "chatCliSessionKey"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "chatCliSessionStorePath",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { chatCliSessionStorePath }",
+      "outputs": [
+        "chatCliSessionStorePath"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "clearChatCliSession",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { clearChatCliSession }",
+      "outputs": [
+        "clearChatCliSession"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "normalizeChatCliSessionIdentity",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { normalizeChatCliSessionIdentity }",
+      "outputs": [
+        "normalizeChatCliSessionIdentity"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "readChatCliSession",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { readChatCliSession }",
+      "outputs": [
+        "readChatCliSession"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "readChatCliSessionStore",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { readChatCliSessionStore }",
+      "outputs": [
+        "readChatCliSessionStore"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "upsertChatCliSession",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { upsertChatCliSession }",
+      "outputs": [
+        "upsertChatCliSession"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "writeChatCliSessionStore",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { writeChatCliSessionStore }",
+      "outputs": [
+        "writeChatCliSessionStore"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "CODESURF_HOME",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { CODESURF_HOME }",
+      "outputs": [
+        "CODESURF_HOME"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "CODESURF_HOME_DIRNAME",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { CODESURF_HOME_DIRNAME }",
+      "outputs": [
+        "CODESURF_HOME_DIRNAME"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "DAEMON_PACKAGE_VERSION",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { DAEMON_PACKAGE_VERSION }",
+      "outputs": [
+        "DAEMON_PACKAGE_VERSION"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "defaultCodesurfHome",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { defaultCodesurfHome }",
+      "outputs": [
+        "defaultCodesurfHome"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "AGENT_MODE_RESOLUTION_DENIED_ERROR",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { AGENT_MODE_RESOLUTION_DENIED_ERROR }",
+      "outputs": [
+        "AGENT_MODE_RESOLUTION_DENIED_ERROR"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "ChatPolicyError",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { ChatPolicyError }",
+      "outputs": [
+        "ChatPolicyError"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "DEFAULT_PERSONAS",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { DEFAULT_PERSONAS }",
+      "outputs": [
+        "DEFAULT_PERSONAS"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_PERSONA_COUNT",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { MAX_PERSONA_COUNT }",
+      "outputs": [
+        "MAX_PERSONA_COUNT"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_PERSONA_DOCUMENT_BYTES",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { MAX_PERSONA_DOCUMENT_BYTES }",
+      "outputs": [
+        "MAX_PERSONA_DOCUMENT_BYTES"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_PERSONA_ID_BYTES",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { MAX_PERSONA_ID_BYTES }",
+      "outputs": [
+        "MAX_PERSONA_ID_BYTES"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_PERSONA_INHERITANCE_DEPTH",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { MAX_PERSONA_INHERITANCE_DEPTH }",
+      "outputs": [
+        "MAX_PERSONA_INHERITANCE_DEPTH"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_PERSONA_PROMPT_BYTES",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { MAX_PERSONA_PROMPT_BYTES }",
+      "outputs": [
+        "MAX_PERSONA_PROMPT_BYTES"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "MAX_PERSONA_TOOLS",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { MAX_PERSONA_TOOLS }",
+      "outputs": [
+        "MAX_PERSONA_TOOLS"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "assertProviderPersonaEnforceable",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { assertProviderPersonaEnforceable }",
+      "outputs": [
+        "assertProviderPersonaEnforceable"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "bindChatRequestToWorkspace",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { bindChatRequestToWorkspace }",
+      "outputs": [
+        "bindChatRequestToWorkspace"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "codexExecPermissionArgs",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { codexExecPermissionArgs }",
+      "outputs": [
+        "codexExecPermissionArgs"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "listAuthoritativePersonas",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { listAuthoritativePersonas }",
+      "outputs": [
+        "listAuthoritativePersonas"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "overlayAuthoritativePersonas",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { overlayAuthoritativePersonas }",
+      "outputs": [
+        "overlayAuthoritativePersonas"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "resolveAuthoritativePersona",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { resolveAuthoritativePersona }",
+      "outputs": [
+        "resolveAuthoritativePersona"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "stripUntrustedPrivilegedChatContext",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/index.ts",
+      "signature": "export { stripUntrustedPrivilegedChatContext }",
+      "outputs": [
+        "stripUntrustedPrivilegedChatContext"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonStatusInfo",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/manager.ts",
+      "signature": "export interface DaemonStatusInfo",
+      "outputs": [
+        "interface DaemonStatusInfo"
+      ],
+      "line": 5,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonManagerConfig",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/manager.ts",
+      "signature": "export interface DaemonManagerConfig",
+      "outputs": [
+        "interface DaemonManagerConfig"
+      ],
+      "line": 14,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonManagerRuntime",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/manager.ts",
+      "signature": "export interface DaemonManagerRuntime",
+      "outputs": [
+        "interface DaemonManagerRuntime"
+      ],
+      "line": 45,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonManager",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/manager.ts",
+      "signature": "export interface DaemonManager",
+      "outputs": [
+        "interface DaemonManager"
+      ],
+      "line": 58,
+      "surface": "production"
+    },
+    {
+      "name": "createDaemonManager",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/manager.ts",
+      "signature": "export function createDaemonManager( config: DaemonManagerConfig, runtime: DaemonManagerRuntime = {}, ): DaemonManager",
+      "inputs": [
+        "config: DaemonManagerConfig",
+        "runtime: DaemonManagerRuntime = {}"
+      ],
+      "outputs": [
+        "DaemonManager"
+      ],
+      "line": 77,
+      "surface": "production"
+    },
+    {
+      "name": "resolveDaemonScriptFromCandidates",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/manager.ts",
+      "signature": "export function resolveDaemonScriptFromCandidates(candidates: readonly string[]): string",
+      "inputs": [
+        "candidates: readonly string[]"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 617,
+      "surface": "production"
+    },
+    {
+      "name": "ToolSchema",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export type ToolSchema",
+      "outputs": [
+        "type ToolSchema"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "NodeMCPTool",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export type NodeMCPTool",
+      "outputs": [
+        "type NodeMCPTool"
+      ],
+      "line": 7,
+      "surface": "production"
+    },
+    {
+      "name": "getTileNodeTools",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function getTileNodeTools(tileType: string): NodeMCPTool[]",
+      "inputs": [
+        "tileType: string"
+      ],
+      "outputs": [
+        "NodeMCPTool[]"
+      ],
+      "line": 421,
+      "surface": "production"
+    },
+    {
+      "name": "getAllNodeToolNames",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function getAllNodeToolNames(tileType: string): string[]",
+      "inputs": [
+        "tileType: string"
+      ],
+      "outputs": [
+        "string[]"
+      ],
+      "line": 426,
+      "surface": "production"
+    },
+    {
+      "name": "getNodeToolSchemaByName",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function getNodeToolSchemaByName(name: string): NodeMCPTool | undefined",
+      "inputs": [
+        "name: string"
+      ],
+      "outputs": [
+        "NodeMCPTool | undefined"
+      ],
+      "line": 430,
+      "surface": "production"
+    },
+    {
+      "name": "getAllNodeTools",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function getAllNodeTools(): NodeMCPTool[]",
+      "outputs": [
+        "NodeMCPTool[]"
+      ],
+      "line": 438,
+      "surface": "production"
+    },
+    {
+      "name": "getPeerBridgeNodeTools",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function getPeerBridgeNodeTools(): NodeMCPTool[]",
+      "outputs": [
+        "NodeMCPTool[]"
+      ],
+      "line": 446,
+      "surface": "production"
+    },
+    {
+      "name": "withCapabilityPrefix",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function withCapabilityPrefix(toolName: string): string",
+      "inputs": [
+        "toolName: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 455,
+      "surface": "production"
+    },
+    {
+      "name": "stripCapabilityPrefix",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function stripCapabilityPrefix(raw: string): string",
+      "inputs": [
+        "raw: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 459,
+      "surface": "production"
+    },
+    {
+      "name": "toCodesurfMcpToolName",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function toCodesurfMcpToolName(toolName: string): string",
+      "inputs": [
+        "toolName: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 464,
+      "surface": "production"
+    },
+    {
+      "name": "normalizeNodeToolName",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function normalizeNodeToolName(raw: string): string",
+      "inputs": [
+        "raw: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 468,
+      "surface": "production"
+    },
+    {
+      "name": "getDisconnectedPeerBridgeMcpToolNames",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function getDisconnectedPeerBridgeMcpToolNames(negotiatedTools: Iterable<string> = []): string[]",
+      "inputs": [
+        "negotiatedTools: Iterable<string> = []"
+      ],
+      "outputs": [
+        "string[]"
+      ],
+      "line": 474,
+      "surface": "production"
+    },
+    {
+      "name": "buildPeerCommandPayload",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/node-tools.ts",
+      "signature": "export function buildPeerCommandPayload( tileId: string, command: string, payload: Record<string, unknown> = {}, ): Record<string, unknown>",
+      "inputs": [
+        "tileId: string",
+        "command: string",
+        "payload: Record<string, unknown> = {}"
+      ],
+      "outputs": [
+        "Record<string, unknown>"
+      ],
+      "line": 482,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonPackageExportTarget",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/package-layout.ts",
+      "signature": "export interface DaemonPackageExportTarget",
+      "outputs": [
+        "interface DaemonPackageExportTarget"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonPackageManifest",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/package-layout.ts",
+      "signature": "export interface DaemonPackageManifest",
+      "outputs": [
+        "interface DaemonPackageManifest"
+      ],
+      "line": 7,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonCompiledExport",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/package-layout.ts",
+      "signature": "export interface DaemonCompiledExport",
+      "outputs": [
+        "interface DaemonCompiledExport"
+      ],
+      "line": 12,
+      "surface": "production"
+    },
+    {
+      "name": "getDaemonRuntimeEntries",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/package-layout.ts",
+      "signature": "export function getDaemonRuntimeEntries(manifest: DaemonPackageManifest): string[]",
+      "inputs": [
+        "manifest: DaemonPackageManifest"
+      ],
+      "outputs": [
+        "string[]"
+      ],
+      "line": 47,
+      "surface": "production"
+    },
+    {
+      "name": "getDaemonCompiledExports",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/package-layout.ts",
+      "signature": "export function getDaemonCompiledExports( manifest: DaemonPackageManifest, ): DaemonCompiledExport[]",
+      "inputs": [
+        "manifest: DaemonPackageManifest"
+      ],
+      "outputs": [
+        "DaemonCompiledExport[]"
+      ],
+      "line": 58,
+      "surface": "production"
+    },
+    {
+      "name": "getDaemonPublicSpecifiers",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/package-layout.ts",
+      "signature": "export function getDaemonPublicSpecifiers( manifest: DaemonPackageManifest, packageName = '@codesurf/daemon', ): string[]",
+      "inputs": [
+        "manifest: DaemonPackageManifest",
+        "packageName = '@codesurf/daemon'"
+      ],
+      "outputs": [
+        "string[]"
+      ],
+      "line": 92,
+      "surface": "production"
+    },
+    {
+      "name": "defaultCodesurfHome",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/paths.ts",
+      "signature": "export function defaultCodesurfHome(): string",
+      "outputs": [
+        "string"
+      ],
+      "line": 10,
+      "surface": "production"
+    },
+    {
+      "name": "CanvasAuthoritativePeer",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-authority-policy.ts",
+      "signature": "export interface CanvasAuthoritativePeer",
+      "outputs": [
+        "interface CanvasAuthoritativePeer"
+      ],
+      "line": 15,
+      "surface": "production"
+    },
+    {
+      "name": "resolveAuthoritativeCanvasPeers",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-authority-policy.ts",
+      "signature": "export function resolveAuthoritativeCanvasPeers( canvas: unknown, tileIdValue: unknown, ): CanvasAuthoritativePeer[]",
+      "inputs": [
+        "canvas: unknown",
+        "tileIdValue: unknown"
+      ],
+      "outputs": [
+        "CanvasAuthoritativePeer[]"
+      ],
+      "line": 42,
+      "surface": "production"
+    },
+    {
+      "name": "getAuthoritativeNegotiatedPeerTools",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-authority-policy.ts",
+      "signature": "export function getAuthoritativeNegotiatedPeerTools( peers: readonly CanvasAuthoritativePeer[], mcpEnabled: boolean | undefined, ): string[] | undefined",
+      "inputs": [
+        "peers: readonly CanvasAuthoritativePeer[]",
+        "mcpEnabled: boolean | undefined"
+      ],
+      "outputs": [
+        "string[] | undefined"
+      ],
+      "line": 82,
+      "surface": "production"
+    },
+    {
+      "name": "selectAuthorizedPeerObservations",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-authority-policy.ts",
+      "signature": "export function selectAuthorizedPeerObservations( value: unknown, authoritativePeers: readonly CanvasAuthoritativePeer[], ): unknown[]",
+      "inputs": [
+        "value: unknown",
+        "authoritativePeers: readonly CanvasAuthoritativePeer[]"
+      ],
+      "outputs": [
+        "unknown[]"
+      ],
+      "line": 91,
+      "surface": "production"
+    },
+    {
+      "name": "BoundedPeerAction",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-context-policy.ts",
+      "signature": "export interface BoundedPeerAction",
+      "outputs": [
+        "interface BoundedPeerAction"
+      ],
+      "line": 48,
+      "surface": "production"
+    },
+    {
+      "name": "BoundedPeerContextEntry",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-context-policy.ts",
+      "signature": "export interface BoundedPeerContextEntry",
+      "outputs": [
+        "interface BoundedPeerContextEntry"
+      ],
+      "line": 53,
+      "surface": "production"
+    },
+    {
+      "name": "BoundedPeerContext",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-context-policy.ts",
+      "signature": "export interface BoundedPeerContext",
+      "outputs": [
+        "interface BoundedPeerContext"
+      ],
+      "line": 58,
+      "surface": "production"
+    },
+    {
+      "name": "PeerContextPolicyMetadata",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-context-policy.ts",
+      "signature": "export interface PeerContextPolicyMetadata",
+      "outputs": [
+        "interface PeerContextPolicyMetadata"
+      ],
+      "line": 67,
+      "surface": "production"
+    },
+    {
+      "name": "PeerContextPolicyResult",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-context-policy.ts",
+      "signature": "export interface PeerContextPolicyResult",
+      "outputs": [
+        "interface PeerContextPolicyResult"
+      ],
+      "line": 79,
+      "surface": "production"
+    },
+    {
+      "name": "buildPeerContextPrompt",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-policy.ts",
+      "signature": "export function buildPeerContextPrompt(value: unknown): PeerContextPolicyResult",
+      "inputs": [
+        "value: unknown"
+      ],
+      "outputs": [
+        "PeerContextPolicyResult"
+      ],
+      "line": 399,
+      "surface": "production"
+    },
+    {
+      "name": "ContextSerializationLimits",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export interface ContextSerializationLimits",
+      "outputs": [
+        "interface ContextSerializationLimits"
+      ],
+      "line": 3,
+      "surface": "production"
+    },
+    {
+      "name": "compareText",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function compareText(left: string, right: string): number",
+      "inputs": [
+        "left: string",
+        "right: string"
+      ],
+      "outputs": [
+        "number"
+      ],
+      "line": 18,
+      "surface": "production"
+    },
+    {
+      "name": "toWellFormedText",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function toWellFormedText(value: string): string",
+      "inputs": [
+        "value: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "utf8Bytes",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function utf8Bytes(value: string): number",
+      "inputs": [
+        "value: string"
+      ],
+      "outputs": [
+        "number"
+      ],
+      "line": 33,
+      "surface": "production"
+    },
+    {
+      "name": "utf8Prefix",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function utf8Prefix(value: string, maxBytes: number): string",
+      "inputs": [
+        "value: string",
+        "maxBytes: number"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 37,
+      "surface": "production"
+    },
+    {
+      "name": "singleLine",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function singleLine(value: string): string",
+      "inputs": [
+        "value: string"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 49,
+      "surface": "production"
+    },
+    {
+      "name": "readDataProperty",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function readDataProperty( value: object, key: PropertyKey, )",
+      "inputs": [
+        "value: object",
+        "key: PropertyKey"
+      ],
+      "line": 57,
+      "surface": "production"
+    },
+    {
+      "name": "safeKeys",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function safeKeys(value: object): string[] | null",
+      "inputs": [
+        "value: object"
+      ],
+      "outputs": [
+        "string[] | null"
+      ],
+      "line": 70,
+      "surface": "production"
+    },
+    {
+      "name": "safeSerializeContextValue",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/peer-context-serialization.ts",
+      "signature": "export function safeSerializeContextValue( value: unknown, limits: ContextSerializationLimits, ): string",
+      "inputs": [
+        "value: unknown",
+        "limits: ContextSerializationLimits"
+      ],
+      "outputs": [
+        "string"
+      ],
+      "line": 141,
+      "surface": "production"
+    },
+    {
+      "name": "PersonaModelSeed",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/persona-model-binding.ts",
+      "signature": "export interface PersonaModelSeed",
+      "outputs": [
+        "interface PersonaModelSeed"
+      ],
+      "line": 16,
+      "surface": "production"
+    },
+    {
+      "name": "PersonaBindingLike",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/persona-model-binding.ts",
+      "signature": "export interface PersonaBindingLike",
+      "outputs": [
+        "interface PersonaBindingLike"
+      ],
+      "line": 24,
+      "surface": "production"
+    },
+    {
+      "name": "PersonaLike",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/persona-model-binding.ts",
+      "signature": "export interface PersonaLike",
+      "outputs": [
+        "interface PersonaLike"
+      ],
+      "line": 28,
+      "surface": "production"
+    },
+    {
+      "name": "resolvePersonaModelSeed",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/persona-model-binding.ts",
+      "signature": "export function resolvePersonaModelSeed(persona: PersonaLike | null | undefined): PersonaModelSeed | null",
+      "inputs": [
+        "persona: PersonaLike | null | undefined"
+      ],
+      "outputs": [
+        "PersonaModelSeed | null"
+      ],
+      "line": 43,
+      "surface": "production"
+    },
+    {
+      "name": "processTreeSpawnOptions",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/process-tree.ts",
+      "signature": "export { processTreeSpawnOptions }",
+      "outputs": [
+        "processTreeSpawnOptions"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "terminateProcessTree",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/process-tree.ts",
+      "signature": "export { terminateProcessTree }",
+      "outputs": [
+        "terminateProcessTree"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "joinPromptSections",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/prompt-conventions.ts",
+      "signature": "export function joinPromptSections(...sections: Array<string | undefined | null>): string | undefined",
+      "inputs": [
+        "...sections: Array<string | undefined | null>"
+      ],
+      "outputs": [
+        "string | undefined"
+      ],
+      "line": 9,
+      "surface": "production"
+    },
+    {
+      "name": "buildCodeSurfOutputConvention",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/prompt-conventions.ts",
+      "signature": "export function buildCodeSurfOutputConvention(): string",
+      "outputs": [
+        "string"
+      ],
+      "line": 45,
+      "surface": "production"
+    },
+    {
+      "name": "buildCodeSurfInsightConvention",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/prompt-conventions.ts",
+      "signature": "export function buildCodeSurfInsightConvention(): string",
+      "outputs": [
+        "string"
+      ],
+      "line": 67,
+      "surface": "production"
+    },
+    {
+      "name": "buildCodeSurfActivityConvention",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/prompt-conventions.ts",
+      "signature": "export function buildCodeSurfActivityConvention(): string",
+      "outputs": [
+        "string"
+      ],
+      "line": 83,
+      "surface": "production"
+    },
+    {
+      "name": "readVerifiedFile",
+      "kind": "export",
+      "path": "packages/codesurf-daemon/src/secure-file-reader.ts",
+      "signature": "export { readVerifiedFile }",
+      "outputs": [
+        "readVerifiedFile"
+      ],
+      "line": 1,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSseLimitKind",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export type DaemonSseLimitKind",
+      "outputs": [
+        "type DaemonSseLimitKind"
+      ],
+      "line": 16,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSseLimitError",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export class DaemonSseLimitError",
+      "outputs": [
+        "class DaemonSseLimitError"
+      ],
+      "line": 23,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatEventValidationError",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export class DaemonChatEventValidationError",
+      "outputs": [
+        "class DaemonChatEventValidationError"
+      ],
+      "line": 37,
+      "surface": "production"
+    },
+    {
+      "name": "ParsedSseJsonBuffer",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export interface ParsedSseJsonBuffer",
+      "outputs": [
+        "interface ParsedSseJsonBuffer"
+      ],
+      "line": 44,
+      "surface": "production"
+    },
+    {
+      "name": "ParseSseJsonBufferOptions",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export interface ParseSseJsonBufferOptions",
+      "outputs": [
+        "interface ParseSseJsonBufferOptions"
+      ],
+      "line": 50,
+      "surface": "production"
+    },
+    {
+      "name": "BoundedSseJsonDecoderOptions",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export interface BoundedSseJsonDecoderOptions",
+      "outputs": [
+        "interface BoundedSseJsonDecoderOptions"
+      ],
+      "line": 54,
+      "surface": "production"
+    },
+    {
+      "name": "parseSseJsonBuffer",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export function parseSseJsonBuffer( buffer: string, options: ParseSseJsonBufferOptions = {}, ): ParsedSseJsonBuffer<T>",
+      "inputs": [
+        "buffer: string",
+        "options: ParseSseJsonBufferOptions = {}"
+      ],
+      "outputs": [
+        "ParsedSseJsonBuffer<T>"
+      ],
+      "line": 75,
+      "surface": "production"
+    },
+    {
+      "name": "BoundedSseJsonDecoder",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export class BoundedSseJsonDecoder",
+      "outputs": [
+        "class BoundedSseJsonDecoder"
+      ],
+      "line": 116,
+      "surface": "production"
+    },
+    {
+      "name": "readBoundedResponseDiagnostic",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export function readBoundedResponseDiagnostic( response: Response, maxBytes = DAEMON_SSE_LIMITS.maxErrorBodyBytes, ): Promise<string>",
+      "inputs": [
+        "response: Response",
+        "maxBytes = DAEMON_SSE_LIMITS.maxErrorBodyBytes"
+      ],
+      "outputs": [
+        "Promise<string>"
+      ],
+      "line": 174,
+      "surface": "production"
+    },
+    {
+      "name": "SanitizeDaemonChatJobEventOptions",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export interface SanitizeDaemonChatJobEventOptions",
+      "outputs": [
+        "interface SanitizeDaemonChatJobEventOptions"
+      ],
+      "line": 389,
+      "surface": "production"
+    },
+    {
+      "name": "sanitizeDaemonChatJobEvent",
+      "kind": "function",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export function sanitizeDaemonChatJobEvent( value: unknown, options: SanitizeDaemonChatJobEventOptions = {}, ): DaemonChatJobEvent",
+      "inputs": [
+        "value: unknown",
+        "options: SanitizeDaemonChatJobEventOptions = {}"
+      ],
+      "outputs": [
+        "DaemonChatJobEvent"
+      ],
+      "line": 398,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatEventBudgetOptions",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export interface DaemonChatEventBudgetOptions",
+      "outputs": [
+        "interface DaemonChatEventBudgetOptions"
+      ],
+      "line": 468,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatEventBudget",
+      "kind": "class",
+      "path": "packages/codesurf-daemon/src/sse.ts",
+      "signature": "export class DaemonChatEventBudget",
+      "outputs": [
+        "class DaemonChatEventBudget"
+      ],
+      "line": 473,
+      "surface": "production"
+    },
+    {
+      "name": "Workspace",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface Workspace",
+      "outputs": [
+        "interface Workspace"
+      ],
+      "line": 7,
+      "surface": "production"
+    },
+    {
+      "name": "ProjectRecord",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface ProjectRecord",
+      "outputs": [
+        "interface ProjectRecord"
+      ],
+      "line": 16,
+      "surface": "production"
+    },
+    {
+      "name": "ExecutionHostType",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type ExecutionHostType",
+      "outputs": [
+        "type ExecutionHostType"
+      ],
+      "line": 22,
+      "surface": "production"
+    },
+    {
+      "name": "ExecutionHostRecord",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface ExecutionHostRecord",
+      "outputs": [
+        "interface ExecutionHostRecord"
+      ],
+      "line": 24,
+      "surface": "production"
+    },
+    {
+      "name": "SessionSource",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type SessionSource",
+      "outputs": [
+        "type SessionSource"
+      ],
+      "line": 33,
+      "surface": "production"
+    },
+    {
+      "name": "SessionScope",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type SessionScope",
+      "outputs": [
+        "type SessionScope"
+      ],
+      "line": 34,
+      "surface": "production"
+    },
+    {
+      "name": "AggregatedSessionEntry",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface AggregatedSessionEntry",
+      "outputs": [
+        "interface AggregatedSessionEntry"
+      ],
+      "line": 36,
+      "surface": "production"
+    },
+    {
+      "name": "DreamRunSummary",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DreamRunSummary",
+      "outputs": [
+        "interface DreamRunSummary"
+      ],
+      "line": 63,
+      "surface": "production"
+    },
+    {
+      "name": "AutoDreamSettings",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface AutoDreamSettings",
+      "outputs": [
+        "interface AutoDreamSettings"
+      ],
+      "line": 84,
+      "surface": "production"
+    },
+    {
+      "name": "AutoDreamPolicySummary",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface AutoDreamPolicySummary",
+      "outputs": [
+        "interface AutoDreamPolicySummary"
+      ],
+      "line": 92,
+      "surface": "production"
+    },
+    {
+      "name": "DashboardDreamingSummary",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DashboardDreamingSummary",
+      "outputs": [
+        "interface DashboardDreamingSummary"
+      ],
+      "line": 96,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSkillEntry",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonSkillEntry",
+      "outputs": [
+        "interface DaemonSkillEntry"
+      ],
+      "line": 115,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSkillRoot",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonSkillRoot",
+      "outputs": [
+        "interface DaemonSkillRoot"
+      ],
+      "line": 128,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSkillSelection",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonSkillSelection",
+      "outputs": [
+        "interface DaemonSkillSelection"
+      ],
+      "line": 139,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSkillSkippedLocation",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonSkillSkippedLocation",
+      "outputs": [
+        "interface DaemonSkillSkippedLocation"
+      ],
+      "line": 148,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonSkillIndex",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonSkillIndex",
+      "outputs": [
+        "interface DaemonSkillIndex"
+      ],
+      "line": 153,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonToolPermissionScope",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type DaemonToolPermissionScope",
+      "outputs": [
+        "type DaemonToolPermissionScope"
+      ],
+      "line": 161,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonToolPermissionGrant",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonToolPermissionGrant",
+      "outputs": [
+        "interface DaemonToolPermissionGrant"
+      ],
+      "line": 163,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonToolPermissionRequest",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonToolPermissionRequest",
+      "outputs": [
+        "interface DaemonToolPermissionRequest"
+      ],
+      "line": 177,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonToolPermissionListResult",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonToolPermissionListResult",
+      "outputs": [
+        "interface DaemonToolPermissionListResult"
+      ],
+      "line": 186,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatJobStatus",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type DaemonChatJobStatus",
+      "outputs": [
+        "type DaemonChatJobStatus"
+      ],
+      "line": 191,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonToolPermissionDecision",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type DaemonToolPermissionDecision",
+      "outputs": [
+        "type DaemonToolPermissionDecision"
+      ],
+      "line": 193,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatMessage",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonChatMessage",
+      "outputs": [
+        "interface DaemonChatMessage"
+      ],
+      "line": 195,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonPersonaBinding",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonPersonaBinding",
+      "outputs": [
+        "interface DaemonPersonaBinding"
+      ],
+      "line": 201,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonPersona",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonPersona",
+      "outputs": [
+        "interface DaemonPersona"
+      ],
+      "line": 211,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonPersonaListResult",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonPersonaListResult",
+      "outputs": [
+        "interface DaemonPersonaListResult"
+      ],
+      "line": 225,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatJobRequest",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonChatJobRequest",
+      "outputs": [
+        "interface DaemonChatJobRequest"
+      ],
+      "line": 229,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatJobState",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonChatJobState",
+      "outputs": [
+        "interface DaemonChatJobState"
+      ],
+      "line": 248,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatJobEvent",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonChatJobEvent",
+      "outputs": [
+        "interface DaemonChatJobEvent"
+      ],
+      "line": 268,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonChatPermissionAnswer",
+      "kind": "interface",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export interface DaemonChatPermissionAnswer",
+      "outputs": [
+        "interface DaemonChatPermissionAnswer"
+      ],
+      "line": 286,
+      "surface": "production"
+    },
+    {
+      "name": "DaemonAppSettings",
+      "kind": "type",
+      "path": "packages/codesurf-daemon/src/types.ts",
+      "signature": "export type DaemonAppSettings",
+      "outputs": [
+        "type DaemonAppSettings"
+      ],
+      "line": 297,
+      "surface": "production"
+    }
+  ]
+}

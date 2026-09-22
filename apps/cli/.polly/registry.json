@@ -1,0 +1,106 @@
+{
+  "base_branch": "codesurf",
+  "repo": "/Users/jkneen/Documents/GitHub/grok-cli",
+  "tasks": {
+    "payments-receipt": {
+      "title": "payments-receipt",
+      "worktree": ".worktrees/payments-receipt",
+      "branch": "polly/payments-receipt",
+      "implementer": "codex",
+      "reviewer_vendor": "claude_code",
+      "status": "dispatched",
+      "scope": ["src/payments/service.ts", "src/payments/history.ts", "src/payments/service.test.ts"],
+      "conversation_id": "conv_044a98330f374418b638d14d37175c70",
+      "local_commit": "1d23e72 (final; base 462f82a->c721acc->1d23e72)",
+      "gates": "green (972 tests, typecheck, build, biome on scope)",
+      "review_conversation_id": "conv_e47135b0f171453f8de1b26482609f55",
+      "status": "REVIEW-CLEAN (round2 PASS 0 blocking; type-promotion close-out verified, no logic drift) - ready to open PR, blocked only on push decision",
+      "scope_note": "src/payments/{service.ts,history.ts,service.test.ts,types.ts}",
+      "pr_url": "https://github.com/superagent-ai/grok-cli/pull/332 (draft, base=main, REMOTE/BASE NEEDS CONFIRMATION)"
+    },
+    "agent-interrupt-sandbox": {
+      "title": "agent-interrupt-sandbox",
+      "worktree": ".worktrees/agent-interrupt-sandbox",
+      "branch": "polly/agent-interrupt-sandbox",
+      "implementer": "claude_code",
+      "reviewer_vendor": "codex",
+      "status": "dispatched",
+      "scope": ["src/agent/agent.ts", "src/tools/bash-tools.ts", "src/agent/turns/session-turn.ts", "providers", "src/auto-mode.ts"],
+      "conversation_id": "conv_0700f64d9380427a99a6a507305e58a1",
+      "pr_url": null
+    },
+    "credentials-wipe-guard": {
+      "title": "credentials-wipe-guard",
+      "worktree": ".worktrees/credentials-wipe-guard",
+      "branch": "polly/credentials-wipe-guard",
+      "implementer": "codex",
+      "reviewer_vendor": "claude_code",
+      "status": "dispatched",
+      "scope": ["src/core/persistence/credentials.ts"],
+      "conversation_id": "conv_74af40e386c7413494b374cc75a8c94a",
+      "local_commit": "6bf8856 (refined; base 00a9872)",
+      "gates": "green (vitest, full test, typecheck, build, biome on scope)",
+      "review_conversation_id": "conv_74c3894169084e89836357eb460d03ed",
+      "status": "REVIEW-CLEAN (round2 PASS, invariant confirmed) - ready to open PR, blocked only on push decision",
+      "followups": ["add test: two strict saveCredential on same corrupt content -> still exactly one backup", "comment the strict read-error (no contents) backup asymmetry"],
+      "pr_url": "BLOCKED (push protection) - open once secret/remote decided"
+    },
+    "edit-approval-failclosed": {
+      "title": "edit-approval-failclosed",
+      "worktree": ".worktrees/edit-approval-failclosed",
+      "branch": "polly/edit-approval-failclosed",
+      "implementer": "codex",
+      "reviewer_vendor": "claude_code",
+      "status": "dispatched",
+      "scope": ["src/core/extensions/builtin/file-tools-approval.ts"],
+      "conversation_id": "conv_48ab0cd087bb4bf385afef7ab8345538",
+      "local_commit": "6b24a35 (fix; base f4f8fc9)",
+      "gates": "green (970 tests +4 new, test:bun 22, typecheck, build, biome on scope)",
+      "review_conversation_id": "conv_3010f80596b74900b5bfdbefa111c31a",
+      "status": "REVIEW-CLEAN (round1 logic PASS; blocking test-delivery fixed + grep-verified) - ready to open PR, blocked only on push decision",
+      "followups": ["wave2: unify duplicated ~/.grok USER_SETTINGS_PATH constant with settings.ts via config-dir helper"],
+      "pr_url": "https://github.com/jasonkneen/grok-cli/pull/28 (base=main, DIFFERENT REMOTE than payments PR, NEEDS CONFIRMATION)"
+    },
+    "command-palette-opencode": {
+      "title": "command-palette-opencode",
+      "worktree": ".worktrees/command-palette-opencode",
+      "branch": "polly/command-palette-opencode",
+      "implementer": "claude_code",
+      "reviewer_vendor": "codex",
+      "status": "dispatched",
+      "scope": ["src/ui/command-palette.tsx", "src/ui/theme.ts", "src/ui/app.tsx (minimal wiring)"],
+      "task": "restyle ctrl+k palette to opencode look + add Suggested section; visual fidelity needs human eyeball",
+      "conversation_id": "conv_4a893db4ae8a4fe5a067baee99fd2931",
+      "pr_url": null
+    },
+    "config-dir-grok-migration": {
+      "title": "config-dir-grok-migration",
+      "worktree": null,
+      "branch": null,
+      "implementer": "claude_code",
+      "reviewer_vendor": "codex",
+      "status": "wave2-pending",
+      "scope": ["all .grok hardcoded paths EXCEPT files owned by payments-receipt and agent-interrupt-sandbox"],
+      "conversation_id": null,
+      "pr_url": null
+    }
+  },
+  "deferred_needs_decision": [
+    "default-sandbox-off-no-bash-gate (intended posture)",
+    "api-key-cleartext (posture, 0600/0700)",
+    "dead-code-duplication-removal (needs delete-list approval)",
+    "@codesurf/daemon file: path (intentional local link?)"
+  ],
+  "RUN_BLOCKER": {
+    "issue": "GitHub Push Protection blocks ALL branch pushes",
+    "cause": "historical commit db078e649c5b3d0dc31bce420b9f13fb6b422932 contains an Anthropic API key in run.sh:1",
+    "impact": "no task can push its branch or open a PR until resolved",
+    "security": "committed API key must be treated as LEAKED and rotated",
+    "needs": "human decision: rotate key + allowlist via GitHub unblock URL, OR rewrite history to purge run.sh secret"
+  },
+  "deferred_needs_design": [
+    "app.tsx 7859-line god component refactor",
+    "Agent god class refactor",
+    "buildHostServices god factory refactor"
+  ]
+}

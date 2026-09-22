@@ -1,0 +1,4 @@
+# Root of the CodeSurf monorepo. Each app/package keeps its own .gitignore;
+# this only covers what the root workspace install creates.
+node_modules/
+.DS_Store

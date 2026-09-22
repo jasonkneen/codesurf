@@ -1,0 +1,11 @@
+{
+  "name": "codesurf-monorepo",
+  "private": true,
+  "workspaces": [
+    "apps/cli",
+    "packages/*"
+  ],
+  "scripts": {
+    "test:packages": "vitest run packages/plugin-api packages/runtime"
+  }
+}

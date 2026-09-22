@@ -1,0 +1,28 @@
+{
+  "name": "@codesurf/runtime",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Cordis root composition and host services for CodeSurf. Depends on @codesurf/plugin-api only.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "bun": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc -b"
+  },
+  "dependencies": {
+    "@codesurf/plugin-api": "workspace:*",
+    "@deepseek-ai/cordis": "4.0.2"
+  }
+}

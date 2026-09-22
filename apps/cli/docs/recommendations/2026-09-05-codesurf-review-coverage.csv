@@ -1,0 +1,597 @@
+path,review_status,evidence,notes
+packages/codesurf-daemon/bin/agent-mode-resolver.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/agent-mode-tools.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/chat-jobs.mjs,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+packages/codesurf-daemon/bin/checkpoints.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/codesurfd.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/codex-sdk-provider.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/codex-sdk-settings.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/context-buckets.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/file-references.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/harness-runtime.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/harness-settings.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/harness-worktree.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/instruction-context.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/memory-loader.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/omnigent-provider.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/omnigent-settings.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/project-context.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/session-index.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/bin/skills-index.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/chat-cli.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/chat-session-store.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/client.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+packages/codesurf-daemon/src/index.js,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/manager.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/paths.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/persona-model-binding.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/sse.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/src/types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+packages/codesurf-daemon/vendor/dreaming.mjs,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/adaptive-routing.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/agent-helpers.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/agent.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/bash-rewire.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/batch-mode.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/cache-stats-line.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/compaction.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/compaction.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/delegations.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/delegations.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/fabrication-detector.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/fabrication-detector.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/hook-context.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/learning/learned-router.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/learning/learning.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/learning/self-learning.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/learning/self-learning.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/learning/skill-discovery.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/learning/skill-optimizer.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/learning/skill-optimizer.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/learning/skill-overlay.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/loop-guard.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/loop-guard.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/mock-bash-sink.ts,test_helper_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/mode-prompts.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/model-constraints.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/provider-send-turn.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/reasoning.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/reasoning.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/recap.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/routing/classify.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/routing/complexity.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/routing/routing.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/sandbox.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/subagent-bash-isolation.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/subagent-containment.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/subagent-contract.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/subagent-file-cwd.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/trace-collection.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/trace-collector.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/turns/batch-turn.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/turns/helpers.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/turns/session-turn.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/turns/stream-turn.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/turns/types.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/agent/vision-input.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/agent/vision-input.ts,production_source_read,2026-09-05-codesurf-agent-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/audio/stt/engine.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/audio/stt/grok-stt.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/audio/stt/grok-stt.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/bun-sqlite.d.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/code-index/chunker.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/code-index/chunker.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/code-index/embeddings.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/code-index/embeddings.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/code-index/semantic-index.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/code-index/semantic-index.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/code-index/types.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/code-index/vector-store.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/anthropic-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/api.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/core/extensions/builtin/__tests__/ask-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/__tests__/bash-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/__tests__/plan-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/__tests__/xai-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/amp-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/anthropic-models-catalog.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/anthropic-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/ask-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/auto-mode.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/auto-mode.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/bash-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/claude-agent-provider.ts,targeted_paths_reviewed,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/claude-grok-skills-provider.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/codesurf-desktop-provider.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/codex-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/codex-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/computer-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/computer-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/context-command.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/doc-viewer.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/editor-command.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/file-tools-approval-flow.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/file-tools-approval.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/file-tools-approval.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/file-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/file-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/files-command.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/files-command.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/footer-chrome/context-bar-indicator.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/footer-chrome/footer-chrome.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/footer-chrome/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/footer-chrome/resource-counter-indicator.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/fractal-provider.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/grep-tool.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/grok-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/groups.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/hermes-config.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/hermes-gateway-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/hermes-gateway-provider.ts,targeted_paths_reviewed,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/host-actions.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/host-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/js-workflows.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/knowledge-extensions.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/knowledge-extensions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/lazar-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/lazar-provider.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/lightclaw-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/local-llm-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/local-llm-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/loop-command.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/loop-command.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/lsp-tool.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/mcp-prompt-commands.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/mcp-prompt-commands.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/nerd-icons.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/nerd-icons.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/omnigent-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/omnigent-provider.ts,targeted_paths_reviewed,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/openai-chat-utils.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/openai-http-session.test.ts,test_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/openai-http-session.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/openai-sse-consumer.test.ts,test_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/openai-sse-consumer.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/opencode-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/opencode-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/payments-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/payments-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets-arch-doc.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets-explainer.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/atlas.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/convert.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/frames.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/manifest.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/picker.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/protocol.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/pets/renderer.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/plan-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/provider-history-preface.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/provider-usage.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/provider-usage.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/routing-command.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/schedule-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/schedule-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/screen-overlay.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/skills-listing.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/steer-command.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/subagent-commands.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/subagents-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/subagents-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/telegram-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/telegram-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/transports/anthropic-stream-json.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/transports/index.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/transports/ndjson.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/transports/oneshot-stdio-turn.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/transports/persistent-stdio-session.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/transports/transports.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/user-workflows.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/user-workflows.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/voice/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/voice/indicator.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/voice/ptt-handler.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/voice/recording.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/voice/state.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/voice/voice.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/workflow-orchestrator.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/workflow-prompts-text.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/workflow-prompts.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/builtin/xai-provider.ts,production_source_read,2026-09-05-codesurf-providers-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/core/extensions/builtin/xai-tools.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/claude-agent-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/claude-grok-skills-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/codesurf-desktop-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/event-bus.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/event-bus.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/filter.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/host-theme.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/icons.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/loader.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/loader.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/core/extensions/loops.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/loops.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/manifest.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/core/extensions/model-runtime.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/model-runtime.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/core/extensions/permission-mode.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/permission-mode.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/registry.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/core/extensions/sdk-helpers.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/sinks.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/tile-state-integration.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/user-interrupt.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/extensions/xai-provider.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/credentials.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/credentials.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/extensions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/loops.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/loops.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/skills-enablement.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/skills-enablement.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/steering.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/core/persistence/steering.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/daemon/codesurf-daemon.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/daemon/scheduler.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/daemon/scheduler.ts,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/daemon/session-repair.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/daemon/session-repair.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/batch.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/batch.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/grok/client.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/client.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/grok/lsp-tools.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/media.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/media.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/grok/models.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/models.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/grok/tool-schemas.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/grok/tool-schemas.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/headless/output.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/headless/output.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/hooks/config.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/hooks/count.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/hooks/count.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/hooks/executor.test.ts,test_source_read,2026-09-05-codesurf-storage-hooks-review.md,Existing tests do not cover escalation or asynchronous stdin errors
+src/hooks/executor.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/hooks/index.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/hooks/types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/lsp/builtins.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/lsp/builtins.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/lsp/client.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/lsp/manager.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/lsp/manager.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/lsp/npm-cache.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/lsp/npm-cache.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/lsp/runtime.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/lsp/types.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/mcp/catalog.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/mcp/command-exists.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/mcp/command-exists.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/mcp/fixtures/test-server.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/mcp/parse-headers.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/mcp/parse-headers.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/mcp/runtime.integration.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/mcp/runtime.test.ts,test_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/mcp/runtime.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/mcp/validate.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/payments/agentkit-loader.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/payments/brin.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/payments/history.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/payments/service.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/payments/service.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/payments/types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/card-id.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/card-id.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/db.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/storage/index.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/migrations.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/migrations.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/prompt-history.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/prompt-history.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/sessions.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/sessions.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/storage/tile-state.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/tile-state.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/tool-results.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/storage/traces.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/traces.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/transcript-view.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/storage/transcript.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/storage/transcript.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/storage/usage.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/storage/workspaces.ts,production_source_read,2026-09-05-codesurf-storage-hooks-review.md,See report for isolated reproductions and coverage limits; fixes pending
+src/telegram/audio-input.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/audio-input.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/bridge.conflict.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/bridge.test.ts,test_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/bridge.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/headless-bridge-paths.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/headless-bridge.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/headless-bridge.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/index.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/limits.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/limits.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/pairing.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/pairing.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/poller-lock.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/poller-lock.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/preview-stream.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/preview-stream.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/send-file.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/telegram/send-file.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/turn-coordinator.test.ts,test_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/turn-coordinator.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/telegram/typing-refresh.ts,production_source_read,2026-09-05-codesurf-network-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/tools/bash.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/tools/bash.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/tools/computer.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/tools/computer.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/tools/file.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/tools/file.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/tools/grep.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/tools/schedule.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/tools/schedule.ts,production_source_read,2026-09-05-codesurf-tools-review.md,Test recommendations pending implementation; source findings do not imply runtime verification
+src/types/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/types/pngjs.d.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/agents-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/code-block.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/conversation.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/loader.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/message.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/reasoning.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/shimmer.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/sources.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/streaming-response.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/streaming-response.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-elements/suggestion.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/activity-status.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/agent-roster.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/approval-card.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/artifact-list.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/chain-of-thought.layout.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/chain-of-thought.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/diff-review.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/file-navigator.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/image-viewer.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/inline-image.layout.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/inline-image.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/interrupt-bar.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/panel-frame.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/parallel-agents.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/permission-prompt.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/plan-update.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/questionnaire-tabs.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/questionnaire-tabs.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/showcase.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/steps.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/task-inspector.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/text-editor.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/thinking-block.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/thinking-block.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-call-block-list.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-call-block-list.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-calls-collation.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-calls.layout.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-calls.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-calls.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-chip-colors.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/ai-output/tool-chip-colors.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/api-key-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/app-helpers.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/app.layout.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/app.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/claude-agent-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/command-palette.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/command-palette.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/SuggestionOverlay.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/btw-overlay.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-context-count.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-context-count.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-pending-messages.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-pending-messages.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-status-line.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-status-line.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-title-bar.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/claude-code-title-bar.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/composer-image-preview.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/composer-shortcut-hints.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/composer-shortcut-hints.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/context-meter.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/copy-flash-banner.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/diff-lsp-views.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/extension-status-indicators.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/fps-overlay.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/loading-spinner.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/message-list.layout.test.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/message-list.tsx,targeted_paths_reviewed,2026-09-05-codesurf-cordis-plan.md;2026-09-05-codesurf-daemon-review.md,Consult report for exact ranges; remaining file coverage pending
+src/ui/components/message-views.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/prompt-bar.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/prompt-bar.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/prompt-box.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/queue-banner.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/session-header.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/toast-stack.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/components/tool-format.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/connect-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/approval-context.tsx,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/context/btw-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/composer-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/conversation-state-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/modal-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/modal-nav-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/modal-visibility-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/model-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/queue-context.tsx,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/context/running-agents-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/telegram-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/theme-context.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/context/toast-context.tsx,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/controls/list-picker.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/controls/toggle-switch.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/controls/tui-dialog.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/edit-approval-panel.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/extensions-modal.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/extensions-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/feature-flags-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/feature-flags.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/followup-suggestions.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/followup-suggestions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/modal-actions/use-agent-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/modal-actions/use-mcp-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/modal-actions/use-model-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/modal-actions/use-provider-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/modal-actions/use-sandbox-wallet-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/modal-actions/use-telegram-misc-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-composer-actions.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-composer-keys.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-flushed-keyboard.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-kernel-bridge.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-modal-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-modal-guard-state.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-model-picker-data.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-overlay-actions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-plan-actions.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-queue-actions.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-running-agent-rows.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-running-agent-rows.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-session-lifecycle.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-slash-items.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-telegram-bridge.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-turn-engine.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-turn-stream.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/use-ui-action-handler.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/use-ui-mode-restore.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/usePromptHistory.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/hooks/useTypeahead.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/hooks/useTypeahead.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/host-action-dispatch.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/host-action-dispatch.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/input/types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/input/useInputRouter.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/layouts/claude-code.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/layouts/opencode.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/layouts/registry.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/layouts/types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/local-file-paths.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/local-file-paths.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/markdown-links.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/markdown.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/markdown.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/mcp-modal-types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/mcp-modal.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/mcp-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/menu-nav-store.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/menu-nav-store.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/modal-helpers.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/model-picker-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/model-picker-rows.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/model-picker-rows.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/payment-approval-panel.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/perf/key-latency.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/plan.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/provider-auth-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/provider-settings-modal.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/provider-settings-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/home-route.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/modal-keys/shared.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/modal-keys/use-complex-modal-keys.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/modal-keys/use-list-modal-keys.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/modal-keys/use-simple-modal-keys.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/modal-layer.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/routes/session-route.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/running-agents-projection.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/running-agents.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/schedule-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/screens/index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/screens/sandbox-picker.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/screens/sandbox-screen.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/screens/wallet-picker.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/screens/wallet-screen.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/sessions-modal.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/sessions-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/slash-menu-inline.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/slash-menu.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/slash-menu.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/stream-store.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/stream-store.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/telegram-pair-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/telegram-token-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/telegram-turn-ui.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/telegram-turn-ui.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/terminal-selection-text.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/terminal/manager.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/terminal/panel.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/terminal/session-view.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/theme-modal.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/theme-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/theme.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/themes/catalog.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/transcript-identity.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/transcript-identity.ts,production_source_read,2026-09-05-codesurf-ui-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/ui/ui-constants.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/update-modal.tsx,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/utils/sanitize-content.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/ui/utils/sanitize-content.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/at-mentions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/binary-on-path.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/binary-on-path.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/cli-check-cache.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/cli-check-cache.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/config-dir.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/file-index.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/file-index.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/followup-suggestions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/git-root.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/git-workspace.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/git-workspace.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/host-clipboard.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/install-manager.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/install-manager.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/instructions.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/instructions.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/process-guards.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/process-guards.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/settings-cache.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/settings.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/side-question.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skill-context.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skill-context.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skills-overlay.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skills-progressive.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skills.smoke.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skills.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/skills.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/subagent-display.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/subagent-display.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/subagents-settings.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/telegram-audio-settings.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/text.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/text.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/update-checker.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/update-checker.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/workflow-script-runner.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/workflow-script-runner.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/workflows.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/workflows.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/workspace-trust.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/utils/workspace-trust.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/verify/checkpoint.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/verify/checkpoint.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/entrypoint.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/verify/entrypoint.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/environment.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/verify/environment.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/evidence.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/orchestrator.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/verify/orchestrator.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/recipes.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/retry.ts,production_source_read,2026-09-05-codesurf-index-verify-review.md,"See scoped report for findings, exact limits and reproduction status; product implementation pending"
+src/verify/runtime-prep.test.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/wallet/manager.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review
+src/wallet/types.ts,coverage_not_established,,Passing tests or inclusion in plugin inventory does not establish source review

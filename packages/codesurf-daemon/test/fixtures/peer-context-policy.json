@@ -1,0 +1,65 @@
+{
+  "cases": [
+    {
+      "name": "stable ordering and guides",
+      "peers": [
+        {
+          "peerId": "terminal-b",
+          "peerType": "terminal",
+          "tools": ["terminal_write", "terminal_read", "terminal_write"],
+          "context": {
+            "z-last": { "page": 2, "active": true },
+            "a-first": null
+          }
+        },
+        {
+          "peerId": "browser-a",
+          "peerType": "browser",
+          "tools": ["browser_snapshot", "browser_navigate"],
+          "actions": [
+            { "name": "refresh", "description": "Refresh the current page" },
+            { "name": "generate", "description": "Generate a browser artifact" }
+          ]
+        }
+      ],
+      "expected": {
+        "peerIds": ["browser-a", "terminal-b"],
+        "includes": [
+          "## Agent room",
+          "## Browser Control",
+          "## Extension Actions",
+          "Tools: browser_navigate, browser_snapshot",
+          "- generate: Generate a browser artifact",
+          "a-first: null",
+          "z-last: {\"active\":true,\"page\":2}"
+        ],
+        "excludes": ["terminal_write, terminal_write"]
+      }
+    },
+    {
+      "name": "malformed nested fields fail closed",
+      "peers": [
+        null,
+        { "peerId": "bad-tools", "peerType": "chat", "tools": "not-an-array" },
+        {
+          "peerId": "safe-peer",
+          "peerType": "chat",
+          "tools": ["room_post", 42, "room_status"],
+          "actions": { "name": "not-an-array" },
+          "context": ["not-an-object"]
+        }
+      ],
+      "expected": {
+        "peerIds": ["safe-peer"],
+        "includes": [
+          "Tools: room_post, room_status",
+          "actions rejected: expected an array",
+          "context rejected: expected an object",
+          "1 tool entry omitted",
+          "2 peer records omitted"
+        ],
+        "excludes": ["bad-tools", "not-an-array"]
+      }
+    }
+  ]
+}

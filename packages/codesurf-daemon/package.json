@@ -1,0 +1,137 @@
+{
+  "name": "@codesurf/daemon",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "CodeSurf local HTTP daemon (codesurfd) and process supervisor. Used by both the desktop app and the codesurf TUI.",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json",
+    "./manager": {
+      "types": "./dist/manager.d.ts",
+      "import": "./dist/manager.js",
+      "default": "./dist/manager.js"
+    },
+    "./client": {
+      "types": "./dist/client.d.ts",
+      "import": "./dist/client.js",
+      "default": "./dist/client.js"
+    },
+    "./sse": {
+      "types": "./dist/sse.d.ts",
+      "import": "./dist/sse.js",
+      "default": "./dist/sse.js"
+    },
+    "./chat-cli": {
+      "types": "./dist/chat-cli.d.ts",
+      "import": "./dist/chat-cli.js",
+      "default": "./dist/chat-cli.js"
+    },
+    "./chat-session-store": {
+      "types": "./dist/chat-session-store.d.ts",
+      "import": "./dist/chat-session-store.js",
+      "default": "./dist/chat-session-store.js"
+    },
+    "./chat-policy": {
+      "types": "./dist/chat-policy.d.ts",
+      "import": "./dist/chat-policy.js",
+      "default": "./dist/chat-policy.js"
+    },
+    "./paths": {
+      "types": "./dist/paths.d.ts",
+      "import": "./dist/paths.js",
+      "default": "./dist/paths.js"
+    },
+    "./context-budget": {
+      "types": "./dist/context-budget.d.ts",
+      "import": "./dist/context-budget.js",
+      "default": "./dist/context-budget.js"
+    },
+    "./process-tree": {
+      "types": "./dist/process-tree.d.ts",
+      "import": "./dist/process-tree.js",
+      "default": "./dist/process-tree.js"
+    },
+    "./secure-file-reader": {
+      "types": "./dist/secure-file-reader.d.ts",
+      "import": "./dist/secure-file-reader.js",
+      "default": "./dist/secure-file-reader.js"
+    },
+    "./context-composer": {
+      "types": "./dist/context-composer.d.ts",
+      "import": "./dist/context-composer.js",
+      "default": "./dist/context-composer.js"
+    },
+    "./prompt-conventions": {
+      "types": "./dist/prompt-conventions.d.ts",
+      "import": "./dist/prompt-conventions.js",
+      "default": "./dist/prompt-conventions.js"
+    },
+    "./peer-context-policy": {
+      "types": "./dist/peer-context-policy.d.ts",
+      "import": "./dist/peer-context-policy.js",
+      "default": "./dist/peer-context-policy.js"
+    },
+    "./peer-authority-policy": {
+      "types": "./dist/peer-authority-policy.d.ts",
+      "import": "./dist/peer-authority-policy.js",
+      "default": "./dist/peer-authority-policy.js"
+    },
+    "./peer-context-serialization": {
+      "types": "./dist/peer-context-serialization.d.ts",
+      "import": "./dist/peer-context-serialization.js",
+      "default": "./dist/peer-context-serialization.js"
+    },
+    "./node-tools": {
+      "types": "./dist/node-tools.d.ts",
+      "import": "./dist/node-tools.js",
+      "default": "./dist/node-tools.js"
+    },
+    "./package-layout": {
+      "types": "./dist/package-layout.d.ts",
+      "import": "./dist/package-layout.js",
+      "default": "./dist/package-layout.js"
+    }
+  },
+  "bin": {
+    "codesurfd": "./bin/codesurfd.mjs"
+  },
+  "files": [
+    "bin/",
+    "dist/",
+    "vendor/",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "node scripts/build-dist.mjs",
+    "check:isolation": "node scripts/check-isolation.mjs",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "verify:dist": "node scripts/verify-dist.mjs",
+    "prepack": "npm run check:isolation && npm run verify:dist",
+    "test:unit": "node --test --test-concurrency=1 test/*.test.mjs",
+    "test": "npm run check:isolation && npm run typecheck && npm run verify:dist && npm run test:unit"
+  },
+  "dependencies": {
+    "@ai-sdk/gateway": "4.0.60",
+    "@ai-sdk/harness": "1.0.49",
+    "@ai-sdk/harness-claude-code": "1.0.50",
+    "@ai-sdk/harness-codex": "1.0.51",
+    "@anthropic-ai/claude-agent-sdk": "0.2.141",
+    "@openai/codex-sdk": "0.139.0",
+    "ai": "7.0.74",
+    "better-sqlite3": "12.8.0"
+  },
+  "devDependencies": {
+    "@types/node": "22.12.0",
+    "typescript": "5.9.3"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

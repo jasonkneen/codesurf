@@ -1,0 +1,69 @@
+
+
+  codesurf — P0 web render (fixtures)
+
+   Build plan  3/7
+
+   ✓  Analyse repository structure  842ms  [+]
+   ✓  Read package.json and tsconfig  112ms
+   ✓  Identify test framework (vitest)  67ms
+   ◌  Run existing test suite  [+]
+   ○  Fix failing tests  [+]
+   ○  Add coverage for new modules
+   ○  Update CI workflow
+
+   █████████████████░░░░░░░░░░░░░░░░░░░░░░░  43%
+
+
+
+   ┌────────────────────────────────────────────────────────────────────────────────────────────┐
+   │ approval                                                                           pending │
+   │                                                                                            │
+   │ Allow the agent to run a destructive file operation                                        │
+   │ This step would delete generated cache directories before rebuilding the workspace.        │
+   │                                                                                            │
+   │  risk: destructive filesystem write                                                        │
+   │                                                                                            │
+   │ Requested command: `rm -rf dist .cache`                                                    │
+   │                                                                                            │
+   │  Approve (a)   Deny (d)   Inspect (i)                                                      │
+   │                                                                                            │
+   └────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+
+   THINKING ◌  3/7 steps                                                        click to collapse
+
+    ✓ Understand the user request and identify scope  [+]
+    ✓ Check existing file structure for relevant context  [+]
+    ✓ Design the ExtensionAPI surface — on(), register*()
+    ◌ Write extension loader and context factory
+
+    ○ Build built-in extensions using the same API
+    ○ Write the hello-world example extension
+    ○ Update package.json with agent manifest
+
+
+
+   Updated Plan  2/4
+
+     Executing the cleanup plan in parallel: core correctness locally, popup/store cleanup and
+     input/action cleanup via subagents.
+
+     ◌ Fix core state, session, and pending-turn correctness
+     ✓ Fix popup lifecycle and module-level subscription leaks
+     ✓ Fix slash/action behavior drift and argument handling
+     □ Restore type/lint safety where feasible and verify
+
+
+
+
+    ✓ Reasoned  3 lines                                                                 ▸ expand
+
+
+
+
+
+
+
+

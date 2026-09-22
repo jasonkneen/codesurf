@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <title>codesurf — Phase 5 web</title>
+    <style>
+      /* The cell grid.
+         Everything in the component tree reasons in character cells, so the page
+         has to provide a real one: a monospace face, a fixed row height, and a
+         line-height EQUAL to that row. Without the line-height tie, each text
+         line is laid out at the font's natural leading while margins and heights
+         advance by --row, and the two drift a fraction of a row per line until
+         rows land in the wrong cell further down the page. */
+      :root {
+        --row: 16px;
+        font-size: 13px;
+      }
+      body {
+        margin: 0;
+        background: #0b0d12;
+        color: #d8dbe3;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+        line-height: var(--row);
+      }
+      #root {
+        /* size is set from the parity constants in main.tsx */
+        overflow: hidden;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/main.tsx"></script>
+  </body>
+</html>

@@ -1,0 +1,121 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "codesurf@*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag to publish (for example codesurf@1.1.4)"
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: ubuntu-latest
+            build_output: codesurf
+            asset_name: codesurf-linux-x64
+          - runner: macos-latest
+            build_output: codesurf
+            asset_name: codesurf-darwin-arm64
+          - runner: windows-latest
+            build_output: codesurf.exe
+            asset_name: codesurf-windows-x64.exe
+
+    runs-on: ${{ matrix.runner }}
+
+    permissions:
+      contents: read
+      id-token: write
+      attestations: write
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.3.11
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Compile standalone binary
+        run: bun build --compile --outfile "release/${{ matrix.build_output }}" ./src/index.ts
+
+      - name: Compute checksum (unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        working-directory: release
+        run: |
+          cp "${{ matrix.build_output }}" "${{ matrix.asset_name }}"
+          shasum -a 256 "${{ matrix.asset_name }}" > "${{ matrix.asset_name }}.sha256"
+
+      - name: Compute checksum (windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        working-directory: release
+        run: |
+          Copy-Item "${{ matrix.build_output }}" "${{ matrix.asset_name }}"
+          $hash = (Get-FileHash "${{ matrix.asset_name }}" -Algorithm SHA256).Hash.ToLower()
+          "$hash  ${{ matrix.asset_name }}" | Out-File -Encoding ascii "${{ matrix.asset_name }}.sha256"
+
+      - name: Attest build provenance
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-path: |
+            release/${{ matrix.asset_name }}
+
+      - name: Upload release artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ matrix.asset_name }}
+          path: |
+            release/${{ matrix.asset_name }}
+            release/${{ matrix.asset_name }}.sha256
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Resolve release tag
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            tag="${{ github.event.inputs.version }}"
+          else
+            tag="${{ github.ref_name }}"
+          fi
+          echo "RELEASE_TAG=${tag}" >> "$GITHUB_ENV"
+
+      - name: Download all build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-assets
+
+      - name: Merge checksums
+        shell: bash
+        run: |
+          cat release-assets/**/*.sha256 | sort > release-assets/checksums.txt
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ env.RELEASE_TAG }}
+          generate_release_notes: true
+          prerelease: ${{ contains(env.RELEASE_TAG, '-rc') || contains(env.RELEASE_TAG, '-alpha') || contains(env.RELEASE_TAG, '-beta') || contains(env.RELEASE_TAG, '-pre') }}
+          files: |
+            release-assets/**/codesurf-linux-x64
+            release-assets/**/codesurf-darwin-arm64
+            release-assets/**/codesurf-windows-x64.exe
+            release-assets/checksums.txt
