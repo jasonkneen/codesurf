@@ -1,4 +1,4 @@
 {
-  "model": "claude-opus-5-grok-skills",
-  "modelAdapterId": "anthropic.agent-sdk-grok-skills"
+  "model": "claude-fable-5",
+  "modelAdapterId": "anthropic.agent-sdk"
 }
