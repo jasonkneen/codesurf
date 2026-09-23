@@ -192,6 +192,31 @@ test('daemon serves the chat model catalog itself, whichever host launched it', 
   }
 })
 
+test('create-from-folder with activate:false registers a folder without switching the active workspace', async t => {
+  const daemon = await startDaemon({ env: { NODE_ENV: 'test' } })
+  t.after(async () => {
+    await daemon.stop()
+  })
+
+  const current = await registerChatWorkspace(daemon, join(daemon.homeDir, 'current-project'), 'Current')
+  const folder = join(daemon.homeDir, 'cli-project')
+  await mkdir(folder, { recursive: true })
+
+  const first = await daemon.request('/workspace/create-from-folder', { body: { folderPath: folder, activate: false } })
+  assert.equal(first.status, 200)
+  assert.equal(typeof first.payload?.id, 'string')
+  assert.notEqual(first.payload.id, current.id)
+
+  const active = await daemon.request('/workspace/active')
+  assert.equal(active.payload?.id ?? active.payload?.workspace?.id, current.id)
+
+  // Registering the same folder again reuses its workspace, still without switching.
+  const again = await daemon.request('/workspace/create-from-folder', { body: { folderPath: folder, activate: false } })
+  assert.equal(again.payload?.id, first.payload.id)
+  const stillActive = await daemon.request('/workspace/active')
+  assert.equal(stillActive.payload?.id ?? stillActive.payload?.workspace?.id, current.id)
+})
+
 test('daemon startup selectively sweeps stale strict owned attachments', async t => {
   const homeDir = await makeTestTempDir('codesurfd-owned-attachment-sweep-')
   const attachmentDir = join(homeDir, 'chat-attachments')

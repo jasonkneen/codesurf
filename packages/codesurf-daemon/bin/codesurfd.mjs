@@ -3876,12 +3876,15 @@ const server = createServer(async (req, res) => {
       const body = await parseRequestBody(req)
       let state = readWorkspaceState()
       const normalizedFolderPath = normalizePath(body?.folderPath)
+      // A client registering a folder in the background (the CLI on first use)
+      // passes activate:false so the desktop app is not switched to it.
+      const activate = body?.activate !== false
       const existingProject = state.projects.find(project => normalizePath(project.path) === normalizedFolderPath) ?? null
       const existingWorkspace = existingProject
         ? (state.workspaces.find(workspace => workspace.projectIds.includes(existingProject.id)) ?? null)
         : null
       if (existingWorkspace) {
-        state.activeWorkspaceId = existingWorkspace.id
+        if (activate) state.activeWorkspaceId = existingWorkspace.id
         writeWorkspaceState(state)
         sendJson(res, 200, materializeWorkspace(existingWorkspace, state.projects))
         return
@@ -3896,7 +3899,7 @@ const server = createServer(async (req, res) => {
         primaryProjectId: ensured.project.id,
       }
       state.workspaces.push(workspace)
-      state.activeWorkspaceId = workspace.id
+      if (activate) state.activeWorkspaceId = workspace.id
       writeWorkspaceState(state)
       sendJson(res, 200, materializeWorkspace(workspace, state.projects))
       return

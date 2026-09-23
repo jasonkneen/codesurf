@@ -5,6 +5,7 @@
 // regress: model id encoding, daemon discovery, SSE → ProviderStreamEvent
 // translation, sessionId threading across turns, and tool event buffering.
 
+import { execFileSync } from "node:child_process";
 import * as fs from "node:fs";
 import * as os from "node:os";
 import * as path from "node:path";
@@ -923,10 +924,64 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
     expect(body.request?.workspaceDir).toBe(process.cwd());
   });
 
-  it("explains what to do when this folder is not a registered project", async () => {
+  it("registers an unregistered folder on first use, without switching the desktop, then runs the turn", async () => {
     writePidFile(tempHome);
     const session = new CodesurfDesktopSession({
       conversationId: "conv-unregistered",
+      resolveHome: () => tempHome,
+      resolveExecutionTarget: () => "local",
+      resolveRunMode: () => "foreground",
+    });
+    // The test runs inside a git checkout: the repository root is what gets
+    // registered, so later runs from any subdirectory land in the same project.
+    const repoRoot = execFileSync("git", ["rev-parse", "--show-toplevel"], { encoding: "utf8" }).trim();
+
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (
+      input: string | URL | Request,
+    ): Promise<Response> => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/health")) return makeHealthResponse(tempHome);
+      // Registry holds workspaces, none of them containing this cwd.
+      if (url.includes("/workspace/list")) {
+        return makeJsonResponse([{ id: "ws-elsewhere", name: "Elsewhere", path: "/nope", projectPaths: [] }]);
+      }
+      if (url.includes("/workspace/create-from-folder")) {
+        return makeJsonResponse({ id: "ws-registered", name: "repo", path: repoRoot, projectPaths: [repoRoot] });
+      }
+      if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
+      if (url.includes("/chat/job/start")) return makeJsonResponse({ id: "job-registered", status: "running" });
+      if (url.includes("/chat/job/events")) return makeStreamResponse(makeSseStream([{ type: "done" }]));
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch);
+
+    await session.sendTurn(
+      {
+        conversationId: "conv-unregistered",
+        providerId: "codesurf",
+        adapterId: "codesurf.daemon",
+        modelId: "codesurf:claude/claude-sonnet-4-5",
+        prompt: "hello",
+        messages: [{ role: "user", content: "hello" }],
+      } satisfies ProviderTurnInput,
+      collectStream().controller,
+    );
+
+    const registerCall = fetchSpy.mock.calls.find((call) => String(call[0]).includes("/workspace/create-from-folder"));
+    expect(registerCall).toBeDefined();
+    expect(JSON.parse((registerCall![1] as RequestInit).body as string)).toEqual({
+      folderPath: repoRoot,
+      activate: false,
+    });
+    const startCall = fetchSpy.mock.calls.find((call) => String(call[0]).includes("/chat/job/start"));
+    const body = JSON.parse((startCall![1] as RequestInit).body as string) as { request: Record<string, unknown> };
+    expect(body.request.workspaceId).toBe("ws-registered");
+    expect(body.request.workspaceDir).toBe(repoRoot);
+  });
+
+  it("says how to fix it when registering the folder fails", async () => {
+    writePidFile(tempHome);
+    const session = new CodesurfDesktopSession({
+      conversationId: "conv-register-fails",
       resolveHome: () => tempHome,
       resolveExecutionTarget: () => "local",
       resolveRunMode: () => "foreground",
@@ -935,10 +990,8 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/health")) return makeHealthResponse(tempHome);
-      // Registry holds workspaces, none of them rooted at this cwd.
-      if (url.includes("/workspace/list")) {
-        return makeJsonResponse([{ id: "ws-elsewhere", name: "Elsewhere", path: "/nope", projectPaths: [] }]);
-      }
+      if (url.includes("/workspace/list")) return makeJsonResponse([]);
+      if (url.includes("/workspace/create-from-folder")) return makeJsonResponse({ error: "boom" }, 500);
       throw new Error(`unexpected fetch: ${url}`);
     }) as typeof fetch);
 
@@ -946,7 +999,7 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
     await expect(
       session.sendTurn(
         {
-          conversationId: "conv-unregistered",
+          conversationId: "conv-register-fails",
           providerId: "codesurf",
           adapterId: "codesurf.daemon",
           modelId: "codesurf:claude/claude-sonnet-4-5",
@@ -955,10 +1008,7 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
         } satisfies ProviderTurnInput,
         controller,
       ),
-    ).rejects.toThrow(/Open it in CodeSurf/i);
-
-    // The host turns the rejection into the transcript's error event; an
-    // emitted copy here would show the same failure twice.
+    ).rejects.toThrow(/Add it under Projects/i);
     expect(events.some((e) => e.type === "error")).toBe(false);
   });
 

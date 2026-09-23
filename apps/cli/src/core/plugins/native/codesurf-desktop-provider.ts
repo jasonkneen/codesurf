@@ -19,6 +19,7 @@
 // There's no socket-level persistence — `sessionId` IS the persistent
 // connection, server-side.
 
+import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
 import type {
@@ -995,10 +996,42 @@ class CodesurfDesktopSession implements ProviderSession {
       return best.id;
     }
 
-    throw new Error(
-      `This folder is not registered as a CodeSurf project, so the daemon has no workspace to run the turn in (${cwd}). ` +
-        `Open it in CodeSurf — or add it under Projects — then try again.`,
-    );
+    // First use in this folder: register it rather than refuse the turn. The
+    // repository root is registered (the folder itself outside a repo) so a
+    // later run from any subdirectory lands in the same project, and
+    // `activate: false` keeps the desktop app on whatever it was showing.
+    const folder = (await gitTopLevel(cwd)) ?? cwd;
+    const registered = await this.registerWorkspace(baseUrl, info, folder, signal);
+    this.workspaceId = registered;
+    this.workspaceDir = folder;
+    return registered;
+  }
+
+  private async registerWorkspace(
+    baseUrl: string,
+    info: DaemonPidInfo,
+    folder: string,
+    signal?: AbortSignal,
+  ): Promise<string> {
+    try {
+      const timeout = AbortSignal.timeout(5_000);
+      const response = await fetch(`${baseUrl}/workspace/create-from-folder`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${info.token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ folderPath: folder, activate: false }),
+        signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+      });
+      if (!response.ok) throw new Error(`daemon returned ${response.status}`);
+      const created = asRecord((await response.json()) as unknown);
+      const id = created && typeof created.id === "string" ? created.id : "";
+      if (!id) throw new Error("daemon returned no workspace id");
+      return id;
+    } catch (err) {
+      throw new Error(
+        `Could not register ${folder} as a CodeSurf project: ${err instanceof Error ? err.message : String(err)}. ` +
+          `Add it under Projects in CodeSurf, then try again.`,
+      );
+    }
   }
 
   private async readDaemonSessionId(
@@ -1262,6 +1295,16 @@ class CodesurfDesktopSession implements ProviderSession {
 }
 
 /** True when `child` is `parent` or a path below it (both canonical). */
+/** The git repository root containing `cwd`, or null outside a repository. */
+function gitTopLevel(cwd: string): Promise<string | null> {
+  return new Promise((resolve) => {
+    execFile("git", ["rev-parse", "--show-toplevel"], { cwd, timeout: 2_000 }, (err, stdout) => {
+      const top = err ? "" : String(stdout).trim();
+      resolve(top ? top : null);
+    });
+  });
+}
+
 function isSameOrInside(parent: string, child: string): boolean {
   const rel = path.relative(parent, child);
   return rel === "" || (rel !== ".." && !rel.startsWith(`..${path.sep}`) && !path.isAbsolute(rel));
