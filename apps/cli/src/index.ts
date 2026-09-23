@@ -31,6 +31,7 @@ import {
   renderHeadlessChunk,
   renderHeadlessPrelude,
 } from "./headless/output";
+import type { StartupTarget } from "./server/startup";
 import { startScheduleDaemon } from "./tools/schedule";
 import type { StreamChunk } from "./types/index";
 import type { RuntimeMode } from "./ui/app-helpers";
@@ -45,6 +46,7 @@ import {
   getCurrentSandboxSettings,
   loadPaymentSettings,
   mergeSandboxSettings,
+  rememberKnownServer,
   type SandboxMode,
   type SandboxSettings,
   savePaymentSettings,
@@ -77,7 +79,7 @@ async function startInteractive(
   batchApi: boolean,
   sandboxMode: SandboxMode,
   sandboxSettings: SandboxSettings,
-  runtimeMode: RuntimeMode,
+  target: StartupTarget,
   session?: string,
   initialMessage?: string,
 ) {
@@ -103,12 +105,6 @@ async function startInteractive(
     sandboxSettings,
     batchApi,
   });
-  process.stderr.write(
-    runtimeMode.kind === "server"
-      ? `codesurf session: attached to server ${runtimeMode.url}\n`
-      : "codesurf session: local (serverless \u2014 same engine capabilities)\n",
-  );
-
   const { createCliRenderer } = await import("@opentui/core");
   const { createRoot } = await import("@opentui/react");
   const { createElement } = await import("react");
@@ -118,20 +114,26 @@ async function startInteractive(
   // machine-local node token.
   (await import("./relay/server-discovery")).installNodeTokenResolver();
 
+  // Decide the runtime mode from the attach result, so a failed attach never
+  // leaves the footer claiming a server.
   let remoteFront: import("./relay/session-stream").RemoteFront | undefined;
-  if (runtimeMode.kind === "server") {
+  let runtimeMode: RuntimeMode = { kind: "local" };
+  if (target.kind === "server") {
     try {
-      const { SessionStreamClient } = await import("./relay/session-stream");
-      const client = new SessionStreamClient(runtimeMode.url);
-      await client.connect();
-      const sessionId = await client.createSession();
-      remoteFront = { client, sessionId, url: runtimeMode.url };
-      process.stderr.write(`codesurf session: attached to ${runtimeMode.url} (session ${sessionId})\n`);
+      const { openRemoteFront } = await import("./server/attach");
+      remoteFront = await openRemoteFront(target.url, { cwd: process.cwd(), sandboxMode });
+      runtimeMode = { kind: "server", url: target.url, name: target.name };
+      if (target.remember) rememberKnownServer(target.url, target.name);
+      const label = target.name ? ` (${target.name})` : "";
+      process.stderr.write(`codesurf session: attached to ${target.url}${label} (session ${remoteFront.sessionId})\n`);
     } catch (_err) {
-      process.stderr.write(`codesurf: could not attach to ${runtimeMode.url} — falling back to local\n`);
+      process.stderr.write(`codesurf: could not attach to ${target.url} — running serverless\n`);
       remoteFront = undefined;
     }
+  } else if (target.notice) {
+    process.stderr.write(`codesurf: ${target.notice}\n`);
   }
+  if (!remoteFront) process.stderr.write("codesurf session: local (serverless \u2014 same engine capabilities)\n");
 
   const renderer = await createCliRenderer({
     exitOnCtrlC: false,
@@ -232,7 +234,12 @@ async function runHeadless(
 /** Mode-2 headless front: route a prompt to a codesurf node's session over WS,
  *  streaming live chunks back. The node owns the session — killing this front
  *  does not cancel the turn. */
-async function runRemoteHeadless(url: string, prompt: string, format: HeadlessOutputFormat): Promise<void> {
+async function runRemoteHeadless(
+  url: string,
+  prompt: string,
+  format: HeadlessOutputFormat,
+  sandboxMode: SandboxMode,
+): Promise<void> {
   const { SessionStreamClient, runRemoteTurn } = await import("./relay/session-stream");
   (await import("./relay/server-discovery")).installNodeTokenResolver();
   const client = new SessionStreamClient(url);
@@ -242,7 +249,7 @@ async function runRemoteHeadless(url: string, prompt: string, format: HeadlessOu
     process.stdout.write(`${JSON.stringify({ mode: "wire", url, prompt })}\n`);
   }
   await client.connect();
-  const session = await client.createSession();
+  const session = await client.createSession({ cwd: process.cwd(), sandboxMode });
   if (format !== "json") process.stderr.write(`\n[codesurf: wire session ${session} on ${url}]\n`);
   try {
     await runRemoteTurn(client, session, prompt, {
@@ -358,6 +365,16 @@ async function resolveWorkspaceTrustSandboxMode(sandboxMode: SandboxMode, option
   const decision = await promptWorkspaceTrust(cwd);
   if (decision.remember) saveWorkspaceTrustDecision(cwd, decision.sandboxMode);
   return decision.sandboxMode;
+}
+
+/** One question on stderr, answered on stdin (before the TUI mounts). */
+async function askOnStderr(question: string): Promise<string> {
+  const rl = readline.createInterface({ input: process.stdin, output: process.stderr });
+  try {
+    return await new Promise<string>((resolve) => rl.question(question, resolve));
+  } finally {
+    rl.close();
+  }
 }
 
 async function runBackgroundDelegation(jobPath: string, options: CliOptions) {
@@ -491,6 +508,7 @@ program
     "--connect <url>",
     "Attach this session to a codesurf node (ws://host:port, see `codesurf node`) instead of running locally",
   )
+  .option("--serverless", "Run the agent in this process for this launch (skip the background server)")
   .option("--batch-api", "Use xAI Batch API for model calls (async, lower cost)")
   .option("--update", "Update codesurf to the latest version and exit")
   .action(async (message: string[], options) => {
@@ -537,7 +555,7 @@ program
 
     if (options.prompt) {
       if (options.connect) {
-        await runRemoteHeadless(options.connect, options.prompt, options.format);
+        await runRemoteHeadless(options.connect, options.prompt, options.format, config.sandboxMode);
         return;
       }
       await runHeadless(
@@ -557,7 +575,14 @@ program
 
     const initialMessage = message.length > 0 ? message.join(" ") : undefined;
     config.sandboxMode = await resolveWorkspaceTrustSandboxMode(config.sandboxMode, options);
-    const runtimeMode: RuntimeMode = options.connect ? { kind: "server", url: options.connect } : { kind: "local" };
+    const { resolveStartupServer } = await import("./server/startup");
+    const target = await resolveStartupServer({
+      interactive: Boolean(process.stdin.isTTY && process.stdout.isTTY),
+      connect: options.connect,
+      serverless: options.serverless === true,
+      cliVersion: packageJson.version,
+      ask: askOnStderr,
+    });
     await startInteractive(
       config.apiKey,
       config.baseURL,
@@ -566,7 +591,7 @@ program
       options.batchApi === true,
       config.sandboxMode,
       config.sandboxSettings,
-      runtimeMode,
+      target,
       options.session,
       initialMessage,
     );
@@ -750,7 +775,6 @@ program
 
 const daemonCmd = program
   .command("daemon")
-  .alias("server")
   .description("Manage the codesurfd HTTP daemon (the shared backend used by both the desktop app and this TUI)");
 
 daemonCmd
@@ -873,8 +897,132 @@ daemonCmd
     }
   });
 
-// `gateway`, not `serve`: next to `server` (the codesurfd daemon) the old name
-// read as the same thing. `serve` still works, hidden from help.
+// `server` = background engine nodes (`codesurf node`, detached). One named
+// "default" on port 3948 unless you create more with --name.
+function parsePortOption(value: string): number {
+  const port = Number.parseInt(value, 10);
+  if (!Number.isInteger(port) || port < 1 || port > 65535) throw new InvalidArgumentError(`Invalid port "${value}".`);
+  return port;
+}
+
+function printServerLine(status: import("./server/lifecycle").ServerStatus, formatUptime: (ms: number) => string) {
+  const { record } = status;
+  console.log(
+    `${record.name}  ${record.url}  pid ${record.pid}  up ${formatUptime(status.uptimeMs)}  ${status.reachable ? "reachable" : "NOT reachable"}`,
+  );
+}
+
+const serverCmd = program
+  .command("server")
+  .description("Manage background CodeSurf servers (engine nodes the TUI attaches to)");
+
+serverCmd
+  .command("start")
+  .description("Start a background server (the default one unless --name is given) and return to the shell")
+  .option("--name <name>", "Server name", "default")
+  .option("--port <port>", "Port to listen on (default: first free port from 3948)", parsePortOption)
+  .action(async (options: { name: string; port?: number }) => {
+    const { startServer } = await import("./server/lifecycle");
+    const { logPath } = await import("./server/registry");
+    try {
+      const { record, started } = await startServer({
+        name: options.name,
+        port: options.port,
+        cliVersion: packageJson.version,
+      });
+      rememberKnownServer(record.url, record.name);
+      console.log(
+        started
+          ? `server "${record.name}" started on ${record.url} (pid ${record.pid}); log: ${logPath(record.name)}`
+          : `server "${record.name}" already running on ${record.url} (pid ${record.pid})`,
+      );
+    } catch (err) {
+      console.error(`Failed to start server "${options.name}": ${(err as Error).message}`);
+      process.exitCode = 1;
+    }
+  });
+
+serverCmd
+  .command("stop")
+  .description("Stop a background server (graceful SIGTERM, SIGKILL after a grace period)")
+  .option("--name <name>", "Server name", "default")
+  .option("--all", "Stop every registered server")
+  .action(async (options: { name: string; all?: boolean }) => {
+    const { stopServer } = await import("./server/lifecycle");
+    const { listRecords } = await import("./server/registry");
+    const names = options.all ? listRecords().map((r) => r.name) : [options.name];
+    if (names.length === 0) console.log("no servers running");
+    for (const name of names) {
+      const result = await stopServer(name);
+      if (!result.record) {
+        console.log(`server "${name}" is not running`);
+        continue;
+      }
+      console.log(`server "${name}" stopped (pid ${result.record.pid}${result.forced ? ", killed" : ""})`);
+    }
+  });
+
+serverCmd
+  .command("restart")
+  .description("Restart a background server on the same port")
+  .option("--name <name>", "Server name", "default")
+  .option("--port <port>", "Port to listen on instead of the current one", parsePortOption)
+  .action(async (options: { name: string; port?: number }) => {
+    const { startServer, stopServer } = await import("./server/lifecycle");
+    const { record: previous } = await stopServer(options.name);
+    try {
+      const { record } = await startServer({
+        name: options.name,
+        port: options.port ?? previous?.port,
+        cliVersion: packageJson.version,
+      });
+      rememberKnownServer(record.url, record.name);
+      console.log(`server "${record.name}" restarted on ${record.url} (pid ${record.pid})`);
+    } catch (err) {
+      console.error(`Failed to restart server "${options.name}": ${(err as Error).message}`);
+      process.exitCode = 1;
+    }
+  });
+
+serverCmd
+  .command("status")
+  .description("Show one background server (the default unless --name is given)")
+  .option("--name <name>", "Server name", "default")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (options: { name: string; json?: boolean }) => {
+    const { formatUptime, serverStatus } = await import("./server/lifecycle");
+    const status = await serverStatus(options.name);
+    if (options.json) {
+      console.log(JSON.stringify(status ? { running: true, ...status } : { running: false, name: options.name }));
+    } else if (status) {
+      printServerLine(status, formatUptime);
+    } else {
+      console.log(`server "${options.name}": not running`);
+    }
+    if (!status?.reachable) process.exitCode = 1;
+  });
+
+serverCmd
+  .command("list")
+  .alias("ls")
+  .description("List background servers")
+  .option("--json", "Emit machine-readable JSON")
+  .action(async (options: { json?: boolean }) => {
+    const { formatUptime, listServers } = await import("./server/lifecycle");
+    const servers = await listServers();
+    if (options.json) {
+      console.log(JSON.stringify(servers));
+      return;
+    }
+    if (servers.length === 0) {
+      console.log("no servers running (start one with `codesurf server start`)");
+      return;
+    }
+    for (const status of servers) printServerLine(status, formatUptime);
+  });
+
+// `gateway`, not `serve`: next to `server` (background engine nodes) the old
+// name read as the same thing. `serve` still works, hidden from help.
 for (const [name, hidden] of [
   ["gateway", false],
   ["serve", true],

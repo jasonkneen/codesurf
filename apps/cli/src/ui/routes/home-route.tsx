@@ -161,7 +161,9 @@ function HomeRouteImpl({
         <text fg={t.textDim}>{agent.getCwd().replace(os.homedir(), "~")}</text>
         {sandboxMode === "shuru" ? <text fg="#f97316">{" · sandbox"}</text> : null}
         {startupConfig.runtimeMode.kind === "server" ? (
-          <text fg="#22c55e">{" · wire " + startupConfig.runtimeMode.url}</text>
+          <text fg="#22c55e">
+            {` · wire ${startupConfig.runtimeMode.name ? `${startupConfig.runtimeMode.name} ` : ""}${startupConfig.runtimeMode.url}`}
+          </text>
         ) : (
           <text fg="#22c55e">{" · serverless"}</text>
         )}

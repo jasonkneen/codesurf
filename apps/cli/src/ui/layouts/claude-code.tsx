@@ -163,7 +163,7 @@ export const claudeCodeLayout: LayoutEntry = {
             <PluginStatusIndicators trailingSeparator=" · " t={t} />
             <PluginStatusIndicators placement="mode-line" />
             {runtimeMode.kind === "server" ? (
-              <text fg="#4c8dff">{`wire ${runtimeMode.url}`}</text>
+              <text fg="#4c8dff">{`wire ${runtimeMode.name ? `${runtimeMode.name} ` : ""}${runtimeMode.url}`}</text>
             ) : (
               <text fg="#22c55e">{"serverless"}</text>
             )}

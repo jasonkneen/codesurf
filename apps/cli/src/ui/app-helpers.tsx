@@ -31,7 +31,7 @@ export type PasteBlock = { id: number; content: string; lines: number; isImage?:
 export type FileMentionBlock = { id: number; path: string };
 export type QueuedMessage = { id: string; text: string; displayText: string };
 
-export type RuntimeMode = { kind: "local" } | { kind: "server"; url: string };
+export type RuntimeMode = { kind: "local" } | { kind: "server"; url: string; name?: string };
 
 export interface AppStartupConfig {
   apiKey: string | undefined;

@@ -171,14 +171,42 @@ You keep using a text model for the session, and Codesurf saves generated media 
 ---
 ## Wire & Mesh (mode 2)
 
-The TUI runs **serverless by default** — the Agent lives in the TUI process; kill it
-and processing stops. With `--connect` the same TUI becomes a **wire front**:
+An interactive `codesurf` launch **attaches to a background server** — a detached
+engine node that owns the session, so closing the TUI does not stop its work.
+If none is running it starts the default one (`default`, port 3948) first. A
+server you started or connected to before is attached silently; one you have
+never used prompts once (`Connect to it? [y]es / [N]o`). If the server can't be
+started or reached, the TUI runs **serverless** (Agent in-process) with a
+one-line notice. Sessions run in the folder you launched from, with its sandbox
+mode — the server itself runs from `~/.codesurf`.
 
 ```bash
-codesurf                                   # serverless — Agent in-process
+codesurf server start                      # start the default server (port 3948) and return
+codesurf server start --name second        # another one, on the next free port (or --port <p>)
+codesurf server status                     # name, url, pid, uptime, reachable (--name, --json)
+codesurf server list                       # every server
+codesurf server restart                    # same port
+codesurf server stop                       # graceful stop (--name <n>, or --all)
+```
+
+Registry and logs live in `~/.codesurf/servers/<name>.json|.log`. To stay
+in-process: `codesurf --serverless` for one launch, or turn auto-start off in
+`~/.codesurf/user-settings.json`:
+
+```json
+{ "server": { "autoStart": false } }
+```
+
+`-p/--prompt`, `--verify` and non-TTY runs stay serverless unless you pass
+`--connect`. You can also run a node in the foreground and point a TUI at it:
+
+```bash
 codesurf node --port 3948                  # a worker node on another terminal/box
 codesurf --connect ws://127.0.0.1:3948     # this TUI becomes a front to that node
 ```
+
+`codesurf server` is the engine node; `codesurf daemon` manages codesurfd, the
+separate HTTP backend shared with the desktop app.
 
 A node only accepts clients that present its token. It generates one on first
 start, stores it in `~/.codesurf/node/token` (mode 0600, or set
@@ -192,7 +220,7 @@ or the node is started with `--auto-approve`.
 Attached, the TUI hands off turns to the node, **streams responses live**, and can
 keep sending messages — and **killing the front does not stop the node's turn**
 (client-death resilience). The status line always shows which mode you're in:
-`· serverless` or `· wire ws://…`. If `--connect` can't reach the node, the TUI
+`· serverless` or `· wire <name> ws://…`. If the server can't be reached, the TUI
 falls back to its local Agent.
 
 Headless works over the wire too (no local API key — the node owns the Agent):

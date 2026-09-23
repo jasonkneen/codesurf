@@ -11,6 +11,13 @@ Infinite canvas workspace for AI agents and developers, plus the terminal agent 
 | [`packages/codesurf-daemon`](packages/codesurf-daemon) | `@codesurf/daemon` — the one local daemon (`codesurfd`) both apps start and share via `~/.codesurf/daemon/pid.json`. |
 | [`packages/plugin-api`](packages/plugin-api), [`packages/runtime`](packages/runtime) | The plugin API and runtime the CLI's plugins are built on. |
 
+## Servers and the daemon
+
+Two different background processes, two commands:
+
+- `codesurf server start|stop|status|restart|list` — **servers**: detached CLI engine nodes that own agent sessions over WebSocket. The TUI attaches to the `default` one (port 3948), starting it when none is running; `codesurf server start --name <n>` adds more. Turn auto-start off with `"server": { "autoStart": false }` in `~/.codesurf/user-settings.json`, or pass `codesurf --serverless` for one launch.
+- `codesurf daemon start|stop|status|restart` — **codesurfd**, the HTTP backend shared with the desktop app.
+
 ## Working in the repo
 
 ```bash

@@ -17,7 +17,7 @@ import { ModalProvider, useModalVisibility } from "./context/modal-context.js";
 import { ModelProvider, useModel } from "./context/model-context.js";
 import { QueueProvider, useQueue } from "./context/queue-context.js";
 import { RunningAgentsProvider } from "./context/running-agents-context.js";
-import { useServerMode } from "./context/server-mode-context.js";
+import { ServerModeProvider } from "./context/server-mode-context.js";
 import { TelegramProvider, useTelegram } from "./context/telegram-context.js";
 import { ThemeProvider, useTheme } from "./context/theme-context.js";
 import { ToastProvider, useToast } from "./context/toast-context.js";
@@ -58,31 +58,38 @@ import {
 } from "./terminal/manager";
 
 export function App(props: AppProps) {
-  useServerMode();
+  // Mounting this is what routes turns to an attached server: without it,
+  // useServerMode() falls back to the default (no remote front) and turns run
+  // locally even with --connect.
   return (
-    <ThemeProvider>
-      <BtwProvider>
-        <ToastProvider>
-          <ModelProvider agent={props.agent} initialHasApiKey={props.agent.hasApiKey()}>
-            <ApprovalProvider>
-              <RunningAgentsProvider>
-                <QueueProvider>
-                  <ModalProvider>
-                    <ConversationStateProvider agent={props.agent}>
-                      <TelegramProvider>
-                        <ComposerProvider agent={props.agent}>
-                          <AppInner {...props} />
-                        </ComposerProvider>
-                      </TelegramProvider>
-                    </ConversationStateProvider>
-                  </ModalProvider>
-                </QueueProvider>
-              </RunningAgentsProvider>
-            </ApprovalProvider>
-          </ModelProvider>
-        </ToastProvider>
-      </BtwProvider>
-    </ThemeProvider>
+    <ServerModeProvider
+      initial={props.remoteFront ?? null}
+      placement={{ cwd: process.cwd(), sandboxMode: props.startupConfig.sandboxMode }}
+    >
+      <ThemeProvider>
+        <BtwProvider>
+          <ToastProvider>
+            <ModelProvider agent={props.agent} initialHasApiKey={props.agent.hasApiKey()}>
+              <ApprovalProvider>
+                <RunningAgentsProvider>
+                  <QueueProvider>
+                    <ModalProvider>
+                      <ConversationStateProvider agent={props.agent}>
+                        <TelegramProvider>
+                          <ComposerProvider agent={props.agent}>
+                            <AppInner {...props} />
+                          </ComposerProvider>
+                        </TelegramProvider>
+                      </ConversationStateProvider>
+                    </ModalProvider>
+                  </QueueProvider>
+                </RunningAgentsProvider>
+              </ApprovalProvider>
+            </ModelProvider>
+          </ToastProvider>
+        </BtwProvider>
+      </ThemeProvider>
+    </ServerModeProvider>
   );
 }
 

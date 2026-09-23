@@ -2,6 +2,7 @@ import { createContext, type ReactNode, useCallback, useContext, useEffect, useR
 import type { SessionStatus } from "../../relay/host";
 import { discoverLocalServers, discoverTargetsFromSettings, type ServerInfo } from "../../relay/server-discovery";
 import { type RemoteFront, SessionStreamClient } from "../../relay/session-stream";
+import { openRemoteFront, type SessionPlacement } from "../../server/attach";
 
 export interface ServerModeValue {
   remoteFront: RemoteFront | null;
@@ -51,7 +52,16 @@ export function replaceRemoteFront(
   return next;
 }
 
-export function ServerModeProvider({ children, initial }: { children: ReactNode; initial?: RemoteFront | null }) {
+export function ServerModeProvider({
+  children,
+  initial,
+  placement,
+}: {
+  children: ReactNode;
+  initial?: RemoteFront | null;
+  /** Folder and sandbox mode new remote sessions run with (the TUI's own). */
+  placement?: SessionPlacement;
+}) {
   const [remoteFront, setRemoteFront] = useState<RemoteFront | null>(initial ?? null);
   const remoteFrontRef = useRef<RemoteFront | null>(initial ?? null);
   const [detected, setDetected] = useState<ServerInfo[]>([]);
@@ -82,19 +92,20 @@ export function ServerModeProvider({ children, initial }: { children: ReactNode;
     void discoverLocalServers(discoverTargetsFromSettings()).then((servers) => setDetected(servers));
   }, [pickerOpen]);
 
-  const attach = useCallback(async (url: string): Promise<RemoteFront | null> => {
-    const client = new SessionStreamClient(url);
-    try {
-      await client.connect();
-      const sessionId = await client.createSession();
-      const front: RemoteFront = { client, sessionId, url };
-      setRemoteFront(replaceRemoteFront(remoteFrontRef, front));
-      return front;
-    } catch {
-      client.close();
-      return null;
-    }
-  }, []);
+  const placementCwd = placement?.cwd ?? process.cwd();
+  const placementSandbox = placement?.sandboxMode;
+  const attach = useCallback(
+    async (url: string): Promise<RemoteFront | null> => {
+      try {
+        const front = await openRemoteFront(url, { cwd: placementCwd, sandboxMode: placementSandbox });
+        setRemoteFront(replaceRemoteFront(remoteFrontRef, front));
+        return front;
+      } catch {
+        return null;
+      }
+    },
+    [placementCwd, placementSandbox],
+  );
 
   const resume = useCallback(async (url: string, sessionId: string): Promise<RemoteFront | null> => {
     const client = new SessionStreamClient(url);

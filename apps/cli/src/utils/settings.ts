@@ -209,6 +209,20 @@ export interface UserSettings {
    * (same as `"disabled"`, but lets a future onboarding flow distinguish
    * "never chosen" from "explicitly off"). */
   tuiPet?: string;
+  /** Background server (`codesurf server`) behaviour for interactive launches. */
+  server?: ServerSettings;
+}
+
+export interface KnownServer {
+  name?: string;
+  lastConnectedAt: string;
+}
+
+export interface ServerSettings {
+  /** Start the default background server when the TUI launches and none is running. Default true. */
+  autoStart?: boolean;
+  /** Servers this user started or connected to, keyed by ws:// url; attached without asking. */
+  known?: Record<string, KnownServer>;
 }
 
 export interface ProjectSettings {
@@ -425,6 +439,15 @@ export function saveUserSettings(partial: Partial<UserSettings>): void {
             ...current.mcp,
             ...partial.mcp,
             servers: partial.mcp.servers ?? current.mcp?.servers ?? [],
+          },
+        }
+      : {}),
+    ...(partial.server !== undefined
+      ? {
+          server: {
+            ...current.server,
+            ...partial.server,
+            known: { ...current.server?.known, ...partial.server.known },
           },
         }
       : {}),
@@ -980,4 +1003,22 @@ export function loadEditApprovalMode(): EditApprovalMode {
 
 export function saveEditApprovalMode(mode: EditApprovalMode): void {
   saveUserSettings({ editApproval: mode });
+}
+
+export function isServerAutoStartEnabled(): boolean {
+  return loadUserSettings().server?.autoStart !== false;
+}
+
+export function isKnownServer(url: string): boolean {
+  return Boolean(loadUserSettings().server?.known?.[url]);
+}
+
+/** Remember a server so later launches attach to it without asking. */
+export function rememberKnownServer(url: string, name?: string): void {
+  const previous = loadUserSettings().server?.known?.[url];
+  saveUserSettings({
+    server: {
+      known: { [url]: { name: name ?? previous?.name, lastConnectedAt: new Date().toISOString() } },
+    },
+  });
 }

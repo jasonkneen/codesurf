@@ -155,7 +155,7 @@ export const opencodeLayout: LayoutEntry = {
             {footerPermissionMode ? <PermissionModeFooterLabel t={t} mode={footerPermissionMode} /> : null}
             <PluginStatusIndicators placement="mode-line" />
             {runtimeMode.kind === "server" ? (
-              <text fg="#4c8dff">{`wire ${runtimeMode.url}`}</text>
+              <text fg="#4c8dff">{`wire ${runtimeMode.name ? `${runtimeMode.name} ` : ""}${runtimeMode.url}`}</text>
             ) : (
               <text fg="#22c55e">{"serverless"}</text>
             )}
