@@ -94,22 +94,26 @@ describe("startup prompt", () => {
   });
 });
 
+function isKnown(settings: typeof import("../utils/settings"), url: string): boolean {
+  return Boolean(settings.loadUserSettings().server?.known?.[url]);
+}
+
 describe("server settings", () => {
   it("remembers known servers without dropping autoStart", async () => {
     const settings = await import("../utils/settings");
     settings.saveUserSettings({ server: { autoStart: false } });
     expect(settings.isServerAutoStartEnabled()).toBe(false);
-    expect(settings.isKnownServer("ws://127.0.0.1:3950")).toBe(false);
+    expect(isKnown(settings, "ws://127.0.0.1:3950")).toBe(false);
 
     settings.rememberKnownServer("ws://127.0.0.1:3950", "second");
     settings.rememberKnownServer("ws://127.0.0.1:3948");
-    expect(settings.isKnownServer("ws://127.0.0.1:3950")).toBe(true);
-    expect(settings.isKnownServer("ws://127.0.0.1:3948")).toBe(true);
+    expect(isKnown(settings, "ws://127.0.0.1:3950")).toBe(true);
+    expect(isKnown(settings, "ws://127.0.0.1:3948")).toBe(true);
     expect(settings.isServerAutoStartEnabled()).toBe(false);
     expect(settings.loadUserSettings().server?.known?.["ws://127.0.0.1:3950"]?.name).toBe("second");
 
     settings.saveUserSettings({ server: { autoStart: true } });
     expect(settings.isServerAutoStartEnabled()).toBe(true);
-    expect(settings.isKnownServer("ws://127.0.0.1:3950")).toBe(true);
+    expect(isKnown(settings, "ws://127.0.0.1:3950")).toBe(true);
   });
 });

@@ -34,7 +34,6 @@ import {
 } from "./headless/output";
 import type { StartupTarget } from "./server/startup";
 import { startScheduleDaemon } from "./tools/schedule";
-import type { StreamChunk } from "./types/index";
 import type { RuntimeMode } from "./ui/app-helpers";
 import { loadBuiltinUiPlugins } from "./ui/screens";
 import { processAtMentionsAsync } from "./utils/at-mentions.js";
@@ -241,31 +240,18 @@ async function runRemoteHeadless(
   format: HeadlessOutputFormat,
   sandboxMode: SandboxMode,
 ): Promise<void> {
-  const { SessionStreamClient, runRemoteTurn } = await import("./relay/session-stream");
+  const { SessionStreamClient } = await import("./relay/session-stream");
   (await import("./relay/server-discovery")).installNodeTokenResolver();
   const client = new SessionStreamClient(url);
-  const textOf = (chunk: StreamChunk): string =>
-    chunk?.type === "content" && typeof chunk.content === "string" ? chunk.content : "";
   if (format === "json") {
     process.stdout.write(`${JSON.stringify({ mode: "wire", url, prompt })}\n`);
   }
   await client.connect();
   const session = await client.createSession({ cwd: process.cwd(), sandboxMode });
   if (format !== "json") process.stderr.write(`\n[codesurf: wire session ${session} on ${url}]\n`);
-  let turnError: string | undefined;
   try {
-    await runRemoteTurn(client, session, prompt, {
-      onChunk: (chunk) => {
-        // A failed turn arrives as an in-stream error chunk (then done), not a rejection.
-        if (chunk?.type === "error") {
-          turnError = typeof chunk.content === "string" ? chunk.content : "turn failed";
-          return;
-        }
-        const t = textOf(chunk);
-        if (t) process.stdout.write(t);
-      },
-    });
-    if (turnError !== undefined) throw new Error(turnError);
+    const { runWireTurn } = await import("./server/attach");
+    await runWireTurn(client, session, prompt, (text) => process.stdout.write(text));
   } catch (error) {
     client.close();
     process.stderr.write(`\ncodesurf: ${error instanceof Error ? error.message : String(error)}\n`);

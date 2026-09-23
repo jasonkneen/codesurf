@@ -1009,10 +1009,6 @@ export function isServerAutoStartEnabled(): boolean {
   return loadUserSettings().server?.autoStart !== false;
 }
 
-export function isKnownServer(url: string): boolean {
-  return Boolean(loadUserSettings().server?.known?.[url]);
-}
-
 /** Remember a server so later launches attach to it without asking. */
 export function rememberKnownServer(url: string, name?: string): void {
   const previous = loadUserSettings().server?.known?.[url];

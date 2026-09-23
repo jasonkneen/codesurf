@@ -3,6 +3,7 @@ import { useRenderer, useTerminalDimensions } from "@opentui/react";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { dispatchInputInterceptors, useIcon } from "../core/plugins";
 import { markAcceptAllThisSession, markPathApprovedThisSession } from "../core/plugins/builtin/file-tools-approval";
+import { canRunTurns } from "../server/attach";
 import { getApiKey } from "../utils/settings";
 import { type AppProps, extractFileDropPaths } from "./app-helpers";
 import { buildComposerShortcutHints } from "./components/composer-shortcut-hints.js";
@@ -239,6 +240,8 @@ function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
     providerSettingsRows,
     footerPermissionMode,
   } = modelPickerData;
+  // Attached, the server runs the turn with its own key; only serverless needs one here.
+  const turnsCanRun = canRunTurns(runtimeMode, activeModelCanRun);
 
   const shellIcon = useIcon("shell");
   const cwdIcon = useIcon("cwd");
@@ -258,11 +261,11 @@ function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
   const dismissActiveOverlay = useOverlayActions(closeAgentModal, closeAgentsPopup);
 
   useEffect(() => {
-    if (initialMessage && activeModelCanRun && !processedInitial.current) {
+    if (initialMessage && turnsCanRun && !processedInitial.current) {
       processedInitial.current = true;
       processMessage(initialMessage);
     }
-  }, [activeModelCanRun, initialMessage, processMessage, processedInitial.current, processedInitial]);
+  }, [turnsCanRun, initialMessage, processMessage, processedInitial.current, processedInitial]);
   const handleUiAction = useUiActionHandler({
     agent,
     version: startupConfig.version,
@@ -399,7 +402,7 @@ function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
       scrollToBottom,
       spawnInlineTerminal,
       activeModelAdapterId,
-      activeModelCanRun,
+      activeModelCanRun: turnsCanRun,
     },
   );
 
