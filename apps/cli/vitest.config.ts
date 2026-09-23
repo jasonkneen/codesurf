@@ -21,6 +21,8 @@ export default defineConfig({
     },
   },
   test: {
+    // Keep every test off the developer's real ~/.codesurf (see the file).
+    setupFiles: ["./test/setup/isolate-config-dir.ts"],
     // Several suites intentionally reset and rewire module-level host state.
     // Running their heavy imports concurrently makes otherwise-fast tests hit
     // the default 5s timeout on constrained machines. File isolation is still

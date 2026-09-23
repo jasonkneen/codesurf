@@ -1,6 +1,6 @@
 import { appendFileSync, mkdirSync, renameSync, statSync } from "node:fs";
-import { homedir } from "node:os";
 import { join } from "node:path";
+import { getCodesurfConfigDir } from "./config-dir";
 
 let interactiveUiActive = false;
 
@@ -14,12 +14,12 @@ export function shouldRotateCrashLog(size: number, limit: number = CRASH_LOG_SIZ
   return size > limit;
 }
 
-/** Append a crash/rejection record to ~/.codesurf/crash.log so it survives the
+/** Append a crash/rejection record to <config dir>/crash.log (~/.codesurf) so it survives the
  *  TUI alt-screen (OpenTUI patches console, so console.error output is lost
  *  when the process dies mid-render). Best-effort — never throws. */
 export function writeCrashLog(kind: string, reason: unknown): string | undefined {
   try {
-    const dir = join(homedir(), ".codesurf");
+    const dir = getCodesurfConfigDir();
     mkdirSync(dir, { recursive: true });
     const file = join(dir, "crash.log");
     try {
