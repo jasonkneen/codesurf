@@ -1,19 +1,13 @@
 // Which engine an interactive TUI launch uses: a background server (attach,
 // auto-starting the default one) or the in-process Agent (serverless).
-// decideStartup is the pure policy; resolveStartupServer wires it to the
-// registry, discovery probes, settings, and the startup prompt.
+// decideStartup is the pure policy (scope rules live in ./scope.ts);
+// resolveStartupServer wires it to discovery, settings, and the startup prompt.
 
-import { DEFAULT_NODE_PORT, probeServer } from "../relay/server-discovery";
-import { isKnownServer, isServerAutoStartEnabled } from "../utils/settings";
-import { DEFAULT_SERVER_HOST, serverUrl, startServer } from "./lifecycle";
-import { DEFAULT_SERVER_NAME, listRecords, liveRecord } from "./registry";
-
-export interface RunningServer {
-  url: string;
-  name?: string;
-  /** Started or connected to by this user before: attach without asking. */
-  known: boolean;
-}
+import { isServerAutoStartEnabled } from "../utils/settings";
+import { discoverServerCandidates, realCwd } from "./candidates";
+import { startServer } from "./lifecycle";
+import { DEFAULT_SERVER_NAME } from "./registry";
+import { chooseStartupServer, type ServerCandidate, scopeLabel } from "./scope";
 
 export interface StartupInputs {
   /** A TTY-backed interactive launch (no -p/--prompt, --verify, background task). */
@@ -24,56 +18,64 @@ export interface StartupInputs {
   serverless: boolean;
   /** settings.server.autoStart (default true). */
   autoStart: boolean;
-  running: RunningServer | null;
+  /** Reachable servers. */
+  candidates: readonly ServerCandidate[];
+  /** The launch folder (realpath). */
+  cwd: string;
 }
 
 export type StartupDecision =
   | { action: "serverless" }
   | { action: "connect"; url: string }
-  | { action: "attach"; server: RunningServer }
-  | { action: "prompt"; server: RunningServer }
+  | { action: "attach"; server: ServerCandidate }
+  | { action: "prompt"; server: ServerCandidate }
+  | { action: "choose"; servers: ServerCandidate[] }
   | { action: "start" };
 
 export function decideStartup(inputs: StartupInputs): StartupDecision {
   if (inputs.connect) return { action: "connect", url: inputs.connect };
   if (!inputs.interactive || inputs.serverless) return { action: "serverless" };
-  if (inputs.running) {
-    return inputs.running.known
-      ? { action: "attach", server: inputs.running }
-      : { action: "prompt", server: inputs.running };
+  const choice = chooseStartupServer(inputs.candidates, inputs.cwd);
+  switch (choice.kind) {
+    case "attach":
+      return { action: "attach", server: choice.server };
+    case "confirm":
+      return { action: "prompt", server: choice.server };
+    case "choose":
+      return { action: "choose", servers: choice.servers };
+    case "none":
+      return inputs.autoStart ? { action: "start" } : { action: "serverless" };
   }
-  return inputs.autoStart ? { action: "start" } : { action: "serverless" };
 }
 
-/**
- * The server a launch would attach to: the registered default, else whatever
- * answers on the default port, else any other registered server.
- */
-export async function findRunningServer(configDir?: string): Promise<RunningServer | null> {
-  const registered = liveRecord(DEFAULT_SERVER_NAME, configDir);
-  if (registered && (await probeServer(registered.url))) {
-    return { url: registered.url, name: registered.name, known: true };
-  }
-  const records = listRecords(configDir);
-  const defaultUrl = serverUrl(DEFAULT_SERVER_HOST, DEFAULT_NODE_PORT);
-  if (await probeServer(defaultUrl)) {
-    const record = records.find((r) => r.url === defaultUrl);
-    return { url: defaultUrl, name: record?.name, known: Boolean(record) || isKnownServer(defaultUrl) };
-  }
-  for (const record of records) {
-    if (record.name === DEFAULT_SERVER_NAME) continue;
-    if (await probeServer(record.url)) return { url: record.url, name: record.name, known: true };
-  }
-  return null;
+function describe(server: ServerCandidate): string {
+  return `${server.url}${server.name ? ` (${server.name})` : ""}, ${scopeLabel(server)}`;
 }
 
-export function formatServerPrompt(server: RunningServer): string {
-  const label = server.name ? ` (${server.name})` : "";
-  return `\nA CodeSurf server is running at ${server.url}${label}.\nConnect to it? [y]es / [N]o: `;
+export function formatServerPrompt(server: ServerCandidate): string {
+  return `\nA CodeSurf server is running at ${describe(server)}.\nConnect to it? [y]es / [N]o: `;
+}
+
+export function formatChoosePrompt(servers: readonly ServerCandidate[]): string {
+  const rows = servers.map((s, i) => `  [${i + 1}] ${describe(s)}${s.known ? "" : " — new"}`);
+  return [
+    "",
+    "Several CodeSurf servers can serve this folder:",
+    ...rows,
+    "  [0] serverless (run locally)",
+    "",
+    "Choice [0]: ",
+  ].join("\n");
 }
 
 export function isYes(answer: string): boolean {
   return /^\s*y(es)?\s*$/i.test(answer);
+}
+
+/** 1-based pick from formatChoosePrompt; anything else (incl. empty/0) = serverless. */
+export function parseChoice(answer: string, count: number): number | null {
+  const n = Number.parseInt(answer.trim(), 10);
+  return Number.isInteger(n) && n >= 1 && n <= count ? n - 1 : null;
 }
 
 export type StartupTarget =
@@ -94,6 +96,11 @@ export interface ResolveStartupOptions {
   /** Ask the user; resolves to their raw answer. */
   ask: (question: string) => Promise<string>;
   configDir?: string;
+  cwd?: string;
+}
+
+function toTarget(server: ServerCandidate): StartupTarget {
+  return { kind: "server", url: server.url, name: server.name, remember: true };
 }
 
 /** Turn the decision into a concrete target, starting the default server when asked to. */
@@ -105,17 +112,22 @@ export async function resolveStartupServer(options: ResolveStartupOptions): Prom
   const decision = decideStartup({
     ...options,
     autoStart: isServerAutoStartEnabled(),
-    running: await findRunningServer(options.configDir),
+    candidates: await discoverServerCandidates(options.configDir),
+    cwd: realCwd(options.cwd),
   });
   switch (decision.action) {
     case "connect":
       return { kind: "server", url: decision.url, remember: true };
     case "attach":
-      return { kind: "server", url: decision.server.url, name: decision.server.name, remember: true };
+      return toTarget(decision.server);
     case "prompt":
       return isYes(await options.ask(formatServerPrompt(decision.server)))
-        ? { kind: "server", url: decision.server.url, name: decision.server.name, remember: true }
+        ? toTarget(decision.server)
         : { kind: "serverless" };
+    case "choose": {
+      const index = parseChoice(await options.ask(formatChoosePrompt(decision.servers)), decision.servers.length);
+      return index === null ? { kind: "serverless" } : toTarget(decision.servers[index]);
+    }
     case "serverless":
       return { kind: "serverless" };
     case "start":

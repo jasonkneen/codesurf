@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import { createRequire } from "node:module";
+import path from "node:path";
 import { InvalidArgumentError, program } from "commander";
 import * as dotenv from "dotenv";
 import readline from "readline";
@@ -907,8 +908,9 @@ function parsePortOption(value: string): number {
 
 function printServerLine(status: import("./server/lifecycle").ServerStatus, formatUptime: (ms: number) => string) {
   const { record } = status;
+  const scope = record.scope === "project" ? `project: ${record.project}` : "user";
   console.log(
-    `${record.name}  ${record.url}  pid ${record.pid}  up ${formatUptime(status.uptimeMs)}  ${status.reachable ? "reachable" : "NOT reachable"}`,
+    `${record.name}  ${record.url}  ${scope}  pid ${record.pid}  up ${formatUptime(status.uptimeMs)}  ${status.reachable ? "reachable" : "NOT reachable"}`,
   );
 }
 
@@ -919,25 +921,40 @@ const serverCmd = program
 serverCmd
   .command("start")
   .description("Start a background server (the default one unless --name is given) and return to the shell")
-  .option("--name <name>", "Server name", "default")
+  .option("--name <name>", 'Server name (default: "default", or the folder name with --project)')
   .option("--port <port>", "Port to listen on (default: first free port from 3948)", parsePortOption)
-  .action(async (options: { name: string; port?: number }) => {
-    const { startServer } = await import("./server/lifecycle");
+  .option(
+    "--project [dir]",
+    "Start a project server that serves only this folder (default: the current git root, else the current folder)",
+  )
+  .action(async (options: { name?: string; port?: number; project?: string | boolean }) => {
+    const { defaultProjectDir, projectServerName, resolveProjectRoot, startServer } = await import(
+      "./server/lifecycle"
+    );
     const { logPath } = await import("./server/registry");
+    let name = options.name ?? "default";
     try {
+      let project: string | undefined;
+      if (options.project !== undefined) {
+        const dir = typeof options.project === "string" ? path.resolve(options.project) : defaultProjectDir();
+        project = resolveProjectRoot(dir);
+        name = options.name ?? projectServerName(project);
+      }
       const { record, started } = await startServer({
-        name: options.name,
+        name,
         port: options.port,
+        project,
         cliVersion: packageJson.version,
       });
       rememberKnownServer(record.url, record.name);
+      const scope = record.scope === "project" ? `project server for ${record.project}` : "user server";
       console.log(
         started
-          ? `server "${record.name}" started on ${record.url} (pid ${record.pid}); log: ${logPath(record.name)}`
-          : `server "${record.name}" already running on ${record.url} (pid ${record.pid})`,
+          ? `server "${record.name}" (${scope}) started on ${record.url} (pid ${record.pid}); log: ${logPath(record.name)}`
+          : `server "${record.name}" (${scope}) already running on ${record.url} (pid ${record.pid})`,
       );
     } catch (err) {
-      console.error(`Failed to start server "${options.name}": ${(err as Error).message}`);
+      console.error(`Failed to start server "${name}": ${(err as Error).message}`);
       process.exitCode = 1;
     }
   });
@@ -974,6 +991,7 @@ serverCmd
       const { record } = await startServer({
         name: options.name,
         port: options.port ?? previous?.port,
+        project: previous?.project,
         cliVersion: packageJson.version,
       });
       rememberKnownServer(record.url, record.name);
@@ -1071,6 +1089,8 @@ program
     [],
   )
   .option("--auto-approve", "Approve every tool call when no front is attached to decide (default: deny)")
+  .option("--project <root>", "Serve only sessions in this absolute project folder (a project server)")
+  .option("--name <name>", "Name this server reports to fronts")
   .action(async (options: NodeCommandOptions) => {
     const { runNodeCommand } = await import("./gateway/node-command");
     // node installs its own SIGTERM handler (agent cleanup + server close).

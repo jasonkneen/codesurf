@@ -17,7 +17,7 @@ export function useSlashItems(): SlashMenuItem[] {
   const tierAItems = useMemo<SlashMenuItem[]>(
     () => [
       { id: "models", label: "models", description: "Select a model" },
-      { id: "server", label: "server", description: "Attach/detach a server (background tasks)" },
+      { id: "server", label: "server", description: "Connect to a server (user or project), or run serverless" },
     ],
     [],
   );

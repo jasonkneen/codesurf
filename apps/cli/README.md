@@ -173,9 +173,15 @@ You keep using a text model for the session, and Codesurf saves generated media 
 
 An interactive `codesurf` launch **attaches to a background server** — a detached
 engine node that owns the session, so closing the TUI does not stop its work.
-If none is running it starts the default one (`default`, port 3948) first. A
-server you started or connected to before is attached silently; one you have
-never used prompts once (`Connect to it? [y]es / [N]o`). If the server can't be
+If none is running it starts the default one (`default`, port 3948) first.
+
+Servers have a **scope**: a *user* server serves any folder (the default one
+is a user server); a *project* server serves only its project folder. At launch
+the TUI attaches silently to a server you have used before that serves this
+folder, preferring this folder's project server, then the default server, then
+the one you used most recently. A server you have never used prompts once
+(`Connect to it? [y]es / [N]o`), several equally good ones get a numbered list,
+and another folder's project server is never picked. If the server can't be
 started or reached, the TUI runs **serverless** (Agent in-process) with a
 one-line notice. Sessions run in the folder you launched from, with its sandbox
 mode — the server itself runs from `~/.codesurf`.
@@ -183,11 +189,17 @@ mode — the server itself runs from `~/.codesurf`.
 ```bash
 codesurf server start                      # start the default server (port 3948) and return
 codesurf server start --name second        # another one, on the next free port (or --port <p>)
-codesurf server status                     # name, url, pid, uptime, reachable (--name, --json)
+codesurf server start --project            # a project server for this git root (or --project <dir>), named after the folder
+codesurf server status                     # name, url, scope, pid, uptime, reachable (--name, --json)
 codesurf server list                       # every server
 codesurf server restart                    # same port
 codesurf server stop                       # graceful stop (--name <n>, or --all)
 ```
+
+Inside the TUI, `/server` connects straight to the one server you've used
+before if it's the only one running and it serves this folder. Otherwise it
+lists every running server labelled `user` or `project: <path>`, plus
+**serverless (run locally)**, which detaches.
 
 Registry and logs live in `~/.codesurf/servers/<name>.json|.log`. To stay
 in-process: `codesurf --serverless` for one launch, or turn auto-start off in

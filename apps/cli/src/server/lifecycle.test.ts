@@ -89,6 +89,33 @@ describe.skipIf(!entry)("server start/status/stop against a real node", () => {
     expect(await serverStatus("life", { configDir })).toBeNull();
   });
 
+  it("starts a project server that reports its scope", { timeout: 90_000 }, async () => {
+    const projectDir = fs.mkdtempSync(path.join(os.tmpdir(), "codesurf-proj-"));
+    const root = fs.realpathSync(projectDir);
+    const port = await pickFreePort(41100);
+    const { record } = await startServer({
+      name: "proj",
+      port,
+      project: projectDir,
+      cliVersion: "test",
+      configDir,
+      entry,
+      readyTimeoutMs: 45_000,
+    });
+    try {
+      expect(record).toMatchObject({ scope: "project", project: root });
+      const { discoverServerCandidates } = await import("./candidates");
+      const found = (await discoverServerCandidates(configDir)).find((c) => c.url === record.url);
+      expect(found).toMatchObject({ name: "proj", scope: "project", project: root, known: true });
+      await expect(startServer({ name: "proj", cliVersion: "test", configDir, entry })).rejects.toThrow(
+        /already running as a project server/,
+      );
+    } finally {
+      await stopServer("proj", { configDir });
+      fs.rmSync(projectDir, { recursive: true, force: true });
+    }
+  });
+
   it("stop is a no-op for an unknown server", async () => {
     expect(await stopServer("nope", { configDir })).toEqual({ record: null, forced: false });
   });

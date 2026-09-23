@@ -14,6 +14,10 @@ export interface ServerRecord {
   url: string;
   startedAt: string;
   cliVersion: string;
+  /** "user" serves any folder; "project" only `project` and below. */
+  scope: "user" | "project";
+  /** Absolute project root (realpath), for a project server. */
+  project?: string;
 }
 
 export const DEFAULT_SERVER_NAME = "default";
@@ -65,6 +69,9 @@ function parseRecord(raw: string): ServerRecord | null {
       url: value.url,
       startedAt: typeof value.startedAt === "string" ? value.startedAt : new Date(0).toISOString(),
       cliVersion: typeof value.cliVersion === "string" ? value.cliVersion : "unknown",
+      // Records written before scopes existed were all user servers.
+      scope: value.scope === "project" && typeof value.project === "string" ? "project" : "user",
+      ...(value.scope === "project" && typeof value.project === "string" ? { project: value.project } : {}),
     };
   } catch {
     return null;

@@ -14,6 +14,7 @@ import { PromptBox } from "../components/prompt-box.js";
 import { useConversationState } from "../context/conversation-state-context.js";
 import { useModalNav, useModalVisibility } from "../context/modal-context.js";
 import { useModel } from "../context/model-context.js";
+import { useServerMode } from "../context/server-mode-context.js";
 import { useTheme } from "../context/theme-context.js";
 import type { TypeaheadState } from "../hooks/useTypeahead.js";
 import { filterVisibleSlashItems, type SlashMenuItem } from "../slash-menu";
@@ -61,6 +62,7 @@ function HomeRouteImpl({
 }: HomeRouteProps) {
   const { isProcessing, shellMode, pasteBlocks } = useConversationState();
   const { t } = useTheme();
+  const { runtimeMode } = useServerMode();
   const { model, mode, sandboxMode, contextStatsRef } = useModel();
   const { showSlashMenu } = useModalVisibility();
   const { slashSearchQuery } = useModalNav();
@@ -160,10 +162,8 @@ function HomeRouteImpl({
       <box paddingLeft={2} paddingRight={2} paddingBottom={1} flexDirection="row" flexShrink={0} alignItems="center">
         <text fg={t.textDim}>{agent.getCwd().replace(os.homedir(), "~")}</text>
         {sandboxMode === "shuru" ? <text fg="#f97316">{" · sandbox"}</text> : null}
-        {startupConfig.runtimeMode.kind === "server" ? (
-          <text fg="#22c55e">
-            {` · wire ${startupConfig.runtimeMode.name ? `${startupConfig.runtimeMode.name} ` : ""}${startupConfig.runtimeMode.url}`}
-          </text>
+        {runtimeMode.kind === "server" ? (
+          <text fg="#22c55e">{` · wire ${runtimeMode.name ? `${runtimeMode.name} ` : ""}${runtimeMode.url}`}</text>
         ) : (
           <text fg="#22c55e">{" · serverless"}</text>
         )}

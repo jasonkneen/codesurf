@@ -33,6 +33,7 @@ function record(name: string, pid: number, port = 3948): ServerRecord {
     url: `ws://127.0.0.1:${port}`,
     startedAt: new Date().toISOString(),
     cliVersion: "test",
+    scope: "user",
   };
 }
 
@@ -67,6 +68,19 @@ describe("server registry", () => {
     fs.writeFileSync(recordPath("junk", dir), "{not json");
     expect(listRecords(dir)).toEqual([]);
     expect(fs.existsSync(recordPath("junk", dir))).toBe(false);
+  });
+
+  it("keeps a project server's scope and root", () => {
+    writeRecord({ ...record("proj", process.pid), scope: "project", project: "/work/proj" }, dir);
+    expect(readRecord("proj", dir)).toMatchObject({ scope: "project", project: "/work/proj" });
+  });
+
+  it("reads records from before scopes as user servers", () => {
+    fs.mkdirSync(path.join(dir, "servers"), { recursive: true });
+    const { scope: _scope, ...legacy } = record("old", process.pid);
+    fs.writeFileSync(recordPath("old", dir), JSON.stringify(legacy));
+    expect(readRecord("old", dir)).toMatchObject({ scope: "user" });
+    expect(readRecord("old", dir)?.project).toBeUndefined();
   });
 
   it("returns [] when there is no servers dir", () => {

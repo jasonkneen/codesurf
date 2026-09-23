@@ -3,9 +3,10 @@
 // node that owns sessions over WS), tracked in the registry (./registry.ts).
 // Nothing here prints; callers decide how to report.
 
-import { spawn } from "node:child_process";
+import { execFileSync, spawn } from "node:child_process";
 import fs from "node:fs";
 import net from "node:net";
+import path from "node:path";
 import { resolveToken } from "../gateway/token";
 import { DEFAULT_NODE_PORT, probeServer } from "../relay/server-discovery";
 import { getCodesurfConfigDir } from "../utils/config-dir";
@@ -34,6 +35,8 @@ export interface StartServerOptions extends LifecycleOptions {
   name?: string;
   port?: number;
   host?: string;
+  /** Absolute project root: start a project server that serves only this folder. */
+  project?: string;
   cliVersion: string;
   /** How to run this CLI; defaults to resolveCliEntry(). */
   entry?: CliEntry;
@@ -92,6 +95,45 @@ function withLog(message: string, file: string): Error {
   return new Error(tail ? `${message}\n--- ${file} ---\n${tail}` : `${message} (log: ${file})`);
 }
 
+/** Realpath of an existing absolute directory, the form nodes compare folders in. */
+export function resolveProjectRoot(dir: string): string {
+  if (!path.isAbsolute(dir)) throw new Error(`project folder must be absolute: ${dir}`);
+  let real: string;
+  try {
+    real = fs.realpathSync(dir);
+  } catch {
+    throw new Error(`project folder does not exist: ${dir}`);
+  }
+  if (!fs.statSync(real).isDirectory()) throw new Error(`project folder is not a directory: ${dir}`);
+  return real;
+}
+
+/** `--project` with no folder: the git root containing `cwd`, else `cwd`. */
+export function defaultProjectDir(cwd = process.cwd()): string {
+  try {
+    const root = execFileSync("git", ["rev-parse", "--show-toplevel"], {
+      cwd,
+      encoding: "utf8",
+      stdio: ["ignore", "pipe", "ignore"],
+      timeout: 3000,
+    }).trim();
+    if (root) return root;
+  } catch {
+    /* not a git checkout */
+  }
+  return cwd;
+}
+
+/** Default name for a project server: the folder's basename, made a valid server name. */
+export function projectServerName(root: string): string {
+  const cleaned = path
+    .basename(root)
+    .replace(/[^A-Za-z0-9_-]+/g, "-")
+    .replace(/^[-_]+/, "")
+    .slice(0, 64);
+  return cleaned || "project";
+}
+
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 async function waitUntilReachable(
@@ -122,8 +164,14 @@ export async function startServer(options: StartServerOptions): Promise<StartSer
   const host = options.host ?? DEFAULT_SERVER_HOST;
   const readyTimeoutMs = options.readyTimeoutMs ?? 20_000;
   const log = logPath(name, configDir);
+  const project = options.project === undefined ? undefined : resolveProjectRoot(options.project);
 
   const existing = liveRecord(name, configDir);
+  if (existing && existing.project !== project) {
+    throw new Error(
+      `server "${name}" is already running as a ${existing.scope === "project" ? `project server for ${existing.project}` : "user server"}; stop it first or pick another --name`,
+    );
+  }
   if (existing) {
     // Registered and alive: possibly still booting (another start in flight).
     const outcome = await waitUntilReachable(existing.url, readyTimeoutMs, () => isPidAlive(existing.pid));
@@ -155,7 +203,9 @@ export async function startServer(options: StartServerOptions): Promise<StartSer
   let exited = false;
   let child: ReturnType<typeof spawn>;
   try {
-    child = spawn(entry.command, [...entry.args, "node", "--port", String(port), "--host", host], {
+    const nodeArgs = ["node", "--port", String(port), "--host", host, "--name", name];
+    if (project) nodeArgs.push("--project", project);
+    child = spawn(entry.command, [...entry.args, ...nodeArgs], {
       // A stable folder, not the caller's cwd: sessions carry their own folder.
       cwd: configDir,
       detached: true,
@@ -181,6 +231,8 @@ export async function startServer(options: StartServerOptions): Promise<StartSer
     url: serverUrl(host, port),
     startedAt: new Date().toISOString(),
     cliVersion: options.cliVersion,
+    scope: project ? "project" : "user",
+    ...(project ? { project } : {}),
   };
   writeRecord(record, configDir);
 

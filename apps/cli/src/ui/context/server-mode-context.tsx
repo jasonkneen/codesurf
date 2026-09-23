@@ -1,19 +1,30 @@
-import { createContext, type ReactNode, useCallback, useContext, useEffect, useRef, useState } from "react";
+import { createContext, type ReactNode, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import type { SessionStatus } from "../../relay/host";
-import { discoverLocalServers, discoverTargetsFromSettings, type ServerInfo } from "../../relay/server-discovery";
 import { type RemoteFront, SessionStreamClient } from "../../relay/session-stream";
 import { openRemoteFront, type SessionPlacement } from "../../server/attach";
+import { discoverServerCandidates, realCwd } from "../../server/candidates";
+import { choosePickerAction, type ServerCandidate } from "../../server/scope";
+import { rememberKnownServer } from "../../utils/settings";
+import type { RuntimeMode } from "../app-helpers";
+import { useToast } from "./toast-context";
 
 export interface ServerModeValue {
   remoteFront: RemoteFront | null;
+  /** What the footer shows: the attached server, or serverless. */
+  runtimeMode: RuntimeMode;
   /** Attach to a node URL (connect + create a session); null on failure. */
   attach: (url: string) => Promise<RemoteFront | null>;
+  /** Attach to a discovered server, remember it as used, and report the outcome. */
+  connect: (server: ServerCandidate) => Promise<boolean>;
   /** Detach and close the client; turns fall back to the local agent. */
   detach: () => void;
-  /** Detected reachable node servers (refreshed when the picker opens). */
-  detected: ServerInfo[];
+  /** Servers found when `/server` last ran (ranked, eligible first). */
+  candidates: ServerCandidate[];
+  /** The folder eligibility is judged against (realpath of the TUI's folder). */
+  cwd: string;
   /** Whether the server picker is showing. */
   pickerOpen: boolean;
+  /** `/server`: connect straight to the one usable server, else open the picker. */
   openPicker: () => void;
   closePicker: () => void;
   /** Live sessions on the attached node (refreshed via listSessions). */
@@ -25,9 +36,12 @@ export interface ServerModeValue {
 
 const DEFAULT: ServerModeValue = {
   remoteFront: null,
+  runtimeMode: { kind: "local" },
   attach: async () => null,
+  connect: async () => false,
   detach: () => {},
-  detected: [],
+  candidates: [],
+  cwd: "",
   pickerOpen: false,
   openPicker: () => {},
   closePicker: () => {},
@@ -52,29 +66,35 @@ export function replaceRemoteFront(
   return next;
 }
 
+function serverTitle(server: Pick<ServerCandidate, "name" | "url">): string {
+  return server.name ? `${server.name} (${server.url})` : server.url;
+}
+
 export function ServerModeProvider({
   children,
   initial,
+  initialName,
   placement,
 }: {
   children: ReactNode;
   initial?: RemoteFront | null;
+  /** Name of the server `initial` is attached to, for the footer. */
+  initialName?: string;
   /** Folder and sandbox mode new remote sessions run with (the TUI's own). */
   placement?: SessionPlacement;
 }) {
+  const { pushToast } = useToast();
   const [remoteFront, setRemoteFront] = useState<RemoteFront | null>(initial ?? null);
   const remoteFrontRef = useRef<RemoteFront | null>(initial ?? null);
-  const [detected, setDetected] = useState<ServerInfo[]>([]);
+  const [attachedName, setAttachedName] = useState<string | undefined>(initial ? initialName : undefined);
+  const [candidates, setCandidates] = useState<ServerCandidate[]>([]);
   const [pickerOpen, setPickerOpen] = useState(false);
-  const [_scanNonce, setScanNonce] = useState(0);
   const [sessions, setSessions] = useState<SessionStatus[]>([]);
+  const scanningRef = useRef(false);
 
-  const openPicker = useCallback(() => {
-    setPickerOpen(true);
-    setScanNonce((n) => n + 1);
-  }, []);
-
-  const closePicker = useCallback(() => setPickerOpen(false), []);
+  const placementCwd = placement?.cwd ?? process.cwd();
+  const placementSandbox = placement?.sandboxMode;
+  const cwd = useMemo(() => realCwd(placementCwd), [placementCwd]);
 
   const refreshSessions = useCallback(async () => {
     if (remoteFront) {
@@ -87,25 +107,67 @@ export function ServerModeProvider({
     if (pickerOpen && remoteFront) void refreshSessions();
   }, [pickerOpen, remoteFront, refreshSessions]);
 
-  useEffect(() => {
-    if (!pickerOpen) return;
-    void discoverLocalServers(discoverTargetsFromSettings()).then((servers) => setDetected(servers));
-  }, [pickerOpen]);
+  const attachOrThrow = useCallback(
+    async (url: string): Promise<RemoteFront> => {
+      const front = await openRemoteFront(url, { cwd: placementCwd, sandboxMode: placementSandbox });
+      setRemoteFront(replaceRemoteFront(remoteFrontRef, front));
+      return front;
+    },
+    [placementCwd, placementSandbox],
+  );
 
-  const placementCwd = placement?.cwd ?? process.cwd();
-  const placementSandbox = placement?.sandboxMode;
   const attach = useCallback(
     async (url: string): Promise<RemoteFront | null> => {
       try {
-        const front = await openRemoteFront(url, { cwd: placementCwd, sandboxMode: placementSandbox });
-        setRemoteFront(replaceRemoteFront(remoteFrontRef, front));
+        const front = await attachOrThrow(url);
+        setAttachedName(undefined);
         return front;
       } catch {
         return null;
       }
     },
-    [placementCwd, placementSandbox],
+    [attachOrThrow],
   );
+
+  const connect = useCallback(
+    async (server: ServerCandidate): Promise<boolean> => {
+      try {
+        await attachOrThrow(server.url);
+        setAttachedName(server.name);
+        rememberKnownServer(server.url, server.name);
+        pushToast({ style: "success", title: `Connected to ${serverTitle(server)}` });
+        return true;
+      } catch (err) {
+        pushToast({
+          style: "failure",
+          title: `Couldn't connect to ${serverTitle(server)}`,
+          message: err instanceof Error ? err.message : String(err),
+        });
+        return false;
+      }
+    },
+    [attachOrThrow, pushToast],
+  );
+
+  const openPicker = useCallback(() => {
+    if (scanningRef.current) return;
+    scanningRef.current = true;
+    void discoverServerCandidates()
+      .then(async (found) => {
+        const choice = choosePickerAction(found, cwd, remoteFrontRef.current?.url ?? null);
+        if (choice.kind === "connect") {
+          await connect(choice.server);
+          return;
+        }
+        setCandidates(choice.servers);
+        setPickerOpen(true);
+      })
+      .finally(() => {
+        scanningRef.current = false;
+      });
+  }, [connect, cwd]);
+
+  const closePicker = useCallback(() => setPickerOpen(false), []);
 
   const resume = useCallback(async (url: string, sessionId: string): Promise<RemoteFront | null> => {
     const client = new SessionStreamClient(url);
@@ -124,15 +186,24 @@ export function ServerModeProvider({
 
   const detach = useCallback(() => {
     setRemoteFront(replaceRemoteFront(remoteFrontRef, null));
+    setAttachedName(undefined);
   }, []);
+
+  const runtimeMode = useMemo<RuntimeMode>(
+    () => (remoteFront ? { kind: "server", url: remoteFront.url, name: attachedName } : { kind: "local" }),
+    [remoteFront, attachedName],
+  );
 
   return (
     <Ctx.Provider
       value={{
         remoteFront,
+        runtimeMode,
         attach,
+        connect,
         detach,
-        detected,
+        candidates,
+        cwd,
         pickerOpen,
         openPicker,
         closePicker,

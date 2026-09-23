@@ -7,6 +7,7 @@ import { useBtw } from "../context/btw-context.js";
 import { useConversationState } from "../context/conversation-state-context.js";
 import { useModalVisibility } from "../context/modal-context.js";
 import { useRunningAgents } from "../context/running-agents-context.js";
+import { useServerMode } from "../context/server-mode-context.js";
 import { useTheme } from "../context/theme-context.js";
 import { FEATURE_FLAGS, subscribeFeatureFlag } from "../feature-flags";
 
@@ -36,6 +37,7 @@ export function useModalGuardState(
   providerSettingEditState: unknown,
 ): ModalGuardState {
   const modal = useModalVisibility();
+  const { pickerOpen: serverPickerOpen } = useServerMode();
   const theme = useTheme();
   const { pendingPaymentApproval, pendingToolApproval, pendingEditApproval } = useApproval();
   const { btwState } = useBtw();
@@ -50,6 +52,7 @@ export function useModalGuardState(
     modal.showMcpModal ||
     modal.showSandboxPicker ||
     modal.showRecapPicker ||
+    serverPickerOpen ||
     modal.showWalletPicker ||
     modal.showScheduleModal ||
     modal.showAgentsModal ||

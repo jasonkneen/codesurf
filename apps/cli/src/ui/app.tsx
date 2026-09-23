@@ -8,6 +8,7 @@ import { type AppProps, extractFileDropPaths } from "./app-helpers";
 import { buildComposerShortcutHints } from "./components/composer-shortcut-hints.js";
 import { CopyFlashBanner } from "./components/copy-flash-banner.js";
 import { formatComposerChromeLabel, permissionModeComposerLabel } from "./components/prompt-bar.js";
+import { ServerPicker } from "./components/server-picker.js";
 import { ToastStack } from "./components/toast-stack.js";
 import { ApprovalProvider } from "./context/approval-context.js";
 import { BtwProvider, useBtw } from "./context/btw-context.js";
@@ -17,7 +18,7 @@ import { ModalProvider, useModalVisibility } from "./context/modal-context.js";
 import { ModelProvider, useModel } from "./context/model-context.js";
 import { QueueProvider, useQueue } from "./context/queue-context.js";
 import { RunningAgentsProvider } from "./context/running-agents-context.js";
-import { ServerModeProvider } from "./context/server-mode-context.js";
+import { ServerModeProvider, useServerMode } from "./context/server-mode-context.js";
 import { TelegramProvider, useTelegram } from "./context/telegram-context.js";
 import { ThemeProvider, useTheme } from "./context/theme-context.js";
 import { ToastProvider, useToast } from "./context/toast-context.js";
@@ -58,17 +59,19 @@ import {
 } from "./terminal/manager";
 
 export function App(props: AppProps) {
-  // Mounting this is what routes turns to an attached server: without it,
+  // ServerModeProvider is what routes turns to an attached server: without it,
   // useServerMode() falls back to the default (no remote front) and turns run
-  // locally even with --connect.
+  // locally even with --connect. It sits inside ToastProvider for /server notices.
+  const initialRuntime = props.startupConfig.runtimeMode;
   return (
-    <ServerModeProvider
-      initial={props.remoteFront ?? null}
-      placement={{ cwd: process.cwd(), sandboxMode: props.startupConfig.sandboxMode }}
-    >
-      <ThemeProvider>
-        <BtwProvider>
-          <ToastProvider>
+    <ThemeProvider>
+      <BtwProvider>
+        <ToastProvider>
+          <ServerModeProvider
+            initial={props.remoteFront ?? null}
+            initialName={initialRuntime.kind === "server" ? initialRuntime.name : undefined}
+            placement={{ cwd: process.cwd(), sandboxMode: props.startupConfig.sandboxMode }}
+          >
             <ModelProvider agent={props.agent} initialHasApiKey={props.agent.hasApiKey()}>
               <ApprovalProvider>
                 <RunningAgentsProvider>
@@ -86,16 +89,17 @@ export function App(props: AppProps) {
                 </RunningAgentsProvider>
               </ApprovalProvider>
             </ModelProvider>
-          </ToastProvider>
-        </BtwProvider>
-      </ThemeProvider>
-    </ServerModeProvider>
+          </ServerModeProvider>
+        </ToastProvider>
+      </BtwProvider>
+    </ThemeProvider>
   );
 }
 
 function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
   const { toasts, pushToast, copyFlashId, copyTuiSelectionToHost, handleRootMouseUp } = useToast();
   const { t, uiMode, setUiMode: setUiModeCtx, toggleUiMode: toggleUiModeCtx, openThemeModal } = useTheme();
+  const { runtimeMode, pickerOpen: serverPickerOpen } = useServerMode();
   const {
     setShowSlashMenu,
     setSlashSearchQuery,
@@ -495,7 +499,7 @@ function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
           handlePaste={handlePaste}
           runningAgentRows={runningAgentRows}
           footerPermissionMode={footerPermissionMode}
-          runtimeMode={startupConfig.runtimeMode}
+          runtimeMode={runtimeMode}
           composerShortcutHints={composerShortcutHints}
           composerChromeBottomTitle={composerChromeBottomTitle}
           compactFooterHints={compactFooterHints}
@@ -528,6 +532,7 @@ function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
           visibleSlashItems={visibleSlashItems}
         />
       )}
+      {serverPickerOpen ? <ServerPicker t={t} /> : null}
       <ModalLayer
         agent={agent}
         startupConfig={startupConfig}
