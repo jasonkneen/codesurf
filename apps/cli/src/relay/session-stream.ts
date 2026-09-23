@@ -12,6 +12,15 @@ import type { StreamChunk } from "../types/index";
 import type { SandboxMode, SandboxSettings } from "../utils/settings";
 import type { NodeSessionHost, SessionStatus } from "./host";
 
+/** What a node serves (`info` frame): any folder, or one project tree. */
+export interface NodeInfo {
+  scope: "user" | "project";
+  /** Project root (realpath) on a project server. */
+  project?: string;
+  /** Operator-chosen name (`codesurf node --name`). */
+  name?: string;
+}
+
 const END = Symbol("remote-turn-end");
 
 /** A live front attachment to a node session (used by the interactive TUI). */
@@ -24,7 +33,8 @@ export interface RemoteFront {
 export type SessionFrameOut =
   | {
       op: "session";
-      event: "created" | "done" | "status" | "error" | "pong" | "list" | "approval_request";
+      event: "created" | "done" | "status" | "error" | "pong" | "list" | "approval_request" | "info";
+      info?: NodeInfo;
       sessions?: import("./host").SessionStatus[];
       approvalId?: string;
       toolName?: string;
@@ -41,7 +51,7 @@ export type SessionFrameOut =
 
 export interface SessionFrameIn {
   op: "session";
-  action: "create" | "message" | "subscribe" | "status" | "destroy" | "ping" | "list" | "approval_decision";
+  action: "create" | "message" | "subscribe" | "status" | "destroy" | "ping" | "list" | "approval_decision" | "info";
   approvalId?: string;
   approve?: boolean;
   session?: string;
@@ -67,7 +77,10 @@ export interface CreateSessionOptions {
 export class SessionStreamServer {
   private readonly pendingApprovals = new Map<string, (approve: boolean) => void>();
 
-  constructor(private readonly host: NodeSessionHost) {}
+  constructor(
+    private readonly host: NodeSessionHost,
+    private readonly nodeInfo: NodeInfo = { scope: "user" },
+  ) {}
 
   /**
    * Engine-side approval round-trip: register a pending approval and push a
@@ -173,6 +186,9 @@ export class SessionStreamServer {
       }
       case "ping":
         sendBack({ op: "session", event: "pong" });
+        break;
+      case "info":
+        sendBack({ op: "session", event: "info", info: this.nodeInfo });
         break;
       case "destroy":
         this.host.destroy(frame.session ?? "");
@@ -280,6 +296,10 @@ export class SessionStreamClient {
         this.pending.get("list")?.(frame.sessions);
         this.pending.delete("list");
         break;
+      case "info":
+        this.pending.get("info")?.(frame.info);
+        this.pending.delete("info");
+        break;
       case "approval_request":
         this.onApprovalRequest?.(frame.session ?? "", frame.approvalId ?? "", frame.toolName ?? "", frame.input);
         break;
@@ -370,6 +390,25 @@ export class SessionStreamClient {
   /** Send a tool-approval decision to the node. */
   approve(sessionId: string, approvalId: string, approve: boolean): void {
     this.send({ op: "session", action: "approval_decision", session: sessionId, approvalId, approve });
+  }
+
+  /**
+   * What the node serves: `{ scope: "user" }` (any folder) or
+   * `{ scope: "project", project }`, plus its `name` if it has one. Resolves
+   * null when the node does not answer in time (e.g. a node predating this frame).
+   */
+  info(timeoutMs = 1500): Promise<NodeInfo | null> {
+    return new Promise((resolve) => {
+      const timer = setTimeout(() => {
+        this.pending.delete("info");
+        resolve(null);
+      }, timeoutMs);
+      this.pending.set("info", (info) => {
+        clearTimeout(timer);
+        resolve((info as NodeInfo | undefined) ?? null);
+      });
+      this.send({ op: "session", action: "info" });
+    });
   }
 
   ping(timeoutMs = 1500): Promise<boolean> {

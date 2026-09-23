@@ -8,6 +8,7 @@ import { bootstrapPlugins, getHostServices } from "../core/plugins";
 import { loadBuiltinPlugins } from "../core/plugins/builtin";
 import { normalizeModelId } from "../grok/models";
 import { EngineNode } from "../relay/engine-node";
+import { resolveNodeScope } from "../relay/session-workspace";
 import {
   getApiKey,
   getBaseURL,
@@ -29,9 +30,15 @@ export interface NodeCommandOptions {
   allowOrigin?: string[];
   /** Approve every tool call when no front is attached to decide (default: deny). */
   autoApprove?: boolean;
+  /** Absolute project root: serve only sessions in it or below (a "project" server). Unset = any folder. */
+  project?: string;
+  /** Display name reported to fronts in the node's info. */
+  name?: string;
 }
 
 export async function runNodeCommand(options: NodeCommandOptions): Promise<never> {
+  // Validate --project before booting anything, so a typo fails fast.
+  const scope = resolveNodeScope({ project: options.project, name: options.name });
   await bootstrapPlugins([...(await loadBuiltinPlugins())]);
 
   const apiKey = options.apiKey || getApiKey();
@@ -62,6 +69,7 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
     // token-authenticated principal (EngineNode's default when a token is set).
     authToken: token,
     allowedOrigins: options.allowOrigin ?? [],
+    scope,
     // Reap abandoned/expired sessions, jobs, and traces; dispose the evicted
     // session's Agent so the node does not leak (the same failure the buddy
     // audit found: abandoned MCP sessions exhausting the server).
@@ -80,6 +88,8 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
   console.log(
     "  tool approvals: " + (options.autoApprove ? "AUTO-APPROVED (--auto-approve)" : "denied (no front to ask)"),
   );
+  console.log("  serves: " + (scope.scope === "project" ? "project " + scope.project : "any folder (user server)"));
+  if (scope.name) console.log("  name: " + scope.name);
   console.log("  hub: " + engine.hub.peers().length + " node registered");
   console.log("  api key: " + (apiKey ? "configured" : "NOT SET (turns will fail with auth errors)"));
 

@@ -91,6 +91,24 @@ subprocess callbacks and MCP connects.
 - Batch jobs (`batchRunner`) also run in a scope on the node's folder. That way
   their `cleanup()` cannot tear down session state.
 
+### Server scope: user or project
+
+`codesurf node --project <absolute root> [--name <n>]` starts a **project**
+server. Without `--project` it is a **user** server, which serves any valid
+folder.
+
+- `resolveNodeScope` validates `--project` before boot: the path must be
+  absolute, must exist, and must be a directory. It then takes the realpath.
+- A project server rejects any session whose cwd, after realpath, is not the
+  root or inside it: "this is a project server for <root>; <cwd> is outside
+  it". The check uses the realpath, so a symlink out of the project is refused,
+  and a sibling folder that merely shares the root's name prefix does not count
+  as inside.
+- On a project server, a session with no cwd runs in the project root.
+- Fronts read the scope with `SessionStreamClient.info()`. It sends the frame
+  `{action:"info"}` and gets back `{event:"info", info: { scope, project?, name? }}`.
+  It resolves `null` from a node that predates the frame.
+
 ### Agent side (two small changes)
 
 - `cleanup()`: inside a scope, dispose only this conversation's provider

@@ -11,7 +11,7 @@ import { Hub } from "./hub";
 import { JobHost, type JobRunner, registerJobTools } from "./jobs";
 import { RelayNode } from "./node";
 import { SessionStreamServer } from "./session-stream";
-import { resolveSessionWorkspace } from "./session-workspace";
+import { type NodeScope, resolveSessionWorkspace } from "./session-workspace";
 import { Steward } from "./steward";
 import { renderTraceTrajectory } from "./trace";
 import { connectPeerPair } from "./transport";
@@ -39,7 +39,9 @@ export interface EngineNodeOptions {
   sessionMaxTtlMs?: number;
   /** Called when a session is evicted (owner disposes its Agent). */
   onSessionEvict?: (sessionId: string) => void;
-  /** Validate a session's requested folder/sandbox. Default: `resolveSessionWorkspace`. */
+  /** Which folders this node serves, and its name; reported to fronts via the info frame. Default: any folder. */
+  scope?: NodeScope;
+  /** Validate a session's requested folder/sandbox. Default: `resolveSessionWorkspace` under `scope`. */
   resolveWorkspace?: (options: SessionWorkspaceOptions) => SessionWorkspace;
   /** Auto-reap sessions/jobs/traces on this interval (ms). */
   reapIntervalMs?: number;
@@ -53,16 +55,19 @@ export class EngineNode {
   readonly server: WsRelayServer;
   readonly nodeId: string;
   readonly streamServer: SessionStreamServer;
+  readonly scope: NodeScope;
   private reapTimer?: ReturnType<typeof setInterval>;
 
   constructor(options: EngineNodeOptions) {
     this.nodeId = options.nodeId ?? "node0";
+    const scope: NodeScope = options.scope ?? { scope: "user" };
+    this.scope = scope;
     this.hub = new Hub("hub");
     this.sessions = new NodeSessionHost(options.turnRunner, {
       idleTtlMs: options.sessionIdleTtlMs,
       maxTtlMs: options.sessionMaxTtlMs,
       onEvict: options.onSessionEvict,
-      resolveWorkspace: options.resolveWorkspace ?? resolveSessionWorkspace,
+      resolveWorkspace: options.resolveWorkspace ?? ((requested) => resolveSessionWorkspace(requested, scope)),
     });
     const allow = options.allowPrincipals ?? (options.authToken !== undefined ? [WIRE_PRINCIPAL] : ["any"]);
 
@@ -160,7 +165,7 @@ export class EngineNode {
       this.reapTimer = setInterval(() => this.reapAll(), options.reapIntervalMs);
       this.reapTimer.unref?.();
     }
-    this.streamServer = new SessionStreamServer(this.sessions);
+    this.streamServer = new SessionStreamServer(this.sessions, scope);
     this.server = new WsRelayServer({
       hub: this.hub,
       port: options.port,
