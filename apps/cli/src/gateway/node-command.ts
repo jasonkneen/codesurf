@@ -41,7 +41,9 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
   const scope = resolveNodeScope({ project: options.project, name: options.name });
   await bootstrapPlugins([...(await loadBuiltinPlugins())]);
 
-  const apiKey = options.apiKey || getApiKey();
+  // Only an explicit --api-key is fixed for the node's life; otherwise the key
+  // is read from the user's settings/env on every turn (see NodeAgentHost).
+  const apiKey = options.apiKey || undefined;
   const baseURL = options.baseUrl || getBaseURL();
   const model = options.model ? normalizeModelId(options.model) : undefined;
   const maxToolRounds = parseInt(options.maxToolRounds || "400", 10) || 400;
@@ -91,7 +93,14 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
   console.log("  serves: " + (scope.scope === "project" ? "project " + scope.project : "any folder (user server)"));
   if (scope.name) console.log("  name: " + scope.name);
   console.log("  hub: " + engine.hub.peers().length + " node registered");
-  console.log("  api key: " + (apiKey ? "configured" : "NOT SET (turns will fail with auth errors)"));
+  console.log(
+    "  api key: " +
+      (apiKey
+        ? "fixed (--api-key)"
+        : getApiKey()
+          ? "configured (re-read every turn)"
+          : "NOT SET: turns fail until one is added (re-read every turn, no restart needed)"),
+  );
 
   const shutdown = async () => {
     await agentHost.cleanup();

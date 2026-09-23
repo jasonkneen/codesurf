@@ -15,7 +15,13 @@ import type { HostedTurnRunner, SessionWorkspace } from "../relay/host";
 import type { JobRunner } from "../relay/jobs";
 import { BashTool } from "../tools/bash";
 import type { StreamChunk } from "../types/index";
-import { getCurrentSandboxMode, getCurrentSandboxSettings, mergeSandboxSettings } from "../utils/settings";
+import {
+  getApiKey,
+  getCurrentSandboxMode,
+  getCurrentSandboxSettings,
+  getUserSettingsPath,
+  mergeSandboxSettings,
+} from "../utils/settings";
 import {
   createWorkspaceScope,
   runInWorkspace,
@@ -48,9 +54,12 @@ function openWorkspaceScope(cwd: string): WorkspaceScope {
 interface HostedSession {
   agent: Agent;
   scope: WorkspaceScope;
+  /** The key the Agent holds, so a key added or rotated since is picked up. */
+  apiKey: string | undefined;
 }
 
 export interface NodeAgentConfig {
+  /** Fixed key (`codesurf node --api-key`). Unset = read the user's settings/env on every turn. */
   apiKey?: string;
   baseURL?: string;
   model?: string;
@@ -70,6 +79,15 @@ export class NodeAgentHost {
 
   constructor(private readonly config: NodeAgentConfig) {}
 
+  /**
+   * The key for the next turn. Read fresh each time (a cached, mtime-checked
+   * settings read) so a key added after the server started works without a
+   * restart.
+   */
+  private currentApiKey(): string | undefined {
+    return this.config.apiKey || getApiKey();
+  }
+
   disposeSession(sessionId: string): Promise<void> {
     const hosted = this.sessions.get(sessionId);
     this.sessions.delete(sessionId);
@@ -87,17 +105,18 @@ export class NodeAgentHost {
   /** Build a session's Agent inside its own folder and shell. */
   private openSession(workspace: SessionWorkspace): HostedSession {
     const scope = openWorkspaceScope(workspace.cwd);
+    const apiKey = this.currentApiKey();
     const agent = runInWorkspace(scope, () => {
       // Read in scope, so the folder's own .grok/settings.json applies.
       const sandboxMode = workspace.sandboxMode ?? getCurrentSandboxMode();
       const sandboxSettings = mergeSandboxSettings(getCurrentSandboxSettings(), workspace.sandboxSettings);
-      return new Agent(this.config.apiKey, this.config.baseURL, this.config.model, this.config.maxToolRounds, {
+      return new Agent(apiKey, this.config.baseURL, this.config.model, this.config.maxToolRounds, {
         persistSession: true,
         sandboxMode,
         sandboxSettings,
       });
     });
-    return { agent, scope };
+    return { agent, scope, apiKey };
   }
 
   private async *runTurn(
@@ -111,6 +130,14 @@ export class NodeAgentHost {
       hosted = this.openSession(workspace);
       this.sessions.set(sessionId, hosted);
     }
+    const apiKey = this.currentApiKey();
+    if (apiKey && apiKey !== hosted.apiKey) {
+      // Added or rotated since this session's Agent was built. setApiKey also
+      // drops the session's cached provider connection, which holds the old key.
+      const agent = hosted.agent;
+      runInWorkspace(hosted.scope, () => agent.setApiKey(apiKey, this.config.baseURL));
+      hosted.apiKey = apiKey;
+    }
     const requester = this.config.approvalRequester;
     const observer = {};
     const { agent: turnAgent, scope } = hosted;
@@ -120,9 +147,26 @@ export class NodeAgentHost {
     try {
       if (signal.aborted) return;
       yield* scopeAsyncIterable(scope, this.drive(turnAgent, sessionId, message, observer, requester, signal));
+    } catch (error) {
+      throw this.explainTurnFailure(error, turnAgent);
     } finally {
       signal.removeEventListener("abort", onAbort);
     }
+  }
+
+  /**
+   * A server has no TUI to prompt for a key, so a keyless failure must say
+   * where this server reads its key from. Other failures pass through as-is.
+   */
+  private explainTurnFailure(error: unknown, agent: Agent): unknown {
+    if (this.currentApiKey()) return error;
+    const reason = error instanceof Error ? error.message : String(error);
+    if (!/api key/i.test(reason)) return error;
+    return new Error(
+      `This server has no API key for ${agent.getModel()}. Add "apiKey" to ${getUserSettingsPath()} ` +
+        "(this server reads it on every turn, so no restart is needed), or set CODESURF_API_KEY and run " +
+        `\`codesurf server restart\`. (${reason})`,
+    );
   }
 
   private async *drive(
@@ -164,7 +208,7 @@ export class NodeAgentHost {
     const agent = runInWorkspace(
       scope,
       () =>
-        new Agent(this.config.apiKey, this.config.baseURL, this.config.model, this.config.maxToolRounds, {
+        new Agent(this.currentApiKey(), this.config.baseURL, this.config.model, this.config.maxToolRounds, {
           persistSession: false,
         }),
     );
