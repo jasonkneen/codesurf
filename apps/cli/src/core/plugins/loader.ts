@@ -4,6 +4,8 @@
 // code. Everything else (app.tsx, agent loop) consumes the registry read-only
 // through `getRegistrySnapshot()` or the React hooks in registry.ts.
 
+import * as fs from "node:fs";
+import * as nodePath from "node:path";
 import type { ToolSet } from "ai";
 import type { ToolResult } from "../../types/index";
 import { processAtMentionsAsync } from "../../utils/at-mentions.js";
@@ -11,12 +13,16 @@ import { FileIndex } from "../../utils/file-index.js";
 import { loadPersistedLoops, savePersistedLoops } from "../persistence/loops";
 import {
   addDisabledPluginId,
+  addEnabledPluginId,
   loadDisabledPluginIds,
   loadEnabledPluginIds,
   loadPluginSettings,
   loadToolOverrides,
+  mergeEnabledPluginIds,
+  pluginPreferencesFile,
+  readPluginPreferencesStrict,
   removeDisabledPluginId,
-  saveEnabledPluginIds,
+  removeEnabledPluginId,
   savePluginSetting,
   saveToolOverride,
 } from "../persistence/plugins";
@@ -1262,8 +1268,79 @@ function persistSafely(write: () => void): void {
   }
 }
 
+/**
+ * Record, at boot, that everything this process enabled is enabled.
+ *
+ * Merge-only: several CodeSurf processes share the file, and writing this
+ * process's view wholesale dropped ids it did not know (another build's
+ * plugins) and undid opt-ins another process had made since this one read
+ * the file. Individual enables/disables edit their own id only.
+ */
 function persistEnabledState() {
-  persistSafely(() => saveEnabledPluginIds(enabledIdsSnapshot()));
+  persistSafely(() => mergeEnabledPluginIds(enabledIdsSnapshot()));
+}
+
+// ── Live preferences ─────────────────────────────────────────────────────────
+//
+// Settings and tool overrides used to be read once at boot, so a change made
+// by another CodeSurf process (a second TUI, the desktop's settings, a bridge)
+// never reached this one until it restarted — which reads as "my settings got
+// lost". Watch the file and apply what changed.
+
+let preferencesWatcher: fs.FSWatcher | null = null;
+let preferencesReloadTimer: ReturnType<typeof setTimeout> | null = null;
+
+function reloadPreferencesFromDisk(): void {
+  let fresh: ReturnType<typeof readPluginPreferencesStrict>;
+  try {
+    fresh = readPluginPreferencesStrict();
+  } catch {
+    // Unreadable mid-change or damaged: keep what is in memory rather than
+    // treating it as "every setting deleted".
+    return;
+  }
+  toolOverrides = { ...fresh.tools };
+  const previous = settingsCache;
+  settingsCache = { ...fresh.settings };
+  for (const key of new Set([...Object.keys(previous), ...Object.keys(fresh.settings)])) {
+    const before = previous[key];
+    const after = fresh.settings[key];
+    if (JSON.stringify(before) === JSON.stringify(after)) continue;
+    notifySettingSubscribers(key, key in fresh.settings ? after : settingDefaultFor(key), before);
+  }
+}
+
+function watchPreferences(): void {
+  stopWatchingPreferences();
+  const file = pluginPreferencesFile();
+  const name = nodePath.basename(file);
+  try {
+    // The directory, not the file: writes are atomic renames, which replace
+    // the inode a file watch would be holding.
+    const watcher = fs.watch(nodePath.dirname(file), (_event, filename) => {
+      if (filename && filename !== name) return;
+      if (preferencesReloadTimer) clearTimeout(preferencesReloadTimer);
+      preferencesReloadTimer = setTimeout(() => {
+        preferencesReloadTimer = null;
+        reloadPreferencesFromDisk();
+      }, 50);
+      preferencesReloadTimer.unref?.();
+    });
+    watcher.on("error", () => stopWatchingPreferences());
+    watcher.unref?.();
+    preferencesWatcher = watcher;
+  } catch {
+    // No config dir yet, or watching unsupported: settings still work, just
+    // without live reload.
+    preferencesWatcher = null;
+  }
+}
+
+function stopWatchingPreferences(): void {
+  if (preferencesReloadTimer) clearTimeout(preferencesReloadTimer);
+  preferencesReloadTimer = null;
+  preferencesWatcher?.close();
+  preferencesWatcher = null;
 }
 
 export async function enablePlugin(id: string): Promise<void> {
@@ -1286,7 +1363,7 @@ export async function enablePlugin(id: string): Promise<void> {
   // Clear any prior explicit opt-out so additive-defaults logic stops
   // forcing this extension off on next boot.
   persistSafely(() => removeDisabledPluginId(id));
-  persistEnabledState();
+  persistSafely(() => addEnabledPluginId(id));
 }
 
 export async function disablePlugin(id: string): Promise<void> {
@@ -1301,7 +1378,7 @@ export async function disablePlugin(id: string): Promise<void> {
   // Record an explicit opt-out so additive defaults don't re-enable this
   // on next boot just because its manifest has `enabledByDefault: true`.
   persistSafely(() => addDisabledPluginId(id));
-  persistEnabledState();
+  persistSafely(() => removeEnabledPluginId(id));
 }
 
 export function listPlugins(): PluginListEntry[] {
@@ -1394,6 +1471,7 @@ export async function bootstrapPlugins(modules: PluginModule[]): Promise<void> {
   // the config file after an upgrade. enabledIdsSnapshot() already respects
   // any user disables captured in persistedEnabledSet above.
   persistEnabledState();
+  watchPreferences();
 }
 
 /**
@@ -1440,6 +1518,7 @@ export async function shutdownPlugins(): Promise<void> {
   for (const instance of Array.from(instances.values()).reverse()) {
     await deactivateInstance(instance);
   }
+  stopWatchingPreferences();
   instances.clear();
   settingSubscribers.clear();
   commandResolvers.clear();
@@ -1451,6 +1530,7 @@ export async function shutdownPlugins(): Promise<void> {
 
 /** Test helper: reset all loader + registry state without writing to disk. */
 export function __resetPluginsForTests() {
+  stopWatchingPreferences();
   instances.clear();
   toolOverrides = {};
   settingsCache = {};

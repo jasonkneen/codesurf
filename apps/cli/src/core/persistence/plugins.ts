@@ -196,6 +196,55 @@ export function saveEnabledPluginIds(ids: string[]) {
   writeFile({ ...current, enabled: [...ids] });
 }
 
+/**
+ * Record one opt-in without touching anyone else's.
+ *
+ * Several CodeSurf processes (TUIs, bridges, builds of different branches)
+ * share this file. Rewriting the whole list from one process's view dropped
+ * ids that process did not know and undid opt-ins made elsewhere; editing a
+ * single id keeps every other entry as the file has it.
+ */
+export function addEnabledPluginId(id: string) {
+  const current = readForUpdate();
+  const enabled = current.enabled ?? [];
+  if (enabled.includes(id)) return;
+  writeFile({ ...current, enabled: [...enabled, id] });
+}
+
+export function removeEnabledPluginId(id: string) {
+  const current = readForUpdate();
+  if (!current.enabled?.includes(id)) return;
+  writeFile({ ...current, enabled: current.enabled.filter((x) => x !== id) });
+}
+
+/** Add `ids` to the persisted opt-ins. Never removes one. */
+export function mergeEnabledPluginIds(ids: string[]) {
+  const current = readForUpdate();
+  const enabled = current.enabled ?? [];
+  const missing = ids.filter((id) => !enabled.includes(id));
+  if (missing.length === 0 && current.enabled !== null) return;
+  writeFile({ ...current, enabled: [...enabled, ...missing] });
+}
+
+/**
+ * The whole file, or a throw when it exists but cannot be read — for callers
+ * that must not mistake "unreadable" for "empty" (a live reload that treated
+ * a torn read as {} would delete every setting in memory).
+ */
+export function readPluginPreferencesStrict(): {
+  enabled: string[] | null;
+  disabled: string[];
+  tools: Record<string, boolean>;
+  settings: Record<string, unknown>;
+} {
+  return readFile("strict");
+}
+
+/** The preferences file this process reads and writes. */
+export function pluginPreferencesFile(): string {
+  return resolveConfigPaths().file;
+}
+
 export function loadDisabledPluginIds(): string[] {
   return readFile().disabled;
 }
