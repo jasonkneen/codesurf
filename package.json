@@ -6,6 +6,15 @@
     "packages/*"
   ],
   "scripts": {
-    "test:packages": "vitest run packages/plugin-api packages/runtime"
+    "dev": "bun run --cwd apps/cli dev",
+    "build": "bun run --cwd apps/cli build",
+    "typecheck": "bun run --cwd apps/cli typecheck",
+    "lint": "bun run --cwd apps/cli lint",
+    "test": "bun run --cwd apps/cli test:all && bun run test:packages",
+    "test:packages": "vitest run packages/plugin-api packages/runtime",
+    "desktop:dev": "npm --prefix apps/desktop run dev",
+    "desktop:build": "npm --prefix apps/desktop run build",
+    "desktop:test": "npm --prefix apps/desktop test",
+    "daemon:test": "npm --prefix packages/codesurf-daemon test"
   }
 }
