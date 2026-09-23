@@ -143,6 +143,15 @@ export class NodeSessionHost {
         for (const observer of [...session.observers]) observer.onChunk(chunk);
       }
       session.finished = true;
+    } catch (error) {
+      // A turn that fails before or outside the model stream (e.g. no API key,
+      // so the provider cannot connect) must reach the front as an error, not
+      // as a bare `done` that reads as an empty, successful turn.
+      const message = error instanceof Error ? error.message : String(error);
+      session.text += "\n[error: " + message + "]";
+      const chunk: StreamChunk = { type: "error", content: message };
+      for (const observer of [...session.observers]) observer.onChunk(chunk);
+      throw error;
     } finally {
       session.turning = false;
       session.controller = undefined;
@@ -212,10 +221,8 @@ export class NodeSessionHost {
   /** Begin a turn without awaiting (fire-and-forget so the node returns immediately). Returns false when busy. */
   enqueue(sessionId: string, text: string): boolean {
     if (this.sessions.get(sessionId)?.turning) return false;
-    void this.message(sessionId, text).catch((error) => {
-      const session = this.sessions.get(sessionId);
-      if (session) session.text += "\n[error: " + String(error) + "]";
-    });
+    // `message` records the failure on the session and tells its observers.
+    void this.message(sessionId, text).catch(() => {});
     return true;
   }
 
