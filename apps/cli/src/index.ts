@@ -750,6 +750,7 @@ program
 
 const daemonCmd = program
   .command("daemon")
+  .alias("server")
   .description("Manage the codesurfd HTTP daemon (the shared backend used by both the desktop app and this TUI)");
 
 daemonCmd
