@@ -6,7 +6,7 @@
 
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { basename, join } from "node:path";
 import { MockLanguageModelV3, simulateReadableStream } from "ai/test";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 
@@ -166,6 +166,9 @@ describe("codesurf node: per-session working folder", () => {
     runRemoteTurn(via, session, `please <<${JSON.stringify(instruction)}>>`, { idleTimeoutMs: 20_000 });
 
   it("runs two concurrent sessions each in its own folder: bash, write_file, settings, AGENTS.md", async () => {
+    // Unique per run, so a stray file from an earlier run cannot mask a leak
+    // into the node's own folder.
+    const note = `note-${basename(root)}.txt`;
     // Two fronts (a client holds one set of turn handlers), one node.
     const frontB = new SessionStreamClient(`ws://127.0.0.1:${engine.port()}`);
     await frontB.connect();
@@ -174,16 +177,16 @@ describe("codesurf node: per-session working folder", () => {
     calls.length = 0;
 
     await Promise.all([
-      turn(a, { bash: "pwd > where.txt", write: { path: "note.txt", content: "from A" } }),
-      turn(b, { bash: "pwd > where.txt", write: { path: "note.txt", content: "from B" } }, frontB),
+      turn(a, { bash: "pwd > where.txt", write: { path: note, content: "from A" } }),
+      turn(b, { bash: "pwd > where.txt", write: { path: note, content: "from B" } }, frontB),
     ]);
     frontB.close();
 
     expect(readFileSync(join(dirA, "where.txt"), "utf8").trim()).toBe(dirA);
     expect(readFileSync(join(dirB, "where.txt"), "utf8").trim()).toBe(dirB);
-    expect(readFileSync(join(dirA, "note.txt"), "utf8")).toBe("from A");
-    expect(readFileSync(join(dirB, "note.txt"), "utf8")).toBe("from B");
-    expect(existsSync(join(process.cwd(), "note.txt"))).toBe(false);
+    expect(readFileSync(join(dirA, note), "utf8")).toBe("from A");
+    expect(readFileSync(join(dirB, note), "utf8")).toBe("from B");
+    expect(existsSync(join(process.cwd(), note))).toBe(false);
 
     // Each session picked its model from its own folder's .grok/settings.json
     // and got its own folder's AGENTS.md (project instructions) in the system prompt.
