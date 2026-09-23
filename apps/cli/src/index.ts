@@ -489,7 +489,7 @@ program
   .option("--max-tool-rounds <n>", "Max tool execution rounds", "400")
   .option(
     "--connect <url>",
-    "Attach this session to a codesurf server/node (ws://host:port) instead of running local (serverless)",
+    "Attach this session to a codesurf node (ws://host:port, see `codesurf node`) instead of running locally",
   )
   .option("--batch-api", "Use xAI Batch API for model calls (async, lower cost)")
   .option("--update", "Update codesurf to the latest version and exit")
@@ -873,23 +873,30 @@ daemonCmd
     }
   });
 
-program
-  .command("serve")
-  .description("Run the codesurf agent gateway (sessions/tool plane over HTTP/SSE)")
-  .option("--port <port>", "Port to listen on", "3947")
-  .option("--host <host>", "Bind address", "127.0.0.1")
-  .option("--presentation <mode>", "Default tool presentation: native, code or both", "native")
-  .option("-m, --model <model>", "Model to use")
-  .option("-k, --api-key <key>", "API key")
-  .option("-u, --base-url <url>", "API base URL")
-  .option("--max-tool-rounds <n>", "Max tool execution rounds", "400")
-  .action(async (options: ServeOptions) => {
-    const { runServeCommand } = await import("./gateway/serve-command");
-    // serve installs its own SIGTERM handler that drains agents and closes the
-    // server; the global exit(0) would preempt it.
-    process.off("SIGTERM", exitCleanlyOnSigterm);
-    await runServeCommand(options);
-  });
+// `gateway`, not `serve`: next to `server` (the codesurfd daemon) the old name
+// read as the same thing. `serve` still works, hidden from help.
+for (const [name, hidden] of [
+  ["gateway", false],
+  ["serve", true],
+] as const) {
+  program
+    .command(name, { hidden })
+    .description("Run the codesurf agent gateway (sessions/tool plane over HTTP/SSE)")
+    .option("--port <port>", "Port to listen on", "3947")
+    .option("--host <host>", "Bind address", "127.0.0.1")
+    .option("--presentation <mode>", "Default tool presentation: native, code or both", "native")
+    .option("-m, --model <model>", "Model to use")
+    .option("-k, --api-key <key>", "API key")
+    .option("-u, --base-url <url>", "API base URL")
+    .option("--max-tool-rounds <n>", "Max tool execution rounds", "400")
+    .action(async (options: ServeOptions) => {
+      const { runServeCommand } = await import("./gateway/serve-command");
+      // The gateway installs its own SIGTERM handler that drains agents and
+      // closes the server; the global exit(0) would preempt it.
+      process.off("SIGTERM", exitCleanlyOnSigterm);
+      await runServeCommand(options);
+    });
+}
 
 program
   .command("mcp")

@@ -138,7 +138,7 @@
     <ul>
       <li><code>codesurf</code> — the TUI + headless client (serverless by default; <code>--connect</code> makes it a front).</li>
       <li><code>codesurf node</code> — an <code>EngineNode</code>: hub + <code>NodeSessionHost</code> (sessions that outlive fronts) + job host + fleet telemetry + tracing + an auto-reaper.</li>
-      <li><code>codesurf serve</code> — gateway surface (OpenAI/ACP/MCP) over the same engine.</li>
+      <li><code>codesurf gateway</code> — gateway surface (OpenAI/ACP/MCP) over the same engine.</li>
       <li><strong>Reaping</strong> — session TTL/idle eviction, finished-job + trace TTL cleanup (the abandoned-session guard).</li>
       <li><strong>PTC</strong> — programmatic tool calls (<code>CODESURF_TOOL_PRESENTATION=code|both</code>).</li>
     </ul>

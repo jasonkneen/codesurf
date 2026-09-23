@@ -7,7 +7,16 @@
 
 set -euo pipefail
 
-REPO_DIR="/Users/jkneen/Documents/GitHub/grok-cli"
+# The CLI's own directory (apps/cli), found through the /usr/local/bin symlink
+# rather than hard-coded, so the command follows whichever checkout it points at.
+SOURCE="${BASH_SOURCE[0]}"
+while [[ -L "$SOURCE" ]]; do
+  LINK_DIR="$(cd -P "$(dirname "$SOURCE")" && pwd)"
+  SOURCE="$(readlink "$SOURCE")"
+  [[ "$SOURCE" != /* ]] && SOURCE="$LINK_DIR/$SOURCE"
+done
+REPO_DIR="$(cd -P "$(dirname "$SOURCE")/.." && pwd)"
+PACKAGES_DIR="$(cd -P "$REPO_DIR/../../packages" 2>/dev/null && pwd || true)"
 DIST="$REPO_DIR/dist/index.js"
 
 # Make sure bun is findable even in minimal-PATH contexts (launchers, cron, etc.)
@@ -16,7 +25,7 @@ export PATH="$HOME/.bun/bin:$PATH"
 needs_build() {
   [[ ! -f "$DIST" ]] && return 0
   local newer
-  newer="$(find "$REPO_DIR/src" "$REPO_DIR/package.json" "$REPO_DIR/tsconfig.json" \
+  newer="$(find "$REPO_DIR/src" "$REPO_DIR/package.json" "$REPO_DIR/tsconfig.json" ${PACKAGES_DIR:+"$PACKAGES_DIR/plugin-api/src" "$PACKAGES_DIR/runtime/src"} \
     -newer "$DIST" -print -quit 2>/dev/null || true)"
   [[ -n "$newer" ]]
 }

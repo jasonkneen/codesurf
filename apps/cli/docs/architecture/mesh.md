@@ -51,7 +51,7 @@ Agent).
   gateways, and daemons hang off hubs while the logical topology stays any-to-any
   (Phase 2/3 requirement).
 - **Workers** (`codesurf node`) expose sessions, distributed-compute jobs, fleet
-  telemetry, and tracing as remote tools on the hub. `codesurf serve` exposes the
+  telemetry, and tracing as remote tools on the hub. `codesurf gateway` exposes the
   same engine as OpenAI/ACP/MCP surfaces.
 
 ## Two planes on one socket
@@ -82,7 +82,7 @@ generator of `StreamChunk`, the exact shape the TUI turn engine uses.
 |---|---|
 | `codesurf` | TUI + headless client (serverless by default; `--connect` → front) |
 | `codesurf node` | `EngineNode`: hub + session host + job host + fleet + tracing + reaper |
-| `codesurf serve` | Gateway surface (OpenAI/ACP/MCP) |
+| `codesurf gateway` | Gateway surface (OpenAI/ACP/MCP) |
 | `codesurf mcp` | MCP server surface |
 | `SessionStreamClient` / `SessionStreamServer` | live streaming data plane |
 | `NodeSessionHost` | sessions that outlive any front |
