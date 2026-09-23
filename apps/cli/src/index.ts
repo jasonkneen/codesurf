@@ -252,13 +252,20 @@ async function runRemoteHeadless(
   await client.connect();
   const session = await client.createSession({ cwd: process.cwd(), sandboxMode });
   if (format !== "json") process.stderr.write(`\n[codesurf: wire session ${session} on ${url}]\n`);
+  let turnError: string | undefined;
   try {
     await runRemoteTurn(client, session, prompt, {
       onChunk: (chunk) => {
+        // A failed turn arrives as an in-stream error chunk (then done), not a rejection.
+        if (chunk?.type === "error") {
+          turnError = typeof chunk.content === "string" ? chunk.content : "turn failed";
+          return;
+        }
         const t = textOf(chunk);
         if (t) process.stdout.write(t);
       },
     });
+    if (turnError !== undefined) throw new Error(turnError);
   } catch (error) {
     client.close();
     process.stderr.write(`\ncodesurf: ${error instanceof Error ? error.message : String(error)}\n`);
