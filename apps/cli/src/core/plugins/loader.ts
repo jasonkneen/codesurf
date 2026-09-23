@@ -94,10 +94,13 @@ export {
   type TelegramSink,
 } from "./sinks";
 
+import { currentWorkspaceScope } from "../../utils/workspace-scope";
 import {
   callerOwnsTelegramSink,
   emptyHookResult,
   emptyMcpToolBundle,
+  getHooksSink,
+  getSubagentsSink,
   inputInterceptors,
   noopKeyboardHook,
   requireBashSink,
@@ -250,6 +253,8 @@ function evictOldestMentionsEntry(): void {
 }
 
 function currentWorkspaceCwd(): string {
+  const scoped = currentWorkspaceScope();
+  if (scoped) return scoped.bash.cwd();
   if (sinks.cwdProvider) {
     try {
       return sinks.cwdProvider();
@@ -563,6 +568,9 @@ function buildHostServices(): PluginHostServices {
     },
     workspace: {
       cwd: () => {
+        // A node session's scope wins: its shell is the session's folder.
+        const scoped = currentWorkspaceScope();
+        if (scoped) return scoped.bash.cwd();
         if (sinks.cwdProvider) {
           try {
             return sinks.cwdProvider();
@@ -684,14 +692,15 @@ function buildHostServices(): PluginHostServices {
     },
     subagents: {
       runTask: async (request, abortSignal) => {
-        if (!sinks.subagents) {
+        const subagents = getSubagentsSink();
+        if (!subagents) {
           return {
             success: false,
             error: "Subagents bridge is not active. An Agent must be constructed and the sink bound.",
           };
         }
         try {
-          return await sinks.subagents.runTask(request, abortSignal);
+          return await subagents.runTask(request, abortSignal);
         } catch (err: unknown) {
           // An abort is a deliberate rethrow from `runTaskRequest`, not a tool
           // failure. Converting it to `{success:false}` made the model treat a
@@ -702,42 +711,45 @@ function buildHostServices(): PluginHostServices {
         }
       },
       runDelegation: async (request, abortSignal) => {
-        if (!sinks.subagents) {
+        const subagents = getSubagentsSink();
+        if (!subagents) {
           return {
             success: false,
             error: "Subagents bridge is not active. An Agent must be constructed and the sink bound.",
           };
         }
         try {
-          return await sinks.subagents.runDelegation(request, abortSignal);
+          return await subagents.runDelegation(request, abortSignal);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           return { success: false, error: `Subagent delegation threw: ${msg}` };
         }
       },
       readDelegation: async (id) => {
-        if (!sinks.subagents) {
+        const subagents = getSubagentsSink();
+        if (!subagents) {
           return {
             success: false,
             error: "Subagents bridge is not active. An Agent must be constructed and the sink bound.",
           };
         }
         try {
-          return await sinks.subagents.readDelegation(id);
+          return await subagents.readDelegation(id);
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           return { success: false, error: `Subagent delegation_read threw: ${msg}` };
         }
       },
       listDelegations: async () => {
-        if (!sinks.subagents) {
+        const subagents = getSubagentsSink();
+        if (!subagents) {
           return {
             success: false,
             error: "Subagents bridge is not active. An Agent must be constructed and the sink bound.",
           };
         }
         try {
-          return await sinks.subagents.listDelegations();
+          return await subagents.listDelegations();
         } catch (err: unknown) {
           const msg = err instanceof Error ? err.message : String(err);
           return { success: false, error: `Subagent delegation_list threw: ${msg}` };
@@ -807,36 +819,40 @@ function buildHostServices(): PluginHostServices {
       // the swallow-error semantics inside `executeEventHooks` itself; hooks
       // are optional, the agent must run without them.
       runPre: async (toolName, toolInput, sessionId, abortSignal) => {
-        if (!sinks.hooks) return emptyHookResult();
+        const hooks = getHooksSink();
+        if (!hooks) return emptyHookResult();
         try {
-          return await sinks.hooks.runPre(toolName, toolInput, sessionId, abortSignal);
+          return await hooks.runPre(toolName, toolInput, sessionId, abortSignal);
         } catch (err) {
           console.error("[extensions] hooks.runPre threw:", err);
           return emptyHookResult();
         }
       },
       runPost: async (toolName, toolInput, toolOutput, sessionId, abortSignal) => {
-        if (!sinks.hooks) return emptyHookResult();
+        const hooks = getHooksSink();
+        if (!hooks) return emptyHookResult();
         try {
-          return await sinks.hooks.runPost(toolName, toolInput, toolOutput, sessionId, abortSignal);
+          return await hooks.runPost(toolName, toolInput, toolOutput, sessionId, abortSignal);
         } catch (err) {
           console.error("[extensions] hooks.runPost threw:", err);
           return emptyHookResult();
         }
       },
       runFailure: async (toolName, toolInput, error, sessionId, abortSignal) => {
-        if (!sinks.hooks) return emptyHookResult();
+        const hooks = getHooksSink();
+        if (!hooks) return emptyHookResult();
         try {
-          return await sinks.hooks.runFailure(toolName, toolInput, error, sessionId, abortSignal);
+          return await hooks.runFailure(toolName, toolInput, error, sessionId, abortSignal);
         } catch (err) {
           console.error("[extensions] hooks.runFailure threw:", err);
           return emptyHookResult();
         }
       },
       runEvent: async (input, abortSignal) => {
-        if (!sinks.hooks) return emptyHookResult();
+        const hooks = getHooksSink();
+        if (!hooks) return emptyHookResult();
         try {
-          return await sinks.hooks.runEvent(input, abortSignal);
+          return await hooks.runEvent(input, abortSignal);
         } catch (err) {
           console.error("[extensions] hooks.runEvent threw:", err);
           return emptyHookResult();

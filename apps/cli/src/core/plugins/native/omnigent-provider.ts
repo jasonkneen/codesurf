@@ -19,6 +19,7 @@ import type {
   ProviderTurnInput,
   ProviderUsageSnapshot,
 } from "@codesurf/plugin-api";
+import { workspaceRoot } from "../../../utils/workspace-scope";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
 import { usageFromRecord } from "../builtin/provider-usage";
 
@@ -719,7 +720,7 @@ class OmnigentSession implements ProviderSession {
     const body: Record<string, unknown> = {
       agent_id: agentId,
       title: titleFromPrompt(input.prompt),
-      workspace: process.cwd(),
+      workspace: workspaceRoot(),
     };
     if (hostId) body.host_id = hostId;
     if (modelOverride) body.model_override = modelOverride;

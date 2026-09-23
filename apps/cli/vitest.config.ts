@@ -55,6 +55,7 @@ export default defineConfig({
       // behavior like mock.module). Run with: bun run test:bun
       "src/agent/adaptive-routing.test.ts",
       "src/core/plugins/sinks.bun.test.ts",
+      "src/utils/workspace-scope.bun.test.ts",
       "src/agent/learning/skill-optimizer.test.ts",
       "src/agent/trace-collection.test.ts",
       "src/ui/components/claude-code-pending-messages.test.ts",

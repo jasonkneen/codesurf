@@ -46,6 +46,7 @@ import {
   patchDaemonTimelineSession,
 } from "../../../daemon/session-repair";
 import { saveLastCardId } from "../../../storage/index";
+import { workspaceRoot } from "../../../utils/workspace-scope";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
 import { stringifyContent } from "../builtin/openai-chat-utils";
 import { getTileSessionContext, type TileSessionContext } from "../tile-state-integration";
@@ -627,7 +628,7 @@ class CodesurfDesktopSession implements ProviderSession {
     // Resolved before session recovery: the daemon records the registered
     // root as each job's workspaceDir, so recovery must filter on it too.
     const workspaceId = await this.resolveWorkspaceId(baseUrl, info, input.abortSignal);
-    const workspaceDir = this.workspaceDir ?? process.cwd();
+    const workspaceDir = this.workspaceDir ?? workspaceRoot();
     const sessionId = this.sessionId ?? (await this.readDaemonSessionId(home, baseUrl, info, input.abortSignal));
     if (sessionId) this.sessionId = sessionId;
 
@@ -951,7 +952,7 @@ class CodesurfDesktopSession implements ProviderSession {
   private async resolveWorkspaceId(baseUrl: string, info: DaemonPidInfo, signal?: AbortSignal): Promise<string> {
     if (this.workspaceId) return this.workspaceId;
 
-    const cwd = process.cwd();
+    const cwd = workspaceRoot();
     const canonical = realpathOrSelf(cwd);
 
     let workspaces: Array<{ id?: unknown; name?: unknown; path?: unknown; projectPaths?: unknown }>;
@@ -1040,7 +1041,7 @@ class CodesurfDesktopSession implements ProviderSession {
     info: DaemonPidInfo,
     signal?: AbortSignal,
   ): Promise<string | null> {
-    const workspaceDir = this.workspaceDir ?? process.cwd();
+    const workspaceDir = this.workspaceDir ?? workspaceRoot();
     const fromDisk = findLatestDaemonSessionIdForCard(home, this.cardId, workspaceDir);
     if (fromDisk) return fromDisk;
     if (this.legacyCardId) {

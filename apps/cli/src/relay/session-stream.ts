@@ -9,6 +9,7 @@
 // evicts abandoned sessions.
 
 import type { StreamChunk } from "../types/index";
+import type { SandboxMode, SandboxSettings } from "../utils/settings";
 import type { NodeSessionHost, SessionStatus } from "./host";
 
 const END = Symbol("remote-turn-end");
@@ -33,6 +34,8 @@ export type SessionFrameOut =
       status?: SessionStatus | null;
       finished?: boolean;
       message?: string;
+      /** On an error frame: the request action that failed (e.g. "create"). */
+      action?: SessionFrameIn["action"];
     }
   | { op: "session"; event: "chunk"; session: string; chunk: StreamChunk };
 
@@ -43,6 +46,21 @@ export interface SessionFrameIn {
   approve?: boolean;
   session?: string;
   text?: string;
+  /** create: absolute folder the session runs in. Unset = the node's own folder. */
+  cwd?: string;
+  /** create: sandbox for the session's shell. Unset = the folder's settings. */
+  sandboxMode?: SandboxMode;
+  /** create: sandbox settings layered over the folder's settings. */
+  sandboxSettings?: SandboxSettings;
+}
+
+/** Options for `SessionStreamClient.createSession`. */
+export interface CreateSessionOptions {
+  /** Session id to use; the node picks one when unset. */
+  session?: string;
+  cwd?: string;
+  sandboxMode?: SandboxMode;
+  sandboxSettings?: SandboxSettings;
 }
 
 /** Node side: bridges WS session frames to a NodeSessionHost's observers. */
@@ -95,10 +113,15 @@ export class SessionStreamServer {
     switch (action) {
       case "create":
         try {
-          const session = this.host.createSession(frame.session);
+          const session = this.host.createSession(frame.session, {
+            cwd: frame.cwd,
+            sandboxMode: frame.sandboxMode,
+            sandboxSettings: frame.sandboxSettings,
+          });
           sendBack({ op: "session", event: "created", session });
         } catch (e) {
-          sendBack({ op: "session", event: "error", message: String(e) });
+          const message = e instanceof Error ? e.message : String(e);
+          sendBack({ op: "session", event: "error", action: "create", session: frame.session, message });
         }
         break;
       case "message": {
@@ -267,18 +290,42 @@ export class SessionStreamClient {
         this.handlers.onDone?.(frame.session as string, Boolean(frame.finished));
         break;
       case "error":
+        if (frame.action === "create") {
+          this.pending.get("create-error")?.(frame.message);
+          this.pending.delete("create");
+          this.pending.delete("create-error");
+        }
         this.handlers.onError?.(frame.message as string, frame.session);
         break;
     }
   }
 
-  createSession(session?: string): Promise<string> {
+  /**
+   * Create a session on the node. A string is the session id (the old form);
+   * an options object can also set the folder the session runs in (`cwd`,
+   * absolute) and its sandbox. Rejects with the node's message when it refuses
+   * the create (e.g. a cwd that is not an existing directory).
+   */
+  createSession(options?: string | CreateSessionOptions): Promise<string> {
+    const request: CreateSessionOptions = typeof options === "string" ? { session: options } : (options ?? {});
     return new Promise<string>((resolve, reject) => {
-      this.pending.set("create", (v) => resolve(v as string));
-      this.send({ op: "session", action: "create", session });
+      this.pending.set("create", (v) => {
+        this.pending.delete("create-error");
+        resolve(v as string);
+      });
+      this.pending.set("create-error", (message) => reject(new Error(String(message))));
+      this.send({
+        op: "session",
+        action: "create",
+        session: request.session,
+        cwd: request.cwd,
+        sandboxMode: request.sandboxMode,
+        sandboxSettings: request.sandboxSettings,
+      });
       setTimeout(() => {
         if (this.pending.has("create")) {
           this.pending.delete("create");
+          this.pending.delete("create-error");
           reject(new Error("create session timed out"));
         }
       }, 5000);

@@ -20,7 +20,7 @@
     "start": "bun run dist/index.js",
     "typecheck": "tsc -b ../../packages/plugin-api ../../packages/runtime && tsc --noEmit",
     "test": "bunx vitest run",
-    "test:bun": "bun test src/core/plugins/sinks.bun.test.ts src/agent/trace-collection.test.ts src/agent/adaptive-routing.test.ts src/agent/learning/skill-optimizer.test.ts src/ui/components/prompt-bar.test.ts src/ui/components/claude-code-title-bar.test.ts src/ui/components/claude-code-pending-messages.test.ts",
+    "test:bun": "bun test src/core/plugins/sinks.bun.test.ts src/utils/workspace-scope.bun.test.ts src/agent/trace-collection.test.ts src/agent/adaptive-routing.test.ts src/agent/learning/skill-optimizer.test.ts src/ui/components/prompt-bar.test.ts src/ui/components/claude-code-title-bar.test.ts src/ui/components/claude-code-pending-messages.test.ts",
     "test:all": "bun run test && bun run test:bun",
     "test:watch": "bunx vitest",
     "lint": "biome check src/",

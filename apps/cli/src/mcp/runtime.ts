@@ -2,6 +2,7 @@ import { createMCPClient, type MCPClient } from "@ai-sdk/mcp";
 import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
 import type { ToolSet } from "ai";
 import type { McpServerConfig } from "../utils/settings";
+import { workspaceRoot } from "../utils/workspace-scope";
 import { commandExists } from "./command-exists";
 import { validateMcpServerConfig } from "./validate";
 
@@ -84,7 +85,8 @@ export function createStdioTransport(
     command: server.command ?? "",
     args: server.args,
     env: server.env,
-    cwd: server.cwd,
+    // Unset = the session's folder on a node (the process's own otherwise).
+    cwd: server.cwd ?? workspaceRoot(),
     stderr: "pipe",
   });
   let tail = "";

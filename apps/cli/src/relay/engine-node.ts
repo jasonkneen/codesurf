@@ -6,11 +6,12 @@
 // turn running; reconnecting fronts read the result. The turn runner is the seam
 // bound to a real engine Agent in production (injected here).
 
-import { type HostedTurnRunner, NodeSessionHost } from "./host";
+import { type HostedTurnRunner, NodeSessionHost, type SessionWorkspace, type SessionWorkspaceOptions } from "./host";
 import { Hub } from "./hub";
 import { JobHost, type JobRunner, registerJobTools } from "./jobs";
 import { RelayNode } from "./node";
 import { SessionStreamServer } from "./session-stream";
+import { resolveSessionWorkspace } from "./session-workspace";
 import { Steward } from "./steward";
 import { renderTraceTrajectory } from "./trace";
 import { connectPeerPair } from "./transport";
@@ -38,6 +39,8 @@ export interface EngineNodeOptions {
   sessionMaxTtlMs?: number;
   /** Called when a session is evicted (owner disposes its Agent). */
   onSessionEvict?: (sessionId: string) => void;
+  /** Validate a session's requested folder/sandbox. Default: `resolveSessionWorkspace`. */
+  resolveWorkspace?: (options: SessionWorkspaceOptions) => SessionWorkspace;
   /** Auto-reap sessions/jobs/traces on this interval (ms). */
   reapIntervalMs?: number;
 }
@@ -59,6 +62,7 @@ export class EngineNode {
       idleTtlMs: options.sessionIdleTtlMs,
       maxTtlMs: options.sessionMaxTtlMs,
       onEvict: options.onSessionEvict,
+      resolveWorkspace: options.resolveWorkspace ?? resolveSessionWorkspace,
     });
     const allow = options.allowPrincipals ?? (options.authToken !== undefined ? [WIRE_PRINCIPAL] : ["any"]);
 
@@ -81,9 +85,10 @@ export class EngineNode {
 
     this.node.registerTool({
       name: "session_create",
-      description: "Create a session owned by this node.",
-      run: () => {
-        const id = this.sessions.createSession();
+      description: "Create a session owned by this node, optionally in a given absolute folder (cwd).",
+      run: (args) => {
+        const cwd = (args as { cwd?: unknown } | undefined)?.cwd;
+        const id = this.sessions.createSession(undefined, typeof cwd === "string" ? { cwd } : {});
         return { statement: `created:${id}`, anchors: [], handle: id };
       },
     });

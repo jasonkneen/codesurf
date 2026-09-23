@@ -24,6 +24,7 @@ import type {
 } from "../../tools/schedule";
 import type { TaskRequest, ToolResult } from "../../types/index";
 import type { SandboxMode, SandboxSettings } from "../../utils/settings";
+import { currentWorkspaceScope } from "../../utils/workspace-scope";
 import type {
   ChatDispatchOptions,
   ContextBreakdown,
@@ -296,12 +297,31 @@ export function setSessionReconnectProvider(sink: SessionReconnectSink | null) {
   sinks.sessionReconnect = sink;
 }
 
+// Inside a session's workspace scope (a node session), the Agent's bridges bind
+// to that scope so sessions never route through each other's Agent. Outside a
+// scope they are process-global, last-bind-wins, as before.
 export function setSubagentsSink(sink: SubagentsSink | null) {
-  sinks.subagents = sink;
+  const scope = currentWorkspaceScope();
+  if (scope) scope.subagents = sink;
+  else sinks.subagents = sink;
 }
 
 export function setScheduleSink(sink: ScheduleSink | null) {
-  sinks.schedule = sink;
+  const scope = currentWorkspaceScope();
+  if (scope) scope.schedule = sink;
+  else sinks.schedule = sink;
+}
+
+/** The subagents bridge for the calling session: its scope's, else the global. */
+export function getSubagentsSink(): SubagentsSink | null {
+  const scope = currentWorkspaceScope();
+  return scope ? scope.subagents : sinks.subagents;
+}
+
+/** The hooks bridge for the calling session: its scope's, else the global. */
+export function getHooksSink(): HooksSink | null {
+  const scope = currentWorkspaceScope();
+  return scope ? scope.hooks : sinks.hooks;
 }
 
 export function setBashSink(sink: BashSink | null) {
@@ -327,7 +347,9 @@ export function getMcpToolBundleProvider(): McpToolBundleProvider | null {
 }
 
 export function setHooksSink(sink: HooksSink | null) {
-  sinks.hooks = sink;
+  const scope = currentWorkspaceScope();
+  if (scope) scope.hooks = sink;
+  else sinks.hooks = sink;
 }
 
 // ── Guards + helpers ─────────────────────────────────────────────────────────
@@ -335,13 +357,18 @@ export function setHooksSink(sink: HooksSink | null) {
 const SCHEDULE_NOT_ACTIVE_MESSAGE = "Schedule manager is not active. An Agent must be constructed and the sink bound.";
 
 export function requireScheduleSink(): ScheduleSink {
-  if (!sinks.schedule) throw new Error(SCHEDULE_NOT_ACTIVE_MESSAGE);
-  return sinks.schedule;
+  const scope = currentWorkspaceScope();
+  const schedule = scope ? scope.schedule : sinks.schedule;
+  if (!schedule) throw new Error(SCHEDULE_NOT_ACTIVE_MESSAGE);
+  return schedule;
 }
 
 const BASH_NOT_ACTIVE_MESSAGE = "Bash sink is not active. The builtin bash extension must be active.";
 
 export function requireBashSink(): BashSink {
+  // A session's workspace scope carries its own shell.
+  const scoped = currentWorkspaceScope()?.bash;
+  if (scoped) return scoped;
   if (!sinks.bash) throw new Error(BASH_NOT_ACTIVE_MESSAGE);
   return sinks.bash;
 }

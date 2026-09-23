@@ -98,6 +98,7 @@ import type {
   ProviderUsageSnapshot,
 } from "@codesurf/plugin-api";
 import { type McpServerConfig as CodesurfMcpServerConfig, loadMcpServers } from "../../../utils/settings";
+import { workspaceRoot } from "../../../utils/workspace-scope";
 import { ANTHROPIC_MODELS } from "../builtin/anthropic-models-catalog";
 import { registerClaudeSkillsProvider } from "../builtin/claude-skills-provider";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
@@ -545,7 +546,7 @@ class ClaudeAgentSession implements ProviderSession {
         abortController: this.abortController,
       };
       logLine(
-        `lazyStart: adapter=${params.adapterId} model=${startOptions.model ?? "(default)"} cwd=${startOptions.cwd ?? process.cwd()} permissionMode=${initialMode} thinking=${initialThinking.type} effort=${initialEffort} skills=${initialSkills === "all" ? "all" : `${initialSkills.length} listed`}`,
+        `lazyStart: adapter=${params.adapterId} model=${startOptions.model ?? "(default)"} cwd=${startOptions.cwd ?? workspaceRoot()} permissionMode=${initialMode} thinking=${initialThinking.type} effort=${initialEffort} skills=${initialSkills === "all" ? "all" : `${initialSkills.length} listed`}`,
       );
       this.query = params.queryFactory({
         prompt: this.input.iterable,
@@ -931,7 +932,7 @@ class ClaudeAgentSession implements ProviderSession {
       if (turn && toolName === "Bash" && typeof input?.command === "string") {
         const rgParams = tryParseRipgrepCommand(input.command);
         if (rgParams) {
-          const cwd = process.cwd();
+          const cwd = workspaceRoot();
           const toolUseId = options.toolUseID ?? "";
           try {
             const result = await executeGrep(rgParams, cwd, options.signal);
@@ -1720,7 +1721,7 @@ export function buildSessionOptions(
   const policy = resolveMcpPolicy(services);
   const base: ClaudeAgentOptions = {
     model: modelId,
-    cwd: process.cwd(),
+    cwd: workspaceRoot(),
     // biome-ignore lint/suspicious/noExplicitAny: SDK union type is wider than our translator covers; cast at the boundary.
     mcpServers: policy.sdkServers as any,
     // Strict MCP enforcement always-on: only Codesurf-managed servers reach the

@@ -36,6 +36,7 @@ import type {
 } from "@codesurf/plugin-api";
 import { isBinaryInstalled } from "../../../utils/binary-on-path";
 import { cachedCliCheck } from "../../../utils/cli-check-cache";
+import { workspaceRoot } from "../../../utils/workspace-scope";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
 import { usageFromRecord } from "../builtin/provider-usage";
 
@@ -647,7 +648,7 @@ export class CodexSession implements ProviderSession {
     const approvalPolicy = this.ctx.settings.get<string>(APPROVAL_SETTING, DEFAULT_APPROVAL);
     const res = (await this.server.request("thread/start", {
       model: modelId,
-      cwd: process.cwd(),
+      cwd: workspaceRoot(),
       sandbox,
       approvalPolicy,
     })) as { thread?: { id?: string } };

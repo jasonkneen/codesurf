@@ -3,6 +3,7 @@ import * as fs from "fs";
 import * as os from "os";
 import * as path from "path";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, type Mock, vi } from "vitest";
+import { createWorkspaceScope, runInWorkspace } from "../../utils/workspace-scope";
 import { loadBuiltinPlugins } from "./builtin";
 import {
   __resetPluginsForTests,
@@ -15,6 +16,7 @@ import {
   setCwdProvider,
 } from "./index";
 import { createNativePluginModule } from "./native/host";
+import type { BashSink } from "./sinks";
 
 let tempDir: string;
 let originalConfigDir: string | undefined;
@@ -105,6 +107,58 @@ describe("resolveModelRuntimeViaKernel", () => {
 
     await resolveModelRuntimeViaKernel("workspace-model", "workspace-conversation");
     expect(seenCwd).toBe(workspaceDir);
+  });
+
+  // One node, many folders: a session's provider must run in the session's
+  // folder, keep it for callbacks that fire after the turn, and never share a
+  // connection with another folder's session under the same conversation id.
+  it("pins connect() to the calling session's workspace scope", async () => {
+    const workspaces: Array<{ cwd: () => string } | undefined> = [];
+    await bootstrapPlugins([
+      createNativePluginModule({
+        name: "extension",
+        inject: ["contributions"],
+        manifest: {
+          id: "test.runtime-scoped-workspace",
+          name: "Runtime scoped workspace",
+          version: "1.0.0",
+          capabilities: ["provider-adapters", "models"],
+        },
+        apply(ctx: PluginContext) {
+          ctx.contributions.registerModelProvider({
+            id: "scoped.adapter",
+            label: "Scoped adapter",
+            providerId: "scoped",
+            shape: "provider-family",
+            transport: "custom",
+            connectionMode: "stateless",
+            capabilities: { streaming: true },
+            auth: { mode: "none", check: () => ({ ok: true }) },
+            adapter: {
+              connect: async (connectCtx) => {
+                workspaces.push(connectCtx.workspace);
+                return {
+                  adapterId: "scoped.adapter",
+                  providerId: "scoped",
+                  mode: "stateless",
+                  getModel: () => null as never,
+                };
+              },
+            },
+            model: { id: "scoped-model", providerId: "scoped", label: "Scoped model" },
+          });
+        },
+      }),
+    ]);
+    const scopeA = createWorkspaceScope("/work/a", { cwd: () => "/work/a/sub" } as unknown as BashSink);
+    const scopeB = createWorkspaceScope("/work/b", { cwd: () => "/work/b" } as unknown as BashSink);
+
+    await runInWorkspace(scopeA, () => resolveModelRuntimeViaKernel("scoped-model", "ephemeral"));
+    await runInWorkspace(scopeB, () => resolveModelRuntimeViaKernel("scoped-model", "ephemeral"));
+    await runInWorkspace(scopeA, () => resolveModelRuntimeViaKernel("scoped-model", "ephemeral"));
+
+    // One connect per folder (A's second call reused A's), read outside any scope.
+    expect(workspaces.map((w) => w?.cwd())).toEqual(["/work/a/sub", "/work/b"]);
   });
 
   it("routes xAI models through the existing xAI client (preserves batch/responses paths)", async () => {

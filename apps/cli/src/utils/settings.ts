@@ -12,6 +12,7 @@ import type {
 } from "../lsp/types";
 import type { AgentMode, ReasoningEffort } from "../types/index";
 import { getCodesurfConfigDir } from "./config-dir";
+import { workspaceRoot } from "./workspace-scope";
 
 export type TelegramStreamingMode = "off" | "partial";
 export type SandboxMode = "off" | "shuru";
@@ -461,12 +462,12 @@ export function saveUserSettings(partial: Partial<UserSettings>): void {
 }
 
 export function loadProjectSettings(): ProjectSettings {
-  const projectPath = path.join(process.cwd(), ".grok", "settings.json");
+  const projectPath = path.join(workspaceRoot(), ".grok", "settings.json");
   return readJson<ProjectSettings>(projectPath) || {};
 }
 
 export function saveProjectSettings(partial: Partial<ProjectSettings>): void {
-  const projectPath = path.join(process.cwd(), ".grok", "settings.json");
+  const projectPath = path.join(workspaceRoot(), ".grok", "settings.json");
   const current = loadProjectSettings();
   writeJson(projectPath, {
     ...current,

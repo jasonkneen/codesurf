@@ -8,8 +8,27 @@
 // session on the node; the node's host runs it regardless of front liveness.
 
 import type { StreamChunk } from "../types/index";
+import type { SandboxMode, SandboxSettings } from "../utils/settings";
 
-export type HostedTurnRunner = (sessionId: string, message: string, signal: AbortSignal) => AsyncIterable<StreamChunk>;
+/** Where and how a session runs, as the front asked for it at create time. */
+export interface SessionWorkspaceOptions {
+  /** Absolute folder the session's Agent and tools run in. Unset = the node's own. */
+  cwd?: string;
+  sandboxMode?: SandboxMode;
+  sandboxSettings?: SandboxSettings;
+}
+
+/** A session's workspace after the node validated it: `cwd` is a realpath. */
+export interface SessionWorkspace extends SessionWorkspaceOptions {
+  cwd: string;
+}
+
+export type HostedTurnRunner = (
+  sessionId: string,
+  message: string,
+  signal: AbortSignal,
+  workspace?: SessionWorkspace,
+) => AsyncIterable<StreamChunk>;
 
 export interface SessionObserver {
   onChunk(chunk: StreamChunk): void;
@@ -18,6 +37,8 @@ export interface SessionObserver {
 
 export interface SessionStatus {
   id: string;
+  /** The folder the session runs in (realpath). */
+  cwd: string;
   createdAt: string;
   turning: boolean;
   observers: number;
@@ -32,10 +53,16 @@ export interface SessionHostOptions {
   maxTtlMs?: number;
   /** Called with the session id when the host evicts a session. */
   onEvict?: (sessionId: string) => void;
+  /**
+   * Validate and resolve a create request's workspace; throw to reject the
+   * create. Default: the node's own folder, as given.
+   */
+  resolveWorkspace?: (options: SessionWorkspaceOptions) => SessionWorkspace;
 }
 
 interface SessionState {
   id: string;
+  workspace: SessionWorkspace;
   createdAt: string;
   observers: Set<SessionObserver>;
   turning: boolean;
@@ -62,6 +89,7 @@ export class NodeSessionHost {
       .sort((a, b) => (a.createdAt < b.createdAt ? 1 : -1))
       .map((s) => ({
         id: s.id,
+        cwd: s.workspace.cwd,
         createdAt: s.createdAt,
         turning: s.turning,
         observers: s.observers.size,
@@ -70,11 +98,15 @@ export class NodeSessionHost {
       }));
   }
 
-  createSession(id?: string): string {
+  createSession(id?: string, options: SessionWorkspaceOptions = {}): string {
     const sessionId = id ?? `sess-${++this.counter}`;
     if (this.sessions.has(sessionId)) throw new Error(`session ${sessionId} already exists`);
+    const workspace = this.options.resolveWorkspace
+      ? this.options.resolveWorkspace(options)
+      : { ...options, cwd: options.cwd ?? process.cwd() };
     this.sessions.set(sessionId, {
       id: sessionId,
+      workspace,
       createdAt: new Date().toISOString(),
       observers: new Set(),
       turning: false,
@@ -105,7 +137,7 @@ export class NodeSessionHost {
     session.controller = controller;
     session.turning = true;
     try {
-      for await (const chunk of this.runner(sessionId, text, controller.signal)) {
+      for await (const chunk of this.runner(sessionId, text, controller.signal, session.workspace)) {
         session.lastActivityMs = Date.now();
         if (chunk.type === "content" && typeof chunk.content === "string") session.text += chunk.content;
         for (const observer of [...session.observers]) observer.onChunk(chunk);
@@ -129,6 +161,7 @@ export class NodeSessionHost {
     return session
       ? {
           id: session.id,
+          cwd: session.workspace.cwd,
           createdAt: session.createdAt,
           turning: session.turning,
           observers: session.observers.size,

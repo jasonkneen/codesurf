@@ -1,6 +1,7 @@
 import type { ModelMessage } from "ai";
 import {
   disposeAllProviderSessions,
+  disposeProviderSession,
   fireUserInterrupt,
   getHostServices,
   resolveModelRuntimeViaKernel,
@@ -9,6 +10,7 @@ import type { UserInterruptHookInput } from "../../hooks/types";
 import { shutdownWorkspaceLspManager } from "../../lsp/runtime";
 import type { SessionInfo, SubagentStatus, UsageSource } from "../../types/index";
 import { runSideQuestion, type SideQuestionResult } from "../../utils/side-question";
+import { currentWorkspaceScope } from "../../utils/workspace-scope";
 import type { DelegationManager } from "./../delegations";
 import type { SessionToolsets } from "./../session-toolsets";
 
@@ -165,7 +167,13 @@ export function TurnControlMixin<TBase extends MixinConstructor>(Base: TBase) {
       await Promise.allSettled([
         Promise.resolve().then(() => services.cleanup()),
         Promise.resolve().then(() => shutdownWorkspaceLspManager(services.cwd())),
-        Promise.resolve().then(() => disposeAllProviderSessions()),
+        // A node session shares the process with other sessions: tear down only
+        // this conversation's provider sessions, not every session's.
+        Promise.resolve().then(() =>
+          currentWorkspaceScope()
+            ? disposeProviderSession(st(this).getSessionId() ?? "ephemeral")
+            : disposeAllProviderSessions(),
+        ),
       ]);
     }
 

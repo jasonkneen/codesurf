@@ -1,5 +1,6 @@
 import { accessSync, constants, statSync } from "node:fs";
 import { delimiter, resolve } from "node:path";
+import { workspaceRoot } from "../utils/workspace-scope";
 
 export interface CommandLookupOptions {
   /** Directory the command will be spawned in; relative commands and PATH entries resolve against it. */
@@ -27,7 +28,7 @@ export function resolveCommandPath(command: string, options: CommandLookupOption
   const name = command.trim();
   if (!name) return null;
 
-  const cwd = options.cwd ?? process.cwd();
+  const cwd = options.cwd ?? workspaceRoot();
   const roots = hasPathSeparator(name) ? [cwd] : pathEntries(options.env).map((entry) => resolve(cwd, entry));
 
   for (const root of roots) {

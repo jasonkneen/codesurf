@@ -13,7 +13,7 @@ import {
   resolveModelRuntime as resolveXaiRuntime,
   type XaiProvider,
 } from "../../grok/client";
-
+import { currentWorkspaceScope } from "../../utils/workspace-scope";
 import type {
   CredentialStatus,
   ProviderConnectionContext,
@@ -81,7 +81,11 @@ const pendingConnections = new Map<string, PendingProviderConnection>();
 const conversationEpochs = new Map<string, number>();
 
 function cacheKey(adapterId: string, conversationId: string): string {
-  return `${adapterId}::${conversationId}`;
+  // A node session's folder is part of the key, so two folders that share a
+  // conversation id (e.g. "ephemeral") never share a provider session. The
+  // conversation id stays the suffix, so dispose-by-conversation still matches.
+  const scope = currentWorkspaceScope();
+  return scope ? `${adapterId}::${scope.root}::${conversationId}` : `${adapterId}::${conversationId}`;
 }
 
 function conversationSuffix(conversationId: string): string {
@@ -119,6 +123,17 @@ async function disconnectStaleSession(adapterId: string, session: ProviderSessio
   }
 }
 
+/**
+ * Inside a node session's scope, pin the provider's workspace to that session's
+ * shell: an adapter may read `ctx.workspace.cwd()` from a callback that fires
+ * outside the turn, where the ambient scope is gone.
+ */
+function scopedWorkspace(): ProviderConnectionContext["workspace"] | undefined {
+  const scope = currentWorkspaceScope();
+  if (!scope) return undefined;
+  return { cwd: () => scope.bash.cwd() };
+}
+
 async function connectProviderSession(
   provider: RegisteredModelProvider,
   conversationId: string,
@@ -134,7 +149,7 @@ async function connectProviderSession(
     modelId,
     settings: getHostServices().settings,
     services: getHostServices(),
-    workspace: getHostServices().workspace,
+    workspace: scopedWorkspace() ?? getHostServices().workspace,
   };
   const session = await provider.adapter.connect(ctx);
   if (adapterGeneration(provider.id) !== generation) {
