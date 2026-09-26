@@ -63,6 +63,8 @@ export interface SessionHostOptions {
 
 interface SessionState {
   id: string;
+  /** Front-supplied id of the current (or last) turn; echoed on its stream frames. */
+  turnId?: string;
   workspace: SessionWorkspace;
   createdAt: string;
   observers: Set<SessionObserver>;
@@ -130,9 +132,10 @@ export class NodeSessionHost {
    * observer detaches. Resolves when the turn ends. One turn at a time per
    * session: a message while a turn is running is rejected, not interleaved.
    */
-  async message(sessionId: string, text: string): Promise<void> {
+  async message(sessionId: string, text: string, turnId?: string): Promise<void> {
     const session = this.require(sessionId);
     if (session.turning) throw new Error(`session ${sessionId} is busy with a running turn`);
+    session.turnId = turnId;
     session.lastActivityMs = Date.now();
     const controller = new AbortController();
     session.controller = controller;
@@ -163,6 +166,11 @@ export class NodeSessionHost {
   /** Detach one observer without cancelling any in-flight turn. */
   detach(sessionId: string, observer: SessionObserver): void {
     this.require(sessionId).observers.delete(observer);
+  }
+
+  /** Id of the session's current (or last) turn, if the front supplied one. */
+  turnIdOf(sessionId: string): string | undefined {
+    return this.sessions.get(sessionId)?.turnId;
   }
 
   status(sessionId: string): SessionStatus | null {

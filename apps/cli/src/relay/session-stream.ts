@@ -23,6 +23,21 @@ export interface NodeInfo {
 
 const END = Symbol("remote-turn-end");
 
+let turnCounter = 0;
+function newTurnId(): string {
+  turnCounter += 1;
+  return `t${Date.now().toString(36)}-${turnCounter}`;
+}
+
+/**
+ * A stream frame belongs to this turn when it is for this session and either
+ * carries this turn's id or no id at all (a node that predates turn ids).
+ * Without the id check, a previous turn's late `done` ended the next turn.
+ */
+function belongsToTurn(session: string, frameTurn: string | undefined, sessionId: string, turn: string): boolean {
+  return session === sessionId && (frameTurn === undefined || frameTurn === turn);
+}
+
 /** A live front attachment to a node session (used by the interactive TUI). */
 export interface RemoteFront {
   client: SessionStreamClient;
@@ -46,8 +61,10 @@ export type SessionFrameOut =
       message?: string;
       /** On an error frame: the request action that failed (e.g. "create"). */
       action?: SessionFrameIn["action"];
+      /** Turn id the frame belongs to (echo of the message's `turn`). */
+      turn?: string;
     }
-  | { op: "session"; event: "chunk"; session: string; chunk: StreamChunk };
+  | { op: "session"; event: "chunk"; session: string; chunk: StreamChunk; turn?: string };
 
 export interface SessionFrameIn {
   op: "session";
@@ -56,6 +73,11 @@ export interface SessionFrameIn {
   approve?: boolean;
   session?: string;
   text?: string;
+  /**
+   * message: front-chosen turn id, echoed on every chunk/done/error of that
+   * turn so a front can drop a previous turn's late frames.
+   */
+  turn?: string;
   /** create: absolute folder the session runs in. Unset = the node's own folder. */
   cwd?: string;
   /** create: sandbox for the session's shell. Unset = the folder's settings. */
@@ -127,9 +149,11 @@ export class SessionStreamServer {
         /* front gone (closed socket) — swallow; next reaper pass evicts the session */
       }
     };
+    const turnOf = (session: string) => this.host.turnIdOf(session);
     const observer = (session: string) => ({
-      onChunk: (c: StreamChunk) => safe(() => sendBack({ op: "session", event: "chunk", session, chunk: c })),
-      onEnd: () => safe(() => sendBack({ op: "session", event: "done", session, finished: true })),
+      onChunk: (c: StreamChunk) =>
+        safe(() => sendBack({ op: "session", event: "chunk", session, chunk: c, turn: turnOf(session) })),
+      onEnd: () => safe(() => sendBack({ op: "session", event: "done", session, finished: true, turn: turnOf(session) })),
     });
     switch (action) {
       case "create":
@@ -152,7 +176,7 @@ export class SessionStreamServer {
         if (!status) {
           // Unknown or reaped session: tell the front instead of leaving it waiting for `done`.
           this.onIssue?.("relay.session-stream.message", `unknown session ${session}`, session);
-          sendBack({ op: "session", event: "error", session, message: `unknown session ${session}` });
+          sendBack({ op: "session", event: "error", session, turn: frame.turn, message: `unknown session ${session}` });
           break;
         }
         if (status.turning) {
@@ -161,13 +185,14 @@ export class SessionStreamServer {
             op: "session",
             event: "error",
             session,
+            turn: frame.turn,
             message: `session ${session} is busy with a running turn`,
           });
           break;
         }
         const detach = this.host.attach(session, observer(session));
         void this.host
-          .message(session, frame.text ?? "")
+          .message(session, frame.text ?? "", frame.turn)
           .catch((e) => this.onIssue?.("relay.turn", e instanceof Error ? e.message : String(e), session))
           .finally(() => safe(() => detach()));
         break;
@@ -233,10 +258,10 @@ type WebSocketLike = {
 };
 
 interface StreamClientHandlers {
-  onChunk?: (session: string, chunk: StreamChunk) => void;
-  onDone?: (session: string, finished: boolean) => void;
+  onChunk?: (session: string, chunk: StreamChunk, turn?: string) => void;
+  onDone?: (session: string, finished: boolean, turn?: string) => void;
   onCreated?: (session: string) => void;
-  onError?: (message: string, session?: string) => void;
+  onError?: (message: string, session?: string, turn?: string) => void;
   /** The socket closed (node gone, auth refused, network drop). */
   onClose?: () => void;
 }
@@ -316,10 +341,10 @@ export class SessionStreamClient {
         this.onApprovalRequest?.(frame.session ?? "", frame.approvalId ?? "", frame.toolName ?? "", frame.input);
         break;
       case "chunk":
-        this.handlers.onChunk?.(frame.session as string, frame.chunk as StreamChunk);
+        this.handlers.onChunk?.(frame.session as string, frame.chunk as StreamChunk, frame.turn);
         break;
       case "done":
-        this.handlers.onDone?.(frame.session as string, Boolean(frame.finished));
+        this.handlers.onDone?.(frame.session as string, Boolean(frame.finished), frame.turn);
         break;
       case "error":
         if (frame.action === "create") {
@@ -327,7 +352,7 @@ export class SessionStreamClient {
           this.pending.delete("create");
           this.pending.delete("create-error");
         }
-        this.handlers.onError?.(frame.message as string, frame.session);
+        this.handlers.onError?.(frame.message as string, frame.session, frame.turn);
         break;
     }
   }
@@ -382,8 +407,8 @@ export class SessionStreamClient {
     return await this.createSession({ ...options, session });
   }
 
-  sendMessage(session: string, text: string): void {
-    this.send({ op: "session", action: "message", session, text });
+  sendMessage(session: string, text: string, turn?: string): void {
+    this.send({ op: "session", action: "message", session, text, turn });
   }
 
   subscribe(session: string): void {
@@ -480,22 +505,24 @@ export function createRemoteSessionTurn(
       notify = null;
       n?.();
     };
+    const turn = newTurnId();
     client.on({
-      onChunk: (_s, c) => {
-        if (settled) return;
+      onChunk: (s, c, frameTurn) => {
+        if (settled || !belongsToTurn(s, frameTurn, sessionId, turn)) return;
         queue.push(c);
         wake();
       },
-      onDone: (_s) => {
-        if (settled) return;
+      onDone: (s, _finished, frameTurn) => {
+        if (settled || !belongsToTurn(s, frameTurn, sessionId, turn)) return;
         settled = true;
         queue.push(END);
         wake();
       },
       // Unknown/reaped/busy session or a dropped socket: end the turn with an
       // error chunk instead of waiting forever for a `done` that never comes.
-      onError: (message, session) => {
+      onError: (message, session, frameTurn) => {
         if (settled || (session !== undefined && session !== sessionId)) return;
+        if (frameTurn !== undefined && frameTurn !== turn) return;
         settled = true;
         queue.push({ type: "error", content: message }, END);
         wake();
@@ -507,7 +534,7 @@ export function createRemoteSessionTurn(
         wake();
       },
     });
-    client.sendMessage(sessionId, text);
+    client.sendMessage(sessionId, text, turn);
     while (true) {
       if (queue.length) {
         const v = queue.shift() as StreamChunk | typeof END;
@@ -555,23 +582,25 @@ export function runRemoteTurn(
         idleTimeoutMs,
       );
     };
+    const turn = newTurnId();
     client.on({
-      onChunk: (session, chunk) => {
-        if (session !== sessionId) return;
+      onChunk: (session, chunk, frameTurn) => {
+        if (!belongsToTurn(session, frameTurn, sessionId, turn)) return;
         arm();
         options.onChunk?.(chunk);
       },
-      onDone: (session) => {
-        if (session === sessionId) settle();
+      onDone: (session, _finished, frameTurn) => {
+        if (belongsToTurn(session, frameTurn, sessionId, turn)) settle();
       },
-      onError: (message, session) => {
+      onError: (message, session, frameTurn) => {
+        if (frameTurn !== undefined && frameTurn !== turn) return;
         if (session === undefined || session === sessionId) settle(new Error(message));
       },
       onClose: () => settle(new Error("connection to the node closed before the turn finished")),
     });
     arm();
     try {
-      client.sendMessage(sessionId, text);
+      client.sendMessage(sessionId, text, turn);
     } catch (error) {
       settle(error instanceof Error ? error : new Error(String(error)));
     }
