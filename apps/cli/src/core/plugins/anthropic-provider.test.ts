@@ -123,7 +123,7 @@ describe("builtin.provider-anthropic", () => {
     expect(sonnet?.id).toBe("claude-sonnet-5");
     // Bare family aliases track the NEWEST release, so `opus` follows Opus 5.
     const opus = getHostServices().models.get("opus");
-    expect(opus?.id).toBe("claude-opus-5");
+    expect(opus?.id).toBe("claude-opus-5-5");
     const fable = getHostServices().models.get("fable");
     expect(fable?.id).toBe("claude-fable-5-1");
   });

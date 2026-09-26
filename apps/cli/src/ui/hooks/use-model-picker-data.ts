@@ -1,8 +1,11 @@
 import type { Agent } from "../../agent/agent";
 import { getHostServices as kernelGetHostServices } from "../../core/plugins";
+import { refreshDynamicModelListings } from "../../core/plugins/native/host";
 import { permissionModeKeyForAdapter } from "../../core/plugins/permission-mode";
 import { getModelInfo } from "../../grok/models";
 import { MODES } from "../../types/index";
+import { useEffect, useState } from "react";
+import { useModalVisibility } from "../context/modal-visibility-context.js";
 import { preferredAdapterIdForModel, useModel } from "../context/model-context.js";
 import type { ProviderMeta } from "../model-picker-rows.js";
 import type { ProviderSettingRow } from "../provider-settings-modal.js";
@@ -62,6 +65,21 @@ export function useModelPickerData(
   const contextStats = agent.getContextBreakdown(contextWindow, getStreamContent());
   contextStatsRef.current = contextStats;
   contextBreakdownRef.current = contextStats;
+
+  // Opening the picker re-lists dynamic providers (daemon catalog, codex…) so
+  // new releases show up without a restart; re-render once they land.
+  const { showModelPicker } = useModalVisibility();
+  const [, setListingsVersion] = useState(0);
+  useEffect(() => {
+    if (!showModelPicker) return;
+    let live = true;
+    void refreshDynamicModelListings().then(() => {
+      if (live) setListingsVersion((n) => n + 1);
+    });
+    return () => {
+      live = false;
+    };
+  }, [showModelPicker]);
 
   const kernelServices = kernelGetHostServices();
   const kernelModels = kernelServices.models.list();

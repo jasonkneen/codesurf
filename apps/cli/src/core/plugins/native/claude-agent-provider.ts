@@ -263,6 +263,14 @@ function isEffortLevel(value: unknown): value is EffortLevel {
 // model id from ANTHROPIC_MODELS in `./anthropic-models-catalog.ts`. New
 // Claude releases land there first, then get a row here.
 const AGENT_LABELS: Record<string, { label: string; description: string }> = {
+  "claude-fable-5-1": {
+    label: "Claude Fable 5.1 (Agent SDK)",
+    description: "Most capable. 1M context. Via @anthropic-ai/claude-agent-sdk.",
+  },
+  "claude-opus-5-5": {
+    label: "Claude Opus 5.5 (Agent SDK)",
+    description: "Flagship. 1M context. Via @anthropic-ai/claude-agent-sdk.",
+  },
   "claude-fable-5": {
     label: "Claude Fable 5 (Agent SDK)",
     description: "Most capable. 1M context. Via @anthropic-ai/claude-agent-sdk.",

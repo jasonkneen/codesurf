@@ -1,3 +1,7 @@
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+
 // Chat model catalog served at GET /chat/model-catalog.
 //
 // Lives in the canonical daemon so every host sees the same catalog no matter
@@ -11,11 +15,12 @@ export const CHAT_MODEL_CATALOG = [
     provider: 'claude',
     label: 'Claude',
     models: [
-      { id: 'claude-opus-4-7', label: 'Opus 4.7' },
-      { id: 'claude-opus-4-6', label: 'Opus 4.6' },
-      { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
-      { id: 'claude-sonnet-4-5-20250929', label: 'Sonnet 4.5' },
+      { id: 'claude-fable-5-1', label: 'Fable 5.1' },
+      { id: 'claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'claude-sonnet-5', label: 'Sonnet 5' },
       { id: 'claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
+      { id: 'claude-opus-4-8', label: 'Opus 4.8' },
+      { id: 'claude-sonnet-4-6', label: 'Sonnet 4.6' },
     ],
   },
   {
@@ -37,9 +42,10 @@ export const CHAT_MODEL_CATALOG = [
     provider: 'opencode',
     label: 'OpenCode',
     models: [
-      { id: 'anthropic/claude-sonnet-4-6', label: 'Sonnet 4.6' },
-      { id: 'anthropic/claude-opus-4-6', label: 'Opus 4.6' },
-      { id: 'openai/gpt-5.4', label: 'GPT-5.4' },
+      { id: 'anthropic/claude-fable-5-1', label: 'Fable 5.1' },
+      { id: 'anthropic/claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'anthropic/claude-sonnet-5', label: 'Sonnet 5' },
+      { id: 'openai/gpt-5.5', label: 'GPT-5.5' },
       { id: 'openai/o4-mini', label: 'o4-mini' },
       { id: 'google/gemini-2.5-pro', label: 'Gemini 2.5 Pro' },
     ],
@@ -55,9 +61,9 @@ export const CHAT_MODEL_CATALOG = [
       { id: 'openai-codex/gpt-5.3-codex', label: 'Codex 5.3' },
       { id: 'openai-codex/gpt-5.1-codex-max', label: 'Codex Max' },
       { id: 'openai-codex/gpt-5.1-codex-mini', label: 'Codex Mini' },
-      { id: 'anthropic/claude-opus-4-7', label: 'Opus 4.7' },
-      { id: 'anthropic/claude-opus-4-6', label: 'Opus 4.6' },
-      { id: 'anthropic/claude-sonnet-4-6', label: 'Sonnet 4.6' },
+      { id: 'anthropic/claude-fable-5-1', label: 'Fable 5.1' },
+      { id: 'anthropic/claude-opus-5-5', label: 'Opus 5.5' },
+      { id: 'anthropic/claude-sonnet-5', label: 'Sonnet 5' },
       { id: 'anthropic/claude-haiku-4-5-20251001', label: 'Haiku 4.5' },
       { id: 'gemini/gemini-3.1-pro-preview', label: 'Gemini 3.1 Pro' },
       { id: 'gemini/gemini-3-pro-preview', label: 'Gemini 3 Pro' },
@@ -69,6 +75,44 @@ export const CHAT_MODEL_CATALOG = [
   },
 ]
 
-export function chatModelCatalogPayload() {
-  return { version: 1, providers: CHAT_MODEL_CATALOG }
+/**
+ * Codex models as the Codex CLI itself last fetched them
+ * (~/.codex/models_cache.json, refreshed by codex). Only `visibility: list`
+ * entries, in Codex's own priority order. Null when the cache is missing or
+ * unreadable — callers keep the static list.
+ */
+export function readCodexModelCache(homeDir = os.homedir()) {
+  try {
+    const raw = JSON.parse(fs.readFileSync(path.join(homeDir, '.codex', 'models_cache.json'), 'utf8'))
+    const models = (Array.isArray(raw?.models) ? raw.models : [])
+      .filter(m => typeof m?.slug === 'string' && m.slug && m.visibility !== 'hide')
+      .sort((a, b) => (a.priority ?? 999) - (b.priority ?? 999))
+      .map(m => ({
+        id: m.slug,
+        label: typeof m.display_name === 'string' && m.display_name ? m.display_name : m.slug,
+        ...(typeof m.description === 'string' && m.description ? { description: m.description } : {}),
+      }))
+    return models.length > 0 ? models : null
+  } catch {
+    return null
+  }
+}
+
+export function chatModelCatalogPayload({ homeDir } = {}) {
+  const codexModels = readCodexModelCache(homeDir)
+  if (!codexModels) return { version: 1, providers: CHAT_MODEL_CATALOG }
+  const providers = CHAT_MODEL_CATALOG.map((provider) => {
+    if (provider.id === 'codex') return { ...provider, models: codexModels }
+    if (provider.id === 'hermes') {
+      // Hermes routes OpenAI through its openai-codex/ namespace; keep its
+      // other providers and swap in the live Codex lineup.
+      const others = provider.models.filter(m => !m.id.startsWith('openai-codex/'))
+      return {
+        ...provider,
+        models: [...codexModels.map(m => ({ ...m, id: `openai-codex/${m.id}` })), ...others],
+      }
+    }
+    return provider
+  })
+  return { version: 1, providers }
 }

@@ -27,8 +27,10 @@ const ENV_VAR = "ANTHROPIC_API_KEY";
 // model id from ANTHROPIC_MODELS. New Claude releases land in
 // `./anthropic-models-catalog.ts` first, then get a row here for prose.
 const LABELS: Record<string, { label: string; description: string }> = {
-  "claude-fable-5": { label: "Claude Fable 5", description: "Most capable model. 1M context." },
-  "claude-opus-5": { label: "Claude Opus 5", description: "Flagship reasoning model. 1M context." },
+  "claude-fable-5-1": { label: "Claude Fable 5.1", description: "Most capable model. 1M context." },
+  "claude-fable-5": { label: "Claude Fable 5", description: "Fable 5. 1M context." },
+  "claude-opus-5-5": { label: "Claude Opus 5.5", description: "Flagship reasoning model. 1M context." },
+  "claude-opus-5": { label: "Claude Opus 5", description: "Opus 5. 1M context." },
   "claude-opus-4-8": { label: "Claude Opus 4.8", description: "Opus 4.8. 1M context." },
   "claude-opus-4-7": { label: "Claude Opus 4.7", description: "Opus 4.7. 1M context." },
   "claude-opus-4-6": { label: "Claude Opus 4.6", description: "Opus 4.6. 1M context." },

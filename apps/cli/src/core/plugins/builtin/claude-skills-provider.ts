@@ -107,10 +107,15 @@ const SKILLS_OVERLAY: Record<string, { idSuffix: string; labelPrefix: string; al
     labelPrefix: "Claude Fable 5",
     aliases: [],
   },
+  "claude-opus-5-5": {
+    idSuffix: "-claude-skills",
+    labelPrefix: "Claude Opus 5.5",
+    aliases: ["claude-skills-opus"],
+  },
   "claude-opus-5": {
     idSuffix: "-claude-skills",
     labelPrefix: "Claude Opus 5",
-    aliases: ["claude-skills-opus"],
+    aliases: ["claude-skills-opus-5"],
   },
   "claude-opus-4-8": {
     idSuffix: "-claude-skills",

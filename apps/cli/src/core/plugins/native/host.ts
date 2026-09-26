@@ -173,6 +173,18 @@ function acceptsRegistrations(manifest: PluginManifest): boolean {
  */
 const liveGenerations = new Map<string, PluginManifest>();
 
+/** Re-runnable listModels calls of live provider adapters. */
+const dynamicModelListers = new Set<() => Promise<void>>();
+
+/**
+ * Re-list every provider adapter that discovers its models dynamically
+ * (daemon catalog, codex, opencode, local LLMs…). Resolves when all have
+ * settled; a failing listing keeps its last good models.
+ */
+export async function refreshDynamicModelListings(): Promise<void> {
+  await Promise.allSettled([...dynamicModelListers].map((run) => run()));
+}
+
 function isSupersededGeneration(manifest: PluginManifest): boolean {
   const live = liveGenerations.get(manifest.id);
   return live !== undefined && live !== manifest;
@@ -395,6 +407,7 @@ function createHostBindings(): HostBindings {
       // to declare `models`, exactly as one calling registerModel would.
       if (inline.length > 0) assertCapability(manifest, "models", "models on a provider adapter");
       const registered: string[] = [];
+      const inlineIds = new Set(inline.map((model) => model.id));
       for (const model of inline) {
         registerPluginModel({
           ...model,
@@ -408,40 +421,63 @@ function createHostBindings(): HostBindings {
       // Dynamic discovery, for backends whose catalogue is not known until a
       // connection exists. Late results are dropped if the fiber has since been
       // disposed, so a slow listing cannot repopulate a unmounted plugin.
+      // Re-run by refreshDynamicModelListings() (the model picker calls it on
+      // open): a listing that only ran at boot never picked up new releases, or
+      // anything at all if its backend was not up yet.
       let disposed = false;
+      let lister: (() => Promise<void>) | null = null;
       if (spec.listModels) {
-        void Promise.resolve(
-          spec.listModels({
-            conversationId: getHostServices().session.id() ?? "ephemeral",
-            adapterId: spec.id,
-            providerId: spec.providerId,
-            settings: hostSettingsService(),
-            workspace: { cwd: () => getHostServices().workspace.cwd() },
-            mcp: {
-              isEnabled: () => getHostServices().mcp.isEnabled(),
-              getToolBundle: () => getHostServices().mcp.getToolBundle(),
-            },
-          }),
-        )
-          .then((models) => {
-            if (disposed || isSupersededGeneration(manifest)) return;
-            for (const model of models) {
-              registerPluginModel({
-                ...model,
-                providerId: model.providerId || spec.providerId,
-                adapterId: model.adapterId || spec.id,
-                pluginId: manifest.id,
-              });
+        const listModels = spec.listModels;
+        const listed = new Set<string>();
+        lister = async () => {
+          let models: Awaited<ReturnType<typeof listModels>>;
+          try {
+            models = await listModels({
+              conversationId: getHostServices().session.id() ?? "ephemeral",
+              adapterId: spec.id,
+              providerId: spec.providerId,
+              settings: hostSettingsService(),
+              workspace: { cwd: () => getHostServices().workspace.cwd() },
+              mcp: {
+                isEnabled: () => getHostServices().mcp.isEnabled(),
+                getToolBundle: () => getHostServices().mcp.getToolBundle(),
+              },
+            });
+          } catch (err) {
+            console.error(`[extensions] model listing failed for ${spec.id}:`, err);
+            return;
+          }
+          if (disposed || isSupersededGeneration(manifest)) return;
+          const next = new Set(models.map((model) => model.id));
+          // Drop previously listed models the backend no longer reports —
+          // never the adapter's inline ones.
+          for (const id of listed) {
+            if (next.has(id) || inlineIds.has(id)) continue;
+            unregisterPluginModel(manifest.id, id);
+            listed.delete(id);
+            const at = registered.indexOf(id);
+            if (at >= 0) registered.splice(at, 1);
+          }
+          for (const model of models) {
+            registerPluginModel({
+              ...model,
+              providerId: model.providerId || spec.providerId,
+              adapterId: model.adapterId || spec.id,
+              pluginId: manifest.id,
+            });
+            if (!listed.has(model.id)) {
+              listed.add(model.id);
               registered.push(model.id);
             }
-          })
-          .catch((err) => {
-            console.error(`[extensions] model listing failed for ${spec.id}:`, err);
-          });
+          }
+        };
+        dynamicModelListers.add(lister);
+        void lister();
       }
 
       return staleSafe(manifest, () => {
         disposed = true;
+        if (lister) dynamicModelListers.delete(lister);
         for (const id of registered) unregisterPluginModel(manifest.id, id);
         unregisterPluginModelProvider(manifest.id, spec.id);
       });

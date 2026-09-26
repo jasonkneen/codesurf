@@ -46,10 +46,17 @@ export const ANTHROPIC_MODELS: AnthropicModelCoreSpec[] = [
     images: true,
   },
   {
+    id: "claude-opus-5-5",
+    contextWindow: 1_000_000,
+    // Newest Opus takes the bare family aliases; older ones keep only their full id.
+    aliases: ["claude-opus", "opus"],
+    reasoning: true,
+    images: true,
+  },
+  {
     id: "claude-opus-5",
     contextWindow: 1_000_000,
-    // Newest Opus takes the bare family aliases; 4.8 keeps only its full id.
-    aliases: ["claude-opus", "opus"],
+    aliases: [],
     reasoning: true,
     images: true,
   },
@@ -102,6 +109,7 @@ export const ANTHROPIC_MODELS: AnthropicModelCoreSpec[] = [
 export const ANTHROPIC_MODEL_PRICING: Record<string, AnthropicModelPricing> = {
   "claude-fable-5-1": { inputPrice: 10, outputPrice: 50 },
   "claude-fable-5": { inputPrice: 10, outputPrice: 50 },
+  "claude-opus-5-5": { inputPrice: 5, outputPrice: 25 },
   "claude-opus-5": { inputPrice: 5, outputPrice: 25 },
   "claude-opus-4-8": { inputPrice: 5, outputPrice: 25 },
   "claude-opus-4-7": { inputPrice: 5, outputPrice: 25 },

@@ -72,6 +72,7 @@ describe("claude-skills provider", () => {
       "claude-opus-4-6-claude-skills",
       "claude-opus-4-7-claude-skills",
       "claude-opus-4-8-claude-skills",
+      "claude-opus-5-5-claude-skills",
       "claude-opus-5-claude-skills",
       "claude-sonnet-4-6-claude-skills",
       "claude-sonnet-5-claude-skills",
