@@ -60,6 +60,7 @@ interface TurnState {
   sessionStore: SessionStore | null;
   toolsets: SessionToolsets;
   turnUserMessage: ModelMessage | null;
+  partialTurnSnapshot: (() => ModelMessage[]) | null;
   compactForContext(
     runtime: Pick<KernelModelRuntime, "model" | "modelInfo" | "providerOptions">,
     system: string,
@@ -120,6 +121,25 @@ const PENDING_APPROVAL_DENIED_REASON = "User declined: sent a new message instea
 const failedTurnNote = (error: string): string =>
   `[Turn failed before the assistant replied: ${error}. Any tools that had already started may have completed — check the current state before retrying.]`;
 
+const EXITED_TURN_NOTE =
+  "[Turn interrupted because the app exited. Any tools that had already started may have completed — check the current state before assuming this turn had no effect.]";
+
+const exitPersistedTurns = new WeakSet<ModelMessage>();
+
+/**
+ * Append the note to a trailing assistant message rather than after it, so a
+ * cancelled turn with partial output keeps user/assistant alternation.
+ */
+function withTrailingNote(partial: ModelMessage[], note: string): ModelMessage[] {
+  const last = partial[partial.length - 1];
+  if (last?.role !== "assistant") return [...partial, { role: "assistant", content: note }];
+  const merged: ModelMessage =
+    typeof last.content === "string"
+      ? { ...last, content: last.content ? `${last.content}\n\n${note}` : note }
+      : { ...last, content: [...last.content, { type: "text", text: note }] };
+  return [...partial.slice(0, -1), merged];
+}
+
 const CANCELLED_TURN_NOTE =
   "[Turn cancelled by the user. Any tools that had already started may have completed — check the current state before assuming this turn had no effect.]";
 
@@ -138,15 +158,43 @@ export function TurnEngineMixin<TBase extends MixinConstructor>(Base: TBase) {
      * summariser and any model switch. The note tells the model the gap is a
      * gap, instead of letting it conclude the work was never done.
      */
-    recordCancelledTurn(userMessage: ModelMessage): void {
+    recordCancelledTurn(
+      userMessage: ModelMessage,
+      partialMessages: ModelMessage[] = [],
+      note = CANCELLED_TURN_NOTE,
+    ): void {
       if (st(this).messages.lastIndexOf(userMessage) < 0) return;
+      // The exit path already wrote this turn; a late cancel must not write it twice.
+      if (exitPersistedTurns.has(userMessage)) return;
       // An interrupt can land between an approval being granted and the tool
       // running. The SDK executes an approved call on the NEXT request and
       // synthesizes nothing if that request never comes, so the call has to be
       // closed here or the transcript keeps an open one forever.
       const closing = closingToolMessage(st(this).messages);
-      const note: ModelMessage = { role: "assistant", content: CANCELLED_TURN_NOTE };
-      this.appendCompletedTurn(userMessage, closing ? [closing, note] : [note]);
+      this.appendCompletedTurn(userMessage, [
+        ...(closing ? [closing] : []),
+        ...withTrailingNote(partialMessages, note),
+      ]);
+    }
+
+    /**
+     * Persist the turn in flight before the process exits. Ctrl+C quits
+     * without the turn generator ever reaching its cancel path, so without this
+     * the user's prompt and everything streamed since were never written and
+     * the resumed session ended at the previous turn.
+     */
+    persistInFlightTurn(): void {
+      const userMessage = st(this).turnUserMessage;
+      if (!userMessage) return;
+      let partial: ModelMessage[] = [];
+      try {
+        partial = st(this).partialTurnSnapshot?.() ?? [];
+      } catch {
+        partial = [];
+      }
+      st(this).partialTurnSnapshot = null;
+      this.recordCancelledTurn(userMessage, partial, EXITED_TURN_NOTE);
+      exitPersistedTurns.add(userMessage);
     }
 
     /**
@@ -184,7 +232,11 @@ export function TurnEngineMixin<TBase extends MixinConstructor>(Base: TBase) {
         getBatchClientOptions: (signal) => st(this).getBatchClientOptions(signal),
         recordUsage: (usage, source, model) => st(this).recordUsage(usage, source, model),
         appendCompletedTurn: (userMessage, newMessages) => this.appendCompletedTurn(userMessage, newMessages),
-        terminalizeCancelledTurn: (userMessage) => this.terminalizeCancelledTurn(userMessage),
+        terminalizeCancelledTurn: (userMessage, partialMessages) =>
+          this.terminalizeCancelledTurn(userMessage, partialMessages),
+        setPartialTurnSnapshot: (snapshot) => {
+          st(this).partialTurnSnapshot = snapshot;
+        },
         emitTurnStop: (signal) => this.emitTurnStop(signal),
         emitTurnStopFailure: (error, signal) => this.emitTurnStopFailure(error, signal),
         refreshSessionRecap: (signal) => st(this).refreshSessionRecap(signal),
@@ -213,7 +265,10 @@ export function TurnEngineMixin<TBase extends MixinConstructor>(Base: TBase) {
         // The turn never committed its tool call, so nothing is parked on the
         // approval any more.
         st(this).pendingApprovalId = null;
-        if (terminal.userModelMessage) this.recordCancelledTurn(terminal.userModelMessage);
+        st(this).partialTurnSnapshot = null;
+        if (terminal.userModelMessage) {
+          this.recordCancelledTurn(terminal.userModelMessage, terminal.partialMessages);
+        }
       }
 
       st(this).activeTrace?.finish(terminal.kind, terminal.kind === "cancelled" ? null : this.lastAssistantText());
@@ -247,8 +302,8 @@ export function TurnEngineMixin<TBase extends MixinConstructor>(Base: TBase) {
         });
     }
 
-    async terminalizeCancelledTurn(userModelMessage: ModelMessage): Promise<void> {
-      await this.terminalizeTurn({ kind: "cancelled", userModelMessage });
+    async terminalizeCancelledTurn(userModelMessage: ModelMessage, partialMessages?: ModelMessage[]): Promise<void> {
+      await this.terminalizeTurn({ kind: "cancelled", userModelMessage, partialMessages });
     }
 
     /** Fire the Stop hook and record a successful terminal state. */
@@ -628,6 +683,7 @@ export function TurnEngineMixin<TBase extends MixinConstructor>(Base: TBase) {
         throw err;
       } finally {
         st(this).turnUserMessage = null;
+        st(this).partialTurnSnapshot = null;
         st(this).isProcessingTurn = false;
         if (st(this).abortController?.signal === signal) {
           st(this).abortController = null;

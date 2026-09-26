@@ -352,6 +352,24 @@ export class SessionStreamClient {
     });
   }
 
+  /**
+   * Make sure the node has a live session with this exact id, creating it if
+   * missing (never attached, or reaped after idling). Fronts pass their saved
+   * session id so the node continues that conversation.
+   */
+  async ensureSession(
+    session: string,
+    options: Omit<CreateSessionOptions, "session"> = {},
+    timeoutMs = 5000,
+  ): Promise<string> {
+    const existing = await Promise.race([
+      this.status(session),
+      new Promise<null>((resolve) => setTimeout(() => resolve(null), timeoutMs)),
+    ]);
+    if (existing) return session;
+    return await this.createSession({ ...options, session });
+  }
+
   sendMessage(session: string, text: string): void {
     this.send({ op: "session", action: "message", session, text });
   }

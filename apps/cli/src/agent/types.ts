@@ -16,7 +16,7 @@ export interface AgentOptions {
 export type TurnTerminalState =
   | { kind: "success"; signal: AbortSignal }
   | { kind: "failure"; error: string; signal: AbortSignal }
-  | { kind: "cancelled"; userModelMessage?: ModelMessage };
+  | { kind: "cancelled"; userModelMessage?: ModelMessage; partialMessages?: ModelMessage[] };
 
 // Turn-machine types live in ./turns/types; re-exported here so existing
 // `import { ProcessMessageObserver } from "../agent/agent"` callers keep working.

@@ -2704,9 +2704,13 @@ export function createChatJobManager({
       let streamTurn = 0
       let currentThinkingId = null
 
+      let lastEmittedSessionId = null
       for await (const msg of q) {
         const sid = msg?.session_id
-        if (sid) {
+        // Once per change, not per SDK message: a session event forces a
+        // durable metadata write, and one long turn emitted ~2800 of them.
+        if (sid && sid !== lastEmittedSessionId) {
+          lastEmittedSessionId = sid
           await appendEvent(job.id, { type: 'session', sessionId: sid })
         }
 
@@ -2783,6 +2787,25 @@ export function createChatJobManager({
           // same turn. Only advance the stream-index namespace after tools,
           // when the next assistant message is actually a new turn.
           if (sawToolUse) streamTurn += 1
+        } else if (msg.type === 'user' && Array.isArray(msg.message?.content)) {
+          // Tool results come back as user messages. Forward each one keyed by
+          // its tool_use_id so clients can close the matching call as it
+          // finishes, instead of seeing no tool activity until the turn ends.
+          for (const block of msg.message.content) {
+            if (block?.type !== 'tool_result' || typeof block.tool_use_id !== 'string') continue
+            const text = typeof block.content === 'string'
+              ? block.content
+              : Array.isArray(block.content)
+                ? block.content.filter(part => part?.type === 'text').map(part => part.text).join('\n')
+                : ''
+            sawAssistantOutput = true
+            await appendEvent(job.id, {
+              type: 'tool_summary',
+              toolId: block.tool_use_id,
+              text: text.length > 20_000 ? `${text.slice(0, 20_000)}\n…[truncated]` : text,
+              ...(block.is_error === true ? { isError: true } : {}),
+            })
+          }
         } else if (msg.type === 'tool_use_summary') {
           if (typeof msg.summary === 'string' && msg.summary.trim()) sawAssistantOutput = true
           await appendEvent(job.id, {

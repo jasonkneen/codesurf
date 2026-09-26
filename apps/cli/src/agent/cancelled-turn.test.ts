@@ -196,3 +196,38 @@ describe("a failed turn that committed nothing", () => {
     expect(internals.messageSeqs).toHaveLength(internals.messages.length);
   });
 });
+
+describe("quitting the app mid-turn", () => {
+  it("persists the in-flight prompt once, with an exit note", async () => {
+    const { agent, internals } = await newAgent();
+    let release: () => void = () => {};
+    const gate = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    streamTextMock.mockImplementationOnce(() => ({
+      fullStream: (async function* () {
+        yield { type: "text-delta", text: "working" };
+        await gate;
+      })(),
+      response: Promise.resolve({ messages: [] }),
+      finishReason: Promise.resolve("stop"),
+    }));
+
+    const generator = agent.processMessage("long running task");
+    const first = await generator.next();
+    expect(first.done).toBe(false);
+
+    await agent.cleanup();
+
+    const roles = internals.messages.map((m) => m.role);
+    expect(roles).toEqual(["user", "assistant"]);
+    expect(textOf(internals.messages[0])).toContain("long running task");
+    expect(textOf(internals.messages[1])).toMatch(/app exited/i);
+
+    // The turn's own cancel path runs afterwards; it must not write the turn again.
+    release();
+    await drain(generator);
+    expect(internals.messages.map((m) => m.role)).toEqual(["user", "assistant"]);
+    expect(internals.messages.length).toBe(internals.messageSeqs.length);
+  });
+});

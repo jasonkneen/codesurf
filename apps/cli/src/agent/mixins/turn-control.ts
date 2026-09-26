@@ -30,6 +30,7 @@ interface TurnControlState {
   pendingApprovalId: string | null;
   session: SessionInfo | null;
   toolsets: SessionToolsets;
+  persistInFlightTurn?(): void;
   emitSubagentStatus(status: SubagentStatus | null, runKey?: string): void;
   fireHook(input: unknown): Promise<unknown>;
   getSessionId(): string | null;
@@ -139,6 +140,28 @@ export function TurnControlMixin<TBase extends MixinConstructor>(Base: TBase) {
     }
 
     async cleanup(): Promise<void> {
+      // First, while the session store is still open: a turn still running
+      // when the app quits (Ctrl+C) never reaches its own cancel path, so its
+      // prompt and partial output would otherwise never be written.
+      try {
+        st(this).persistInFlightTurn?.();
+      } catch (err) {
+        console.error("[agent] failed to persist in-flight turn on exit:", err);
+      }
+      // Then stop the turn before the slower teardown below: an owning adapter
+      // (the CodeSurf daemon) otherwise keeps running the job for minutes
+      // after the UI is gone, with nobody left to record its result.
+      st(this).abortController?.abort();
+      const providerSession = st(this).currentProviderSession;
+      if (providerSession?.abortTurn) {
+        await Promise.race([
+          Promise.resolve()
+            .then(() => providerSession.abortTurn?.())
+            .catch(() => {}),
+          new Promise((resolve) => setTimeout(resolve, 3_000).unref?.()),
+        ]);
+      }
+
       // Detached delegation children survive the parent by design (that is the
       // point of `delegate`), but they must not survive the SESSION: without this
       // they keep running, keep spending tokens, and — since an explore child has

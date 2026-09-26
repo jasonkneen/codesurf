@@ -123,9 +123,17 @@ export interface TurnContext {
   /**
    * End a user-aborted turn without firing Stop or StopFailure. This discards
    * its uncommitted user message and finalizes the active learning trace as a
-   * neutral cancellation.
+   * neutral cancellation. `partialMessages` is whatever the turn had already
+   * produced (text, closed tool rounds) — persisted ahead of the note so an
+   * interrupt keeps the work the user watched happen.
    */
-  terminalizeCancelledTurn(userMessage: ModelMessage): Promise<void>;
+  terminalizeCancelledTurn(userMessage: ModelMessage, partialMessages?: ModelMessage[]): Promise<void>;
+  /**
+   * Register a snapshot of the turn's uncommitted output, or clear it with
+   * null. Read when the app exits mid-turn so the in-flight turn is persisted
+   * instead of vanishing from the resumed session.
+   */
+  setPartialTurnSnapshot?(snapshot: (() => ModelMessage[]) | null): void;
   emitTurnStop(signal: AbortSignal): Promise<void>;
   emitTurnStopFailure(error: string, signal: AbortSignal): Promise<void>;
   refreshSessionRecap(signal?: AbortSignal): Promise<void>;

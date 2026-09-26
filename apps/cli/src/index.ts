@@ -151,9 +151,19 @@ async function startInteractive(
     openConsoleOnError: false,
   });
 
+  let exiting = false;
   const onExit = () => {
+    if (exiting) return;
+    exiting = true;
     remoteFront?.client.close();
+    // Cleanup persists the in-flight turn and cancels provider jobs, but a
+    // hung teardown step must never keep the app from quitting.
+    const forceExit = setTimeout(() => {
+      renderer.destroy();
+      process.exit(0);
+    }, 8_000);
     void agent.cleanup().finally(() => {
+      clearTimeout(forceExit);
       renderer.destroy();
       process.exit(0);
     });

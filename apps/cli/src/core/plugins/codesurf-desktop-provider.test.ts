@@ -365,6 +365,62 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     expect(body2.request.sessionId).toBe("sess-xyz");
   });
 
+  it("shows a claude tool call at tool_use, before its result, and marks failed results", async () => {
+    writePidFile(tempHome, { appVersion: null });
+    const session = new CodesurfDesktopSession({
+      conversationId: "conv-tooluse",
+      resolveHome: () => tempHome,
+      resolveExecutionTarget: () => "local",
+      resolveRunMode: () => "foreground",
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/health")) return makeHealthResponse(tempHome);
+      if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
+      if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
+      if (url.includes("/chat/job/start")) return makeJsonResponse({ id: "job-tu", status: "running" });
+      if (url.includes("/chat/job/events")) {
+        return makeStreamResponse(
+          makeSseStream([
+            { type: "tool_start", toolId: "t1", toolName: "Bash" },
+            { type: "tool_input", toolId: "t1", text: '{"command":' },
+            { type: "tool_use", toolId: "t1", toolName: "Bash", toolInput: '{"command":"ls"}' },
+            { type: "text", text: "waiting" },
+            { type: "tool_summary", toolId: "t1", text: "boom", isError: true },
+            { type: "done" },
+          ]),
+        );
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch);
+
+    const { events, controller } = collectStream();
+    await session.sendTurn(
+      {
+        conversationId: "conv-tooluse",
+        providerId: "codesurf",
+        adapterId: "codesurf.daemon",
+        modelId: "codesurf:claude/claude-sonnet-5",
+        prompt: "go",
+        messages: [{ role: "user", content: "go" }],
+      },
+      controller,
+    );
+
+    const types = events.map((e) => e.type);
+    const callIndex = types.indexOf("tool-call");
+    expect(callIndex).toBeGreaterThanOrEqual(0);
+    expect(callIndex).toBeLessThan(types.indexOf("text-delta"));
+    expect(types.filter((t) => t === "tool-call")).toHaveLength(1);
+    const call = events[callIndex] as Extract<ProviderStreamEvent, { type: "tool-call" }>;
+    expect(call.args).toEqual({ command: "ls" });
+    const result = events.find(
+      (e): e is Extract<ProviderStreamEvent, { type: "tool-result" }> => e.type === "tool-result",
+    );
+    expect(result?.id).toBe("t1");
+    expect(result?.isError).toBe(true);
+  });
+
   it("pairs orphan daemon tool_summary events with a synthesized tool-call name", async () => {
     writePidFile(tempHome, { appVersion: null });
 

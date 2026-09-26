@@ -188,12 +188,16 @@ export function useTurnEngine(agent: Agent) {
             isStale,
           });
           if (preparedText === null) return;
+          // Remote turns run on the session this screen shows, so the node
+          // continues it (history included) instead of a separate relay-only
+          // session whose reply vanished when the turn finalized.
+          const remoteSessionId = remoteFront
+            ? await remoteFront.client.ensureSession(agent.getSessionId() ?? remoteFront.sessionId, {
+                cwd: process.cwd(),
+              })
+            : null;
           const turnGenerator = remoteFront
-            ? createRemoteSessionTurn(
-                remoteFront.client,
-                remoteFront?.sessionId,
-                isContinuation ? "" : preparedText.trim(),
-              )
+            ? createRemoteSessionTurn(remoteFront.client, remoteSessionId!, isContinuation ? "" : preparedText.trim())
             : isContinuation
               ? agent.continueAfterToolApproval()
               : agent.processMessage(preparedText.trim());
@@ -476,6 +480,9 @@ export function useTurnEngine(agent: Agent) {
           showApiKeyModalRef.current = true;
         }
 
+        // A server-node turn wrote this session from another process; pick
+        // it up before the finalize rebuild reads the transcript.
+        if (remoteFront) agent.reloadTranscript();
         if (!isStale()) {
           finalizeActiveTurn({ wasInterrupted, hadError: turnHadError });
         }

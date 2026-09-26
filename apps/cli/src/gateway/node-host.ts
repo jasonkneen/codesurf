@@ -10,9 +10,11 @@
 // than the node's. See docs/architecture/per-session-workspace.md.
 
 import { Agent } from "../agent/agent";
+import { getHostServices } from "../core/plugins";
 import type { BashSink } from "../core/plugins/sinks";
 import type { HostedTurnRunner, SessionWorkspace } from "../relay/host";
 import type { JobRunner } from "../relay/jobs";
+import { SessionStore } from "../storage/index";
 import { BashTool } from "../tools/bash";
 import type { StreamChunk } from "../types/index";
 import {
@@ -28,6 +30,15 @@ import {
   scopeAsyncIterable,
   type WorkspaceScope,
 } from "../utils/workspace-scope";
+
+/** True when `id` names a saved session in the current workspace (not a generated `sess-N` relay id). */
+function savedSessionExists(id: string): boolean {
+  try {
+    return new SessionStore(getHostServices().bash.cwd()).getSessionById(id) !== null;
+  } catch {
+    return false;
+  }
+}
 
 /** A session's own shell, in the shape the kernel's bash services expect. */
 function bashSinkFor(bash: BashTool): BashSink {
@@ -103,15 +114,20 @@ export class NodeAgentHost {
   }
 
   /** Build a session's Agent inside its own folder and shell. */
-  private openSession(workspace: SessionWorkspace): HostedSession {
+  private openSession(workspace: SessionWorkspace, sessionId: string): HostedSession {
     const scope = openWorkspaceScope(workspace.cwd);
     const apiKey = this.currentApiKey();
     const agent = runInWorkspace(scope, () => {
       // Read in scope, so the folder's own .grok/settings.json applies.
       const sandboxMode = workspace.sandboxMode ?? getCurrentSandboxMode();
       const sandboxSettings = mergeSandboxSettings(getCurrentSandboxSettings(), workspace.sandboxSettings);
+      // A front attaches with its own saved session id so the turn continues
+      // that conversation. Without this every relay session minted a new,
+      // empty session: the model lost all context and the reply landed in a
+      // session the front was not showing.
       return new Agent(apiKey, this.config.baseURL, this.config.model, this.config.maxToolRounds, {
         persistSession: true,
+        ...(savedSessionExists(sessionId) ? { session: sessionId } : {}),
         sandboxMode,
         sandboxSettings,
       });
@@ -127,8 +143,13 @@ export class NodeAgentHost {
   ): AsyncGenerator<StreamChunk> {
     let hosted = this.sessions.get(sessionId);
     if (!hosted) {
-      hosted = this.openSession(workspace);
+      hosted = this.openSession(workspace, sessionId);
       this.sessions.set(sessionId, hosted);
+    } else {
+      // The front (or another process) may have added turns since this agent
+      // last ran; continue from the saved transcript, not a stale copy.
+      const agent = hosted.agent;
+      runInWorkspace(hosted.scope, () => agent.reloadTranscript());
     }
     const apiKey = this.currentApiKey();
     if (apiKey && apiKey !== hosted.apiKey) {

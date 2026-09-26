@@ -461,6 +461,10 @@ interface DaemonEvent {
   delta?: string;
   toolId?: string;
   toolName?: string;
+  /** Complete tool input (JSON text) on a `tool_use` event. */
+  toolInput?: string;
+  /** Set on a `tool_summary` carrying a failed tool result. */
+  isError?: boolean;
   sessionId?: string;
   error?: string;
   index?: number;
@@ -883,6 +887,13 @@ class CodesurfDesktopSession implements ProviderSession {
     const jobId = this.activeJobId;
     const abort = this.activeAbort;
     if (!jobId) return;
+    // Clear the guard synchronously so a replacement turn (e.g. queue
+    // send-now, which fires abort() without awaiting it) can call sendTurn()
+    // immediately instead of racing the in-flight sendTurn's own `finally`,
+    // which only clears these after awaiting /chat/job/cancel +
+    // /chat/job/session. Mirrors disconnect()'s synchronous clear below.
+    this.activeJobId = null;
+    this.activeAbort = null;
     abort?.abort();
     await this.cancelActiveJob(jobId);
   };
@@ -1195,6 +1206,20 @@ class CodesurfDesktopSession implements ProviderSession {
         }
         return {};
       }
+      case "tool_use": {
+        // The claude runner sends the complete input once the tool_use block
+        // closes. Show the call now: waiting for a tool_summary left a long
+        // turn looking like it was only "thinking" until it finished.
+        const toolId = String(event.toolId ?? "");
+        if (!toolId) return {};
+        const pending = this.pendingTools.get(toolId);
+        if (pending?.callEmitted) return {};
+        const toolName = String(event.toolName ?? pending?.toolName ?? "tool");
+        const rawInput = typeof event.toolInput === "string" ? event.toolInput : (pending?.argsBuffer ?? "");
+        controller.emit({ type: "tool-call", id: toolId, toolName, args: parseToolArgs(rawInput) });
+        this.pendingTools.set(toolId, { toolName, argsBuffer: rawInput, callEmitted: true });
+        return {};
+      }
       case "tool_summary": {
         const toolId = String(event.toolId ?? "");
         const pending = toolId ? this.pendingTools.get(toolId) : null;
@@ -1222,7 +1247,7 @@ class CodesurfDesktopSession implements ProviderSession {
           type: "tool-result",
           id: resultId,
           result: typeof event.text === "string" && event.text.length > 0 ? event.text : "Success",
-          isError: false,
+          isError: event.isError === true,
         });
         if (toolId) this.pendingTools.delete(toolId);
         return {};

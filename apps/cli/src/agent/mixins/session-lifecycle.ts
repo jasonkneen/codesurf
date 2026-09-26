@@ -139,6 +139,20 @@ export function SessionLifecycleMixin<TBase extends MixinConstructor>(Base: TBas
       return st(this).session?.title || null;
     }
 
+    /**
+     * Re-read this session's transcript from the store. A turn run on an
+     * attached server node writes to the same saved session from another
+     * process, so the in-memory copy is stale until reloaded.
+     */
+    reloadTranscript(): void {
+      const s = st(this);
+      if (!s.session || !s.sessionStore) return;
+      const transcript = loadTranscriptState(s.session.id);
+      s.messages = transcript.messages;
+      s.messageSeqs = transcript.seqs;
+      s.session = s.sessionStore.getSessionById(s.session.id) ?? s.session;
+    }
+
     getChatEntries(): ChatEntry[] {
       const s = st(this);
       if (!s.session) return [];

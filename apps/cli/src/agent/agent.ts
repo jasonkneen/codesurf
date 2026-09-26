@@ -109,6 +109,9 @@ export class Agent extends SessionAdminMixin(
    *  persisted with its note. Null between turns. */
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: read/written by TurnEngineMixin via a narrowed cast.
   private turnUserMessage: ModelMessage | null = null;
+  /** Snapshot of the in-flight turn's uncommitted output, for exit-time persistence. */
+  // biome-ignore lint/correctness/noUnusedPrivateClassMembers: read/written by TurnEngineMixin via a narrowed cast.
+  private partialTurnSnapshot: (() => ModelMessage[]) | null = null;
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: read/written by AccessorsMixin/TelemetryMixin via a narrowed cast.
   private recapsEnabled = true;
   // biome-ignore lint/correctness/noUnusedPrivateClassMembers: read/written by ContextMixin via a narrowed cast.

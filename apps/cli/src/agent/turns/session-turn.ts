@@ -256,6 +256,8 @@ async function* runSessionTurnInner(
   // synthesize a second result for it.
   const buildTurnMessages = () =>
     closeDanglingToolCalls(rounds.flatMap((r) => buildProviderTurnMessages(r.text, r.toolCalls, r.toolParts)));
+  // Lets an app exit mid-turn persist what has streamed so far.
+  ctx.setPartialTurnSnapshot?.(buildTurnMessages);
   let resolveWaiter: (() => void) | null = null;
   const waitForEvent = () =>
     new Promise<void>((resolve) => {
@@ -322,7 +324,7 @@ async function* runSessionTurnInner(
 
   try {
     if (cancelled) {
-      await ctx.terminalizeCancelledTurn(userModelMessage);
+      await ctx.terminalizeCancelledTurn(userModelMessage, buildTurnMessages());
       yield { type: "content", content: "\n\n[Cancelled]" } satisfies StreamChunk;
       yield { type: "done" };
       return;
@@ -669,7 +671,7 @@ async function* runSessionTurnInner(
     queue.length = 0;
 
     if (cancelled || signal.aborted) {
-      await ctx.terminalizeCancelledTurn(userModelMessage);
+      await ctx.terminalizeCancelledTurn(userModelMessage, buildTurnMessages());
       yield { type: "content", content: "\n\n[Cancelled]" } satisfies StreamChunk;
       yield { type: "done" };
       return;
@@ -681,7 +683,7 @@ async function* runSessionTurnInner(
     // provider's final event but before we commit the transcript must still win
     // over success/error terminalization.
     if (cancelled || signal.aborted) {
-      await ctx.terminalizeCancelledTurn(userModelMessage);
+      await ctx.terminalizeCancelledTurn(userModelMessage, buildTurnMessages());
       yield { type: "content", content: "\n\n[Cancelled]" } satisfies StreamChunk;
       yield { type: "done" };
       return;
