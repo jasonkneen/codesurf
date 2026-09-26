@@ -6,6 +6,12 @@ import { closeDatabase } from "./db";
 import { loadPromptHistory, recordPrompt } from "./prompt-history";
 
 const originalHome = process.env.HOME;
+// The global test setup (test/setup/isolate-config-dir.ts) now sets
+// CODESURF_HOME once for the whole run, which takes precedence over the
+// os.homedir() mock below inside defaultCodesurfHome(). Without also pinning
+// CODESURF_HOME per test, every test in this file shares that one global
+// database instead of its own tempHome, and prompt rows leak across tests.
+const originalCodesurfHome = process.env.CODESURF_HOME;
 
 describe("prompt-history storage", () => {
   const tempRoot = path.join(os.tmpdir(), "grok-prompt-history-tests");
@@ -15,6 +21,7 @@ describe("prompt-history storage", () => {
     fs.mkdirSync(tempRoot, { recursive: true });
     tempHome = fs.mkdtempSync(path.join(tempRoot, "grok-ph-home-"));
     process.env.HOME = tempHome;
+    process.env.CODESURF_HOME = tempHome;
     vi.spyOn(os, "homedir").mockReturnValue(tempHome);
     closeDatabase();
   });
@@ -23,6 +30,8 @@ describe("prompt-history storage", () => {
     closeDatabase();
     vi.restoreAllMocks();
     process.env.HOME = originalHome;
+    if (originalCodesurfHome === undefined) delete process.env.CODESURF_HOME;
+    else process.env.CODESURF_HOME = originalCodesurfHome;
     fs.rmSync(tempHome, { recursive: true, force: true });
     // NOT tempRoot: it is a fixed shared path, so removing it deletes the
     // home directories of any other suite running this file concurrently.

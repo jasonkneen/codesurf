@@ -15,3 +15,12 @@ import os from "node:os";
 import path from "node:path";
 
 process.env.CODESURF_CONFIG_DIR = fs.mkdtempSync(path.join(os.tmpdir(), "codesurf-test-config-"));
+
+// Same rationale, for `~/.codesurf` itself (src/storage/db.ts's
+// getDatabasePath, via @codesurf/daemon's defaultCodesurfHome). Without this,
+// any test that reaches the sqlite-backed storage layer (traces, sessions,
+// issues, transcripts) without explicitly setting CODESURF_HOME silently
+// writes rows into the developer's real ~/.codesurf/terminal.db. Individual
+// suites that need finer control still set/restore their own CODESURF_HOME
+// per test; this is only the default for suites that don't.
+process.env.CODESURF_HOME = fs.mkdtempSync(path.join(os.tmpdir(), "codesurf-test-home-"));

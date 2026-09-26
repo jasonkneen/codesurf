@@ -6,6 +6,7 @@
 
 import { bootstrapPlugins, getHostServices } from "../core/plugins";
 import { loadBuiltinPlugins } from "../core/plugins/builtin";
+import { startIssueReviewer } from "../daemon/issue-reviewer";
 import { normalizeModelId } from "../grok/models";
 import { EngineNode } from "../relay/engine-node";
 import { resolveNodeScope } from "../relay/session-workspace";
@@ -81,6 +82,10 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
     onSessionEvict: (sessionId) => void agentHost.disposeSession(sessionId),
   });
   await engine.start();
+  // Periodically fold the errors recorded via src/storage/issues.ts (e.g. the
+  // "unknown session" family) into ~/.codesurf/issues/review.md so recurring
+  // failures are visible without anyone going looking for them.
+  const stopIssueReviewer = startIssueReviewer();
 
   const wsUrl = "ws://" + (host.includes(":") ? "[" + host + "]" : host) + ":" + engine.port();
   console.log("codesurf node listening:");
@@ -103,6 +108,7 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
   );
 
   const shutdown = async () => {
+    stopIssueReviewer();
     await agentHost.cleanup();
     await engine.close();
     process.exit(0);

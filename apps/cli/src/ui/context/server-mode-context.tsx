@@ -173,16 +173,29 @@ export function ServerModeProvider({
     const client = new SessionStreamClient(url);
     try {
       await client.connect();
-      await client.subscribe(sessionId);
+      // subscribe() is fire-and-forget, so a session the node no longer has
+      // (restarted, or reaped after idling) used to fail silently. Check first.
+      const status = await Promise.race([
+        client.status(sessionId),
+        new Promise<null>((resolve) => setTimeout(() => resolve(null), 3000)),
+      ]);
+      if (!status) throw new Error(`session ${sessionId} is no longer on this server (it restarted or the session idled out)`);
+      client.subscribe(sessionId);
       const front: RemoteFront = { client, sessionId, url };
       setRemoteFront(replaceRemoteFront(remoteFrontRef, front));
       setSessions([]);
       return front;
-    } catch {
+    } catch (err) {
       client.close();
+      setSessions((prev) => prev.filter((s) => s.id !== sessionId));
+      pushToast({
+        style: "failure",
+        title: "Resume failed",
+        message: err instanceof Error ? err.message : String(err),
+      });
       return null;
     }
-  }, []);
+  }, [pushToast]);
 
   const detach = useCallback(() => {
     setRemoteFront(replaceRemoteFront(remoteFrontRef, null));

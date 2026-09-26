@@ -29,7 +29,9 @@ let originalCardIdEnv: string | undefined;
 
 // The provider captures its ~/.codesurf default at module import (before the
 // beforeAll HOME override); compare against the same import-time value.
-const importTimeDefaultHome = path.join(os.homedir(), ".codesurf");
+// The global test setup sets CODESURF_HOME before any module imports, so that
+// (not the real ~/.codesurf) is what the provider caches at import time.
+const importTimeDefaultHome = process.env.CODESURF_HOME?.trim() || path.join(os.homedir(), ".codesurf");
 let tempConfigDir: string;
 let originalConfigDir: string | undefined;
 
@@ -419,6 +421,55 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     );
     expect(result?.id).toBe("t1");
     expect(result?.isError).toBe(true);
+  });
+
+  it("puts a paragraph break between text blocks split by a tool", async () => {
+    writePidFile(tempHome, { appVersion: null });
+    const session = new CodesurfDesktopSession({
+      conversationId: "conv-blocks",
+      resolveHome: () => tempHome,
+      resolveExecutionTarget: () => "local",
+      resolveRunMode: () => "foreground",
+    });
+    vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/health")) return makeHealthResponse(tempHome);
+      if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
+      if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
+      if (url.includes("/chat/job/start")) return makeJsonResponse({ id: "job-blocks", status: "running" });
+      if (url.includes("/chat/job/events")) {
+        return makeStreamResponse(
+          makeSseStream([
+            { type: "text", text: "Let me look" },
+            { type: "text", text: " at it." },
+            { type: "block_stop", index: 0 },
+            { type: "tool_use", toolId: "t1", toolName: "Read", toolInput: "{}" },
+            { type: "block_stop", index: 1 },
+            { type: "tool_summary", toolId: "t1", text: "ok" },
+            { type: "text", text: "Found it." },
+            { type: "done" },
+          ]),
+        );
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch);
+    const { events, controller } = collectStream();
+    await session.sendTurn(
+      {
+        conversationId: "conv-blocks",
+        providerId: "codesurf",
+        adapterId: "codesurf.daemon",
+        modelId: "codesurf:claude/claude-sonnet-5",
+        prompt: "go",
+        messages: [{ role: "user", content: "go" }],
+      },
+      controller,
+    );
+    const text = events
+      .filter((e): e is Extract<ProviderStreamEvent, { type: "text-delta" }> => e.type === "text-delta")
+      .map((e) => e.delta)
+      .join("");
+    expect(text).toBe("Let me look at it.\n\nFound it.");
   });
 
   it("pairs orphan daemon tool_summary events with a synthesized tool-call name", async () => {

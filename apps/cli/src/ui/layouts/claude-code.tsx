@@ -15,7 +15,7 @@ import { ClaudeCodePendingMessages } from "../components/claude-code-pending-mes
 import { ClaudeCodeTitleBar } from "../components/claude-code-title-bar.js";
 import { ComposerShortcutHints } from "../components/composer-shortcut-hints.js";
 import { PluginStatusIndicators } from "../components/extension-status-indicators.js";
-import { PermissionModeFooterLabel } from "../components/prompt-bar.js";
+import { PermissionModeFooterLabel, WireStatusFooterLabel } from "../components/prompt-bar.js";
 import { PromptBox } from "../components/prompt-box.js";
 import { RunningAgentsFooter } from "../running-agents.js";
 import { SlashMenuInlineLive } from "../slash-menu-inline.js";
@@ -163,7 +163,7 @@ export const claudeCodeLayout: LayoutEntry = {
             <PluginStatusIndicators trailingSeparator=" · " t={t} />
             <PluginStatusIndicators placement="mode-line" />
             {runtimeMode.kind === "server" ? (
-              <text fg="#4c8dff">{`wire ${runtimeMode.name ? `${runtimeMode.name} ` : ""}${runtimeMode.url}`}</text>
+              <WireStatusFooterLabel url={runtimeMode.url} name={runtimeMode.name} />
             ) : (
               <text fg="#22c55e">{"serverless"}</text>
             )}

@@ -6,6 +6,7 @@
 // turn running; reconnecting fronts read the result. The turn runner is the seam
 // bound to a real engine Agent in production (injected here).
 
+import { recordIssue } from "../storage/issues";
 import { type HostedTurnRunner, NodeSessionHost, type SessionWorkspace, type SessionWorkspaceOptions } from "./host";
 import { Hub } from "./hub";
 import { JobHost, type JobRunner, registerJobTools } from "./jobs";
@@ -165,7 +166,9 @@ export class EngineNode {
       this.reapTimer = setInterval(() => this.reapAll(), options.reapIntervalMs);
       this.reapTimer.unref?.();
     }
-    this.streamServer = new SessionStreamServer(this.sessions, scope);
+    this.streamServer = new SessionStreamServer(this.sessions, scope, (source, message, sessionId) =>
+      recordIssue({ source, message, sessionId }),
+    );
     this.server = new WsRelayServer({
       hub: this.hub,
       port: options.port,

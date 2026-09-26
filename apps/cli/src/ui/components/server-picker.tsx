@@ -26,7 +26,14 @@ function padCell(text: string, width: number): string {
   return text.length > width ? `${text.slice(0, Math.max(0, width - 1))}…` : text.padEnd(width);
 }
 
-export function ServerPicker({ t }: { t: Theme }) {
+export function ServerPicker({
+  t,
+  onResumed,
+}: {
+  t: Theme;
+  /** Called with the node session id after a successful resume, so the screen can load it. */
+  onResumed?: (sessionId: string) => void;
+}) {
   const { remoteFront, connect, detach, candidates, cwd, sessions, resume, closePicker } = useServerMode();
   const { width: termWidth } = useTerminalDimensions();
   const rowCount = candidates.length + 1;
@@ -106,7 +113,14 @@ export function ServerPicker({ t }: { t: Theme }) {
             {padCell(`Sessions on this server (${sessions.length}) — click to resume`, inner)}
           </text>
           {sessions.map((s) => (
-            <box key={s.id} onMouseDown={() => void resume(remoteFront.url, s.id)}>
+            <box
+              key={s.id}
+              onMouseDown={() =>
+                void resume(remoteFront.url, s.id).then((front) => {
+                  if (front) onResumed?.(s.id);
+                })
+              }
+            >
               <text fg={s.finished ? t.textMuted : t.text} bg={bg}>
                 {padCell(`${s.finished ? "● finished" : "○ active"} ${s.id.slice(0, 28)}  ${s.cwd ?? ""}`, inner)}
               </text>

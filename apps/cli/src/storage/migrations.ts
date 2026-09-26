@@ -1,6 +1,6 @@
 import type { SQLiteDatabase } from "./db";
 
-const LATEST_DB_VERSION = 5;
+const LATEST_DB_VERSION = 6;
 
 export function applyMigrations(db: SQLiteDatabase): void {
   const version = Number(db.pragma("user_version", { simple: true })) || 0;
@@ -24,6 +24,10 @@ export function applyMigrations(db: SQLiteDatabase): void {
     }
     if (version < 5) {
       createPromptHistorySchema(db);
+      db.pragma("user_version = 5");
+    }
+    if (version < 6) {
+      createIssueSchema(db);
       db.pragma(`user_version = ${LATEST_DB_VERSION}`);
     }
 
@@ -211,10 +215,33 @@ function createPromptHistorySchema(db: SQLiteDatabase): void {
   `);
 }
 
+function createIssueSchema(db: SQLiteDatabase): void {
+  // Durable log for app-level errors that today just flash to the UI and
+  // vanish (e.g. "unknown session" in src/relay/host.ts and
+  // src/relay/session-stream.ts). `reviewed_at` is set by the background
+  // issue reviewer (src/daemon/issue-reviewer.ts) once a batch has been
+  // summarized, so re-runs only pick up what's new. See src/storage/issues.ts.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS issues (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      source TEXT NOT NULL,
+      message TEXT NOT NULL,
+      context_json TEXT,
+      session_id TEXT,
+      created_at TEXT NOT NULL,
+      reviewed_at TEXT
+    ) STRICT;
+
+    CREATE INDEX IF NOT EXISTS idx_issues_reviewed_created
+      ON issues(reviewed_at, created_at);
+  `);
+}
+
 function ensureLatestSchema(db: SQLiteDatabase): void {
   createSessionRecapSchema(db);
   createTraceSchema(db);
   createPromptHistorySchema(db);
+  createIssueSchema(db);
 }
 
 function addColumnIfMissing(db: SQLiteDatabase, table: string, column: string, definition: string): void {

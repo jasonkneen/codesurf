@@ -543,6 +543,10 @@ class CodesurfDesktopSession implements ProviderSession {
   private activeJobId: string | null = null;
   private activeAbort: AbortController | null = null;
 
+  /** Text-block boundary tracking, reset per turn. */
+  private textInBlock = false;
+  private textBreakPending = false;
+
   /** Per-turn buffer of tool_input chunks keyed by toolId. */
   private pendingTools = new Map<string, PendingTool>();
   private orphanToolSummaryCounts = new Map<string, number>();
@@ -676,6 +680,8 @@ class CodesurfDesktopSession implements ProviderSession {
 
     this.activeJobId = job.id;
     this.pendingTools.clear();
+    this.textInBlock = false;
+    this.textBreakPending = false;
     this.orphanToolSummaryCounts.clear();
 
     const abortController = new AbortController();
@@ -1172,7 +1178,13 @@ class CodesurfDesktopSession implements ProviderSession {
       }
       case "text": {
         const delta = typeof event.text === "string" ? event.text : typeof event.delta === "string" ? event.delta : "";
-        if (delta) controller.emit({ type: "text-delta", delta });
+        if (!delta) return {};
+        // Separate text blocks (split by tools) with a paragraph break;
+        // otherwise consecutive blocks ran together ("…match.Good, that…").
+        if (this.textBreakPending) controller.emit({ type: "text-delta", delta: "\n\n" });
+        this.textBreakPending = false;
+        this.textInBlock = true;
+        controller.emit({ type: "text-delta", delta });
         return {};
       }
       case "thinking_start": {
@@ -1253,7 +1265,12 @@ class CodesurfDesktopSession implements ProviderSession {
         return {};
       }
       case "block_stop": {
-        // Block boundary in the SDK stream — no normalized counterpart.
+        // Block boundary in the SDK stream. A closed text block means the
+        // next text starts a new paragraph.
+        if (this.textInBlock) {
+          this.textInBlock = false;
+          this.textBreakPending = true;
+        }
         return {};
       }
       case "error": {

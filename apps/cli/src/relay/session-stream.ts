@@ -73,6 +73,13 @@ export interface CreateSessionOptions {
   sandboxSettings?: SandboxSettings;
 }
 
+/**
+ * Reports a durable-log-worthy failure (e.g. "unknown session"). Injected so
+ * this file stays free of node-only storage deps (the client half is bundled
+ * for the browser); engine-node wires src/storage/issues.ts's recordIssue.
+ */
+export type IssueReporter = (source: string, message: string, sessionId?: string) => void;
+
 /** Node side: bridges WS session frames to a NodeSessionHost's observers. */
 export class SessionStreamServer {
   private readonly pendingApprovals = new Map<string, (approve: boolean) => void>();
@@ -80,6 +87,7 @@ export class SessionStreamServer {
   constructor(
     private readonly host: NodeSessionHost,
     private readonly nodeInfo: NodeInfo = { scope: "user" },
+    private readonly onIssue?: IssueReporter,
   ) {}
 
   /**
@@ -134,6 +142,7 @@ export class SessionStreamServer {
           sendBack({ op: "session", event: "created", session });
         } catch (e) {
           const message = e instanceof Error ? e.message : String(e);
+          this.onIssue?.("relay.session-stream.create", message, frame.session);
           sendBack({ op: "session", event: "error", action: "create", session: frame.session, message });
         }
         break;
@@ -142,10 +151,12 @@ export class SessionStreamServer {
         const status = this.host.status(session);
         if (!status) {
           // Unknown or reaped session: tell the front instead of leaving it waiting for `done`.
+          this.onIssue?.("relay.session-stream.message", `unknown session ${session}`, session);
           sendBack({ op: "session", event: "error", session, message: `unknown session ${session}` });
           break;
         }
         if (status.turning) {
+          this.onIssue?.("relay.session-stream.busy", `session ${session} is busy with a running turn`, session);
           sendBack({
             op: "session",
             event: "error",
@@ -157,7 +168,7 @@ export class SessionStreamServer {
         const detach = this.host.attach(session, observer(session));
         void this.host
           .message(session, frame.text ?? "")
-          .catch(() => {})
+          .catch((e) => this.onIssue?.("relay.turn", e instanceof Error ? e.message : String(e), session))
           .finally(() => safe(() => detach()));
         break;
       }
@@ -165,6 +176,7 @@ export class SessionStreamServer {
         try {
           this.host.attach(frame.session ?? "", observer(frame.session ?? ""));
         } catch (e) {
+          this.onIssue?.("relay.session-stream.subscribe", String(e), frame.session);
           sendBack({ op: "session", event: "error", message: String(e) });
         }
         break;

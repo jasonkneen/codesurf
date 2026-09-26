@@ -7,6 +7,7 @@
 // This is the seam the relay node exposes: a front delegates a message to a
 // session on the node; the node's host runs it regardless of front liveness.
 
+import { recordIssue } from "../storage/issues";
 import type { StreamChunk } from "../types/index";
 import type { SandboxMode, SandboxSettings } from "../utils/settings";
 
@@ -228,7 +229,10 @@ export class NodeSessionHost {
 
   private require(sessionId: string): SessionState {
     const session = this.sessions.get(sessionId);
-    if (!session) throw new Error(`unknown session ${sessionId}`);
+    if (!session) {
+      recordIssue({ source: "relay.host", message: `unknown session ${sessionId}`, sessionId });
+      throw new Error(`unknown session ${sessionId}`);
+    }
     return session;
   }
 }

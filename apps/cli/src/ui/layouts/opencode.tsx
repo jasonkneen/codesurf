@@ -9,7 +9,7 @@
 
 import os from "node:os";
 import { PluginStatusIndicators } from "../components/extension-status-indicators.js";
-import { PermissionModeFooterLabel, PromptModeLabel } from "../components/prompt-bar.js";
+import { PermissionModeFooterLabel, PromptModeLabel, WireStatusFooterLabel } from "../components/prompt-bar.js";
 import { PromptBox } from "../components/prompt-box.js";
 import { QueueBanner } from "../components/queue-banner.js";
 import { SessionHeader } from "../components/session-header.js";
@@ -155,7 +155,7 @@ export const opencodeLayout: LayoutEntry = {
             {footerPermissionMode ? <PermissionModeFooterLabel t={t} mode={footerPermissionMode} /> : null}
             <PluginStatusIndicators placement="mode-line" />
             {runtimeMode.kind === "server" ? (
-              <text fg="#4c8dff">{`wire ${runtimeMode.name ? `${runtimeMode.name} ` : ""}${runtimeMode.url}`}</text>
+              <WireStatusFooterLabel url={runtimeMode.url} name={runtimeMode.name} />
             ) : (
               <text fg="#22c55e">{"serverless"}</text>
             )}

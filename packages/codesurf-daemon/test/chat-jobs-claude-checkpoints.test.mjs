@@ -83,6 +83,11 @@ test('daemon Claude bypass mode still creates a checkpoint before allowing Write
 
       const decision = await options.canUseTool('Write', { file_path: 'notes.txt', content: 'after claude write\n' }, { toolUseID: 'toolu-write' })
       assert.equal(decision.behavior, 'allow')
+      // The SDK rejects an allow without updatedInput (ZodError).
+      assert.deepEqual(decision.updatedInput, { file_path: 'notes.txt', content: 'after claude write\n' })
+      const question = await options.canUseTool('AskUserQuestion', { questions: [] }, { toolUseID: 'toolu-ask' })
+      assert.equal(question.behavior, 'deny')
+      assert.match(question.message, /not available/)
       await writeFile(targetFile, 'after claude write\n', 'utf8')
       yield {
         type: 'result',

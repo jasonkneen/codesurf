@@ -535,7 +535,16 @@ function AppInner({ agent, startupConfig, initialMessage, onExit }: AppProps) {
           visibleSlashItems={visibleSlashItems}
         />
       )}
-      {serverPickerOpen ? <ServerPicker t={t} /> : null}
+      {serverPickerOpen ? (
+        <ServerPicker
+          t={t}
+          // Node sessions are named after saved sessions; load the one just
+          // resumed so the next turn continues it on screen and on the node.
+          onResumed={(id) => {
+            if (agent.listSessions({ limit: 10_000 }).some((s) => s.id === id)) resumeSessionFromModal(id);
+          }}
+        />
+      ) : null}
       <ModalLayer
         agent={agent}
         startupConfig={startupConfig}

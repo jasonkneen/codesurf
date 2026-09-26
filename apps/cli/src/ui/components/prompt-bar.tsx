@@ -150,3 +150,17 @@ export function PermissionModeFooterLabel({ t, mode }: { t: Theme; mode: string 
     </text>
   );
 }
+
+/**
+ * Footer status for a server-mode session. Shows a human label ("● default:
+ * connected") instead of the raw ws:// URL; click to reveal the URL, click
+ * again to collapse.
+ */
+export function WireStatusFooterLabel({ url, name }: { url: string; name?: string }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <text fg="#4c8dff" wrapMode="none" onMouseDown={() => setRevealed((v) => !v)}>
+      {revealed ? url : `● ${name || "Server"}: connected`}
+    </text>
+  );
+}

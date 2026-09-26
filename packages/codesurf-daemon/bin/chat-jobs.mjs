@@ -1101,6 +1101,11 @@ function omnigentTitleFromPrompt(text) {
 // can assert AgentMode.tools constrains the constructed command. Codex's CLI has
 // no per-tool allow-list, so the allow-list maps onto the sandbox (the only real
 // toolset lever): when it grants no write-capable tool, force read-only.
+export const CLAUDE_ASK_USER_QUESTION_UNAVAILABLE =
+  'Interactive questions are not available in this session. Do not interview the user. '
+  + 'Pick sensible defaults, state them in one line, and carry on with the task. '
+  + 'Only if you are genuinely blocked, ask ONE short question in plain text and end your turn.'
+
 export function buildCodexExecArgs(request, workspaceDir, instructionPrompt = '', options = {}) {
   const lastUserMsg = [...(request.messages ?? [])].reverse().find(message => message.role === 'user')
   const codexMode = ['default', 'auto', 'read-only', 'full-access'].includes(request.mode)
@@ -2569,6 +2574,16 @@ export function createChatJobManager({
       permissionMode: permMode,
       ...(permMode === 'bypassPermissions' ? { allowDangerouslySkipPermissions: true } : {}),
       canUseTool: async (toolName, input, toolOptions) => {
+        // Daemon jobs have no interactive question surface. Without this the
+        // tool errored and the model fell back to a one-question-per-turn
+        // interview in plain text, which reads as the agent repeating itself.
+        if (toolName === 'AskUserQuestion') {
+          return {
+            behavior: 'deny',
+            message: CLAUDE_ASK_USER_QUESTION_UNAVAILABLE,
+            toolUseID: toolOptions?.toolUseID,
+          }
+        }
         if (permMode !== 'bypassPermissions') {
           const permissionRequest = {
             provider: 'claude',
@@ -2661,7 +2676,9 @@ export function createChatJobManager({
             toolUseID: toolOptions?.toolUseID,
           }
         }
-        return { behavior: 'allow', toolUseID: toolOptions?.toolUseID }
+        // The SDK schema requires updatedInput on allow; omitting it failed
+        // every call that reached here with a ZodError.
+        return { behavior: 'allow', updatedInput: input, toolUseID: toolOptions?.toolUseID }
       },
       thinking: thinkingMap[request.thinking ?? ''] ?? { type: 'adaptive' },
       cwd: workspaceDir || undefined,
