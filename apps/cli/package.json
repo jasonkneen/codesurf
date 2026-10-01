@@ -58,7 +58,7 @@
     "@ai-sdk/provider": "^3.0.10",
     "@ai-sdk/provider-utils": "^4.0.21",
     "@ai-sdk/xai": "^3.0.67",
-    "@anthropic-ai/claude-agent-sdk": "^0.3.278",
+    "@anthropic-ai/claude-agent-sdk": "^0.3.283",
     "@codesurf/daemon": "workspace:*",
     "@codesurf/plugin-api": "workspace:*",
     "@codesurf/runtime": "workspace:*",
