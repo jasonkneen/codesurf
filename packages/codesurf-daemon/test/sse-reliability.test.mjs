@@ -1895,3 +1895,155 @@ test('startup retention does not scan healthy terminal timeline history', async 
   assert.equal(timelineScans, 0)
   assert.equal((await manager.getJobState(jobId))?.status, 'completed')
 })
+
+test('persistent card registry dedupes racing replay, preserves cross-job order and cleans up', async () => {
+  const registry = createSseSubscriberRegistry({ heartbeatMs: 0 })
+  const response = new FakeResponse()
+  const record = registry.register('card', response, {
+    persistent: true, replayJobId: 'job-1', sinceSequence: 1,
+  })
+  registry.publish('card', payload(2))
+  registry.publish('card', { ...payload(1), jobId: 'job-2' })
+  registry.publish('card', { ...payload(3), type: 'done' })
+  await registry.sendReplay(record, payload(2))
+  assert.equal(registry.finishReplay(record), true)
+  assert.deepEqual(writtenEvents(response).map(e => [e.jobId, e.sequence]), [
+    ['job-1', 2], ['job-2', 1], ['job-1', 3],
+  ])
+  assert.equal(response.endCalls, 0)
+  registry.pulseHeartbeat()
+  assert.ok(response.writes.includes(': ping\n\n'))
+  response.emit('close')
+  assert.equal(registry.count(), 0)
+  for (const event of ['drain', 'finish', 'close', 'error']) assert.equal(response.listenerCount(event), 0)
+  registry.shutdown()
+})
+
+test('persistent card backpressure bounds replay/live queues and done waits for drain without ending', async () => {
+  const registry = createSseSubscriberRegistry({ heartbeatMs: 0, maxQueuedEvents: 2 })
+  const response = new FakeResponse((_chunk, n) => n !== 1)
+  registry.register('card', response, { persistent: true, replaying: false })
+  registry.publish('card', { ...payload(1), type: 'done' })
+  registry.publish('card', { ...payload(1), jobId: 'job-2' })
+  assert.equal(response.endCalls, 0)
+  response.emit('drain')
+  assert.equal(writtenEvents(response).length, 2)
+  assert.equal(response.endCalls, 0)
+  const slow = new FakeResponse(() => false)
+  registry.register('card', slow, { persistent: true, replaying: false })
+  for (let i = 2; i < 6; i++) registry.publish('card', payload(i))
+  assert.equal(slow.destroyCalls, 1)
+  assert.equal(registry.count(), 1)
+  registry.shutdown()
+  assert.equal(registry.count(), 0)
+})
+
+async function cardManager(t, options = {}) {
+  const homeDir = await mkdtemp(join(tmpdir(), 'codesurf-card-sse-'))
+  const workspaceDir = join(homeDir, 'workspace')
+  await mkdir(workspaceDir)
+  const manager = createChatJobManager({
+    homeDir, heartbeatMs: 0,
+    claudeQuery: () => (async function* () {
+      yield textDelta('hello')
+      yield { type: 'result', result: 'ok', total_cost_usd: 0, num_turns: 1 }
+    })(),
+    ...options,
+  })
+  t.after(async () => {
+    await manager.shutdown()
+    await rm(homeDir, { recursive: true, force: true })
+  })
+  const start = cardId => manager.startJob({
+    provider: 'claude', model: 'test', mode: 'bypassPermissions', cardId,
+    workspaceDir, messages: [{ role: 'user', content: 'go' }],
+  })
+  return { manager, start }
+}
+
+test('card stream stays open across two jobs, ignores other cards and replays terminal history with since', async t => {
+  const { manager, start } = await cardManager(t)
+  const response = new FakeResponse()
+  assert.equal(await manager.streamCard('card', null, 0, response), true)
+  const first = await start('card')
+  await waitFor(() => writtenEvents(response).some(e => e.jobId === first.id && e.type === 'done'))
+  const second = await start('card')
+  await waitFor(() => writtenEvents(response).some(e => e.jobId === second.id && e.type === 'done'))
+  const other = await start('other')
+  await waitFor(async () => (await manager.getJobState(other.id))?.status === 'completed')
+  assert.ok(!writtenEvents(response).some(e => e.jobId === other.id))
+  assert.equal(response.endCalls, 0)
+  for (const job of [first, second]) {
+    const events = writtenEvents(response).filter(e => e.jobId === job.id)
+    assert.ok(events.some(e => e.type === 'text'))
+    assert.equal(new Set(events.map(e => e.sequence)).size, events.length)
+  }
+  const replay = new FakeResponse()
+  assert.equal(await manager.streamCard('card', first.id, 1, replay), true)
+  assert.ok(writtenEvents(replay).every(e => e.jobId === first.id && e.sequence > 1))
+  assert.equal(writtenEvents(replay).at(-1).type, 'done')
+  assert.equal(replay.endCalls, 0)
+  for (const id of [other.id, 'missing']) {
+    const mismatch = new FakeResponse()
+    assert.equal(await manager.streamCard('card', id, 0, mismatch), false)
+    assert.deepEqual(writtenEvents(mismatch), [])
+    assert.equal(mismatch.listenerCount('close'), 0)
+  }
+})
+
+test('card replay dedupes disk/pending/live overlap while a job finishes', async t => {
+  const finish = deferred()
+  const readStarted = deferred()
+  const releaseRead = deferred()
+  const { createReadStream } = await import('node:fs')
+  const { Readable } = await import('node:stream')
+  let holdRead = false
+  const { manager, start } = await cardManager(t, {
+    claudeQuery: () => (async function* () {
+      yield textDelta('before')
+      await finish.promise
+      yield textDelta('during')
+      yield { type: 'result', result: 'ok', total_cost_usd: 0, num_turns: 1 }
+    })(),
+    timelineReadStream: path => {
+      if (!holdRead) return createReadStream(path)
+      holdRead = false
+      return Readable.from((async function* () {
+        readStarted.resolve()
+        await releaseRead.promise
+        yield await readFile(path)
+      })())
+    },
+  })
+  t.after(() => { finish.resolve(); releaseRead.resolve() })
+  const job = await start('card')
+  await waitFor(async () => (await manager.getJobState(job.id))?.lastSequence > 0)
+  holdRead = true
+  const response = new FakeResponse()
+  const streaming = manager.streamCard('card', job.id, 0, response)
+  await readStarted.promise
+  finish.resolve()
+  await waitFor(async () => (await manager.getJobState(job.id))?.status === 'completed')
+  releaseRead.resolve()
+  assert.equal(await streaming, true)
+  const events = writtenEvents(response)
+  assert.equal(events.filter(e => e.type === 'text' && e.text === 'during').length, 1)
+  assert.equal(events.filter(e => e.type === 'done').length, 1)
+  assert.equal(new Set(events.map(e => e.sequence)).size, events.length)
+  assert.equal(response.endCalls, 0)
+})
+
+test('card subscribers receive persistence failure terminals and remain open', async t => {
+  const { manager, start } = await cardManager(t, {
+    timelineAppendMaxAttempts: 1,
+    timelineAppend: async () => { throw new Error('card storage unavailable') },
+  })
+  const response = new FakeResponse()
+  await manager.streamCard('card', null, 0, response)
+  const job = await start('card')
+  await waitFor(() => writtenEvents(response).some(e => e.type === 'done'))
+  const events = writtenEvents(response).filter(e => e.jobId === job.id)
+  assert.ok(hasTerminalPair(events))
+  assert.match(events.at(-2).error, /Timeline persistence failed/)
+  assert.equal(response.endCalls, 0)
+})

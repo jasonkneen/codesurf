@@ -298,6 +298,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -368,6 +369,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     fetchSpy.mockClear();
     fetchSpy.mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/chat/job/start")) return makeJsonResponse({ id: "job-2", status: "running" });
@@ -404,6 +406,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     });
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -460,6 +463,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     });
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -511,6 +515,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
 
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -565,6 +570,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -595,6 +601,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     fetchSpy.mockClear();
     fetchSpy.mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) {
@@ -634,6 +641,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) {
@@ -708,6 +716,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -767,6 +776,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -815,6 +825,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
     const eventUrls: string[] = [];
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -926,6 +937,7 @@ describe("CodesurfDesktopSession.sendTurn", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
       if (url.includes("/chat/job/start")) return makeJsonResponse({ id: "job-autostart", status: "running" });
@@ -1026,6 +1038,7 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1074,6 +1087,7 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       // Registry holds workspaces, none of them containing this cwd.
       if (url.includes("/workspace/list")) {
@@ -1123,6 +1137,7 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
 
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeJsonResponse([]);
       if (url.includes("/workspace/create-from-folder")) return makeJsonResponse({ error: "boom" }, 500);
@@ -1159,6 +1174,7 @@ describe("workspace binding (CHAT_WORKSPACE_REQUIRED)", () => {
       input: string | URL | Request,
     ): Promise<Response> => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1219,6 +1235,7 @@ describe("release-fix regressions", () => {
 
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) {
@@ -1241,6 +1258,7 @@ describe("release-fix regressions", () => {
     writePidFile(tempHome);
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1263,6 +1281,7 @@ describe("release-fix regressions", () => {
 
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request, init?: RequestInit) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1299,6 +1318,7 @@ describe("release-fix regressions", () => {
 
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request, init?: RequestInit) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1334,6 +1354,7 @@ describe("release-fix regressions", () => {
     const root = path.dirname(process.cwd());
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) {
         return makeJsonResponse([
@@ -1365,6 +1386,7 @@ describe("release-fix regressions", () => {
     );
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request, init?: RequestInit) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) {
         // A wedged daemon: never answers, only honours its abort signal.
@@ -1391,6 +1413,7 @@ describe("release-fix regressions", () => {
     const encoder = new TextEncoder();
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1427,6 +1450,7 @@ describe("release-fix regressions", () => {
     writePidFile(tempHome);
     vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
       const url = urlOf(input);
+      if (url.includes("/chat/card/events")) return makeJsonResponse({ error: "not found" }, 404);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
       if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
       if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
@@ -1440,5 +1464,49 @@ describe("release-fix regressions", () => {
     const { events, controller } = collectStream();
     await expect(newSession("conv-l7").sendTurn(baseTurn("conv-l7"), controller)).rejects.toThrow("upstream exploded");
     expect(events.some((e) => e.type === "error")).toBe(false);
+  });
+});
+
+describe("persistent card stream integration", () => {
+  it("keeps SSE connected between turns and skips repeated daemon discovery", async () => {
+    writePidFile(tempHome);
+    let sink!: ReadableStreamDefaultController<Uint8Array>;
+    let jobs = 0;
+    const upstream = new ReadableStream<Uint8Array>({ start: controller => { sink = controller; } });
+    const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
+      const url = urlOf(input);
+      if (url.includes("/health")) return makeHealthResponse(tempHome);
+      if (url.includes("/workspace/list")) return makeWorkspaceListResponse();
+      if (url.includes("/dashboard/api/jobs")) return makeJsonResponse({ jobs: [] });
+      if (url.includes("/chat/card/events")) return makeStreamResponse(upstream);
+      if (url.includes("/chat/job/session")) return makeJsonResponse({ ok: true });
+      if (url.includes("/chat/job/start")) {
+        const id = `persistent-${++jobs}`;
+        // Deliberately send before the POST response: the subscription must
+        // already exist and retain these until the job id is known.
+        for (const event of [
+          { jobId: id, sequence: 1, type: "session", sessionId: "persistent-session" },
+          { jobId: id, sequence: 2, type: "text", text: id },
+          { jobId: id, sequence: 3, type: "done" },
+        ]) sink.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+        return makeJsonResponse({ id, status: "running" });
+      }
+      throw new Error(`unexpected fetch: ${url}`);
+    }) as typeof fetch);
+    const session = newSession("persistent-integration");
+    try {
+      for (let i = 1; i <= 2; i++) {
+        const { events, controller } = collectStream();
+        await session.sendTurn(baseTurn("persistent-integration"), controller);
+        expect(events.some(e => e.type === "text-delta" && e.delta === `persistent-${i}`)).toBe(true);
+      }
+      const urls = fetchSpy.mock.calls.map(([input]) => urlOf(input));
+      expect(urls.filter(url => url.includes("/chat/card/events"))).toHaveLength(1);
+      expect(urls.filter(url => url.includes("/chat/job/events"))).toHaveLength(0);
+      expect(urls.filter(url => url.includes("/health"))).toHaveLength(1);
+      expect(urls.filter(url => url.includes("/workspace/list"))).toHaveLength(1);
+    } finally {
+      await session.disconnect();
+    }
   });
 });

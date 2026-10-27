@@ -1363,6 +1363,7 @@ function sseEventEntry(payload) {
   const sequence = Number(payload?.sequence ?? 0)
   return {
     chunk: `data: ${JSON.stringify(payload)}\n\n`,
+    jobId: payload?.jobId,
     sequence: Number.isFinite(sequence) ? sequence : 0,
     terminal: payload?.type === 'done',
   }
@@ -1455,6 +1456,14 @@ export function createSseSubscriberRegistry({
     }
   }
 
+  // Persistent card streams only need a cursor for the requested replay job.
+  // Other jobs are live-only, avoiding an unbounded per-job cursor map.
+  function alreadySent(record, entry) {
+    return entry.sequence > 0
+      && (!record.persistent || entry.jobId === record.replayJobId)
+      && entry.sequence <= record.lastSentSequence
+  }
+
   function writeEntry(record, entry) {
     if (record.closed) return false
     if (!entryFits(record, entry)) return false
@@ -1471,11 +1480,12 @@ export function createSseSubscriberRegistry({
       return false
     }
 
-    if (entry.sequence > record.lastSentSequence) {
+    if ((!record.persistent || entry.jobId === record.replayJobId)
+      && entry.sequence > record.lastSentSequence) {
       record.lastSentSequence = entry.sequence
     }
     if (!writable) markBlocked(record)
-    if (entry.terminal) {
+    if (entry.terminal && !record.persistent) {
       if (writable) {
         closeRecord(record)
       } else {
@@ -1509,7 +1519,7 @@ export function createSseSubscriberRegistry({
     while (!record.closed && !record.blocked && record.queue.length > 0) {
       const entry = record.queue.shift()
       unaccountEntry(record, entry)
-      if (entry.sequence > 0 && entry.sequence <= record.lastSentSequence) continue
+      if (alreadySent(record, entry)) continue
       if (!writeEntry(record, entry)) return
     }
   }
@@ -1526,9 +1536,11 @@ export function createSseSubscriberRegistry({
     if (!record.closed && !record.blocked) resolveDrainWaiters(record, true)
   }
 
-  function register(jobId, res, { sinceSequence = 0, replaying = true } = {}) {
+  function register(jobId, res, { sinceSequence = 0, replaying = true, persistent = false, replayJobId = null } = {}) {
     const record = {
       jobId,
+      persistent,
+      replayJobId,
       res,
       queue: [],
       replayBuffer: [],
@@ -1571,7 +1583,7 @@ export function createSseSubscriberRegistry({
     if (!listeners) return
     const baseEntry = sseEventEntry(payload)
     for (const record of Array.from(listeners)) {
-      if (record.closed || baseEntry.sequence <= record.lastSentSequence) continue
+      if (record.closed || alreadySent(record, baseEntry)) continue
       const entry = { ...baseEntry, bytes: Buffer.byteLength(baseEntry.chunk) }
       if (record.replaying) {
         enqueue(record, entry, record.replayBuffer)
@@ -1595,7 +1607,7 @@ export function createSseSubscriberRegistry({
     if (record.closed) return false
     const entry = sseEventEntry(payload)
     entry.bytes = Buffer.byteLength(entry.chunk)
-    if (entry.sequence <= record.lastSentSequence) return true
+    if (alreadySent(record, entry)) return true
     if (!entryFits(record, entry)) return false
     if (!await waitForWritable(record)) return false
     return writeEntry(record, entry)
@@ -1606,10 +1618,10 @@ export function createSseSubscriberRegistry({
     record.replaying = false
     const buffered = record.replayBuffer
       .splice(0)
-      .sort((a, b) => a.sequence - b.sequence)
+      .sort((a, b) => record.persistent ? 0 : a.sequence - b.sequence)
     for (const entry of buffered) {
       unaccountEntry(record, entry)
-      if (record.closed || entry.sequence <= record.lastSentSequence) continue
+      if (record.closed || alreadySent(record, entry)) continue
       if (record.blocked || record.queue.length > 0) {
         if (!enqueue(record, entry, record.queue)) break
       } else if (!writeEntry(record, entry)) {
@@ -1799,6 +1811,18 @@ export function createChatJobManager({
     drainTimeoutMs: subscriberDrainTimeoutMs,
     heartbeatMs,
   })
+
+  const cardSubscriberRegistry = createSseSubscriberRegistry({
+    maxQueuedEvents: subscriberMaxQueuedEvents,
+    maxQueuedBytes: subscriberMaxQueuedBytes,
+    drainTimeoutMs: subscriberDrainTimeoutMs,
+    heartbeatMs,
+  })
+
+  function publishEvent(jobId, payload, metadata) {
+    subscriberRegistry.publish(jobId, payload)
+    if (metadata?.cardId) cardSubscriberRegistry.publish(metadata.cardId, payload)
+  }
 
   // Timeline persistence is a bounded, recoverable per-job queue. A rejected
   // append is retried in-place so later writes are never chained to a poisoned
@@ -1995,8 +2019,8 @@ export function createChatJobManager({
       live.metadata = record.failureMetadata
       live.terminalEmitted = true
       live.persistenceFailed = true
-      subscriberRegistry.publish(record.jobId, errorEvent)
-      subscriberRegistry.publish(record.jobId, doneEvent)
+      publishEvent(record.jobId, errorEvent, live.metadata)
+      publishEvent(record.jobId, doneEvent, live.metadata)
     }
 
     // The high-water and bounded terminal snapshot above are sufficient for
@@ -2367,7 +2391,7 @@ export function createChatJobManager({
         live.metadata = metadata
         live.terminalEmitted = true
       }
-      subscriberRegistry.publish(jobId, payload)
+      publishEvent(jobId, payload, metadata)
       cancelPendingToolPermissionsForJob(jobId, 'Job completed')
       return payload
     }
@@ -2377,7 +2401,7 @@ export function createChatJobManager({
     // latency.
     const timelineWrite = enqueueTimelineWrite(jobId, payload)
     if (live) live.metadata = metadata
-    subscriberRegistry.publish(jobId, payload)
+    publishEvent(jobId, payload, metadata)
 
     // daemon-07: flush metadata immediately on terminal/session events (status,
     // completedAt, sessionId must be durable right away) or when the job has no
@@ -4763,6 +4787,54 @@ export function createChatJobManager({
     return false
   }
 
+  async function streamCard(cardId, jobId, sinceSequence, res) {
+    if (!cardId || closing) return false
+    const normalizedSince = Math.max(0, Number(sinceSequence) || 0)
+    // Subscribe before ANY metadata/replay await: even a new job starting during
+    // lookup must reach this connection. Registry buffers are bounded as usual.
+    const subscriber = cardSubscriberRegistry.register(cardId, res, {
+      persistent: true,
+      replayJobId: jobId || null,
+      sinceSequence: normalizedSince,
+      replaying: Boolean(jobId),
+    })
+    cardSubscriberRegistry.sendComment(subscriber, ': connected\n\n')
+    if (!jobId) return !subscriber.closed
+    try {
+      let metadata = liveJobs.get(jobId)?.metadata
+        ?? timelinePersistence.get(jobId)?.failureMetadata
+        ?? await readJobMetadata(jobId)
+      // Never disclose a different card's history. Invalid replay cursors close
+      // the stream (headers have already been flushed by the HTTP route).
+      if (!metadata || metadata.cardId !== cardId) {
+        cardSubscriberRegistry.close(subscriber)
+        return false
+      }
+      if (!liveJobs.has(jobId) && !timelinePersistence.get(jobId)?.failureMetadata) {
+        metadata = await reconcileInterruptedJob(jobId)
+      }
+      const through = Math.max(normalizedSince, Number(metadata.lastSequence) || 0)
+      const pending = snapshotPendingTimelineEvents(jobId, normalizedSince, through)
+      const replayed = await scanTimeline(jobId, {
+        onRecord: async payload => {
+          if (payload.sequence <= normalizedSince || payload.sequence > through) return true
+          return await cardSubscriberRegistry.sendReplay(subscriber, payload)
+        },
+      })
+      if (replayed.integrityError) {
+        cardSubscriberRegistry.close(subscriber)
+        return false
+      }
+      for (const payload of pending.events) {
+        if (!await cardSubscriberRegistry.sendReplay(subscriber, payload)) break
+      }
+      return cardSubscriberRegistry.finishReplay(subscriber)
+    } catch (error) {
+      cardSubscriberRegistry.close(subscriber)
+      throw error
+    }
+  }
+
   // daemon-05 (core): prune terminal job metadata + timeline jsonl past a TTL
   // so ~/.codesurf/jobs and /timelines do not grow without bound. Keeps the
   // newest `keepRecent` terminal jobs regardless of age, then deletes terminal
@@ -4871,6 +4943,7 @@ export function createChatJobManager({
       ])
     }
     subscriberRegistry.shutdown()
+    cardSubscriberRegistry.shutdown()
     for (const timer of metadataFlushTimers.values()) clearTimeout(timer)
     metadataFlushTimers.clear()
     if (failedCleanupTasks.size > 0) {
@@ -4892,6 +4965,7 @@ export function createChatJobManager({
     getJobState,
     getPersistenceState,
     streamJob,
+    streamCard,
     shutdown,
     sweepJobRetention,
     listLiveJobIds() {

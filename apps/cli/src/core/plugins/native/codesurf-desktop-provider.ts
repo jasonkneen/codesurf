@@ -4,6 +4,7 @@
 // (`codesurfd`) using the same HTTP + SSE contract the desktop app uses:
 //
 //   POST /chat/job/start        → { id, status, ... }
+//   GET  /chat/card/events?cardId → persistent stream across turns
 //   GET  /chat/job/events?jobId → text/event-stream of `data: <json>\n\n`
 //   POST /chat/job/cancel       → { ok }
 //   GET  /health                → { ok: true }
@@ -16,9 +17,10 @@
 // Conversation continuity comes from the `sessionId` the daemon emits and
 // records in job metadata. We keep it in memory for the live process and
 // recover it from the daemon dashboard when a fresh provider session starts.
-// There's no socket-level persistence — `sessionId` IS the persistent
-// connection, server-side.
+// A card SSE connection stays open across turns; older daemons fall back to
+// per-job SSE when the card endpoint returns 404/405.
 
+import { CodesurfCardStream } from "./codesurf-card-stream";
 import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
@@ -565,6 +567,9 @@ class CodesurfDesktopSession implements ProviderSession {
   private orphanToolSummaryCounts = new Map<string, number>();
 
   private disconnected = false;
+  private cardStream: CodesurfCardStream | null = null;
+  private cardStreamIdentity = "";
+  private connectedDaemon: { home: string; info: DaemonPidInfo } | null = null;
 
   /** Tile state context for persistent session recovery */
   private tileSessionContext: TileSessionContext | null = null;
@@ -632,15 +637,25 @@ class CodesurfDesktopSession implements ProviderSession {
     }
 
     const home = this.resolveHome();
-    const info = await this.resolveDaemonInfo(home);
+    const info = this.cardStream?.connected && this.connectedDaemon?.home === home
+      ? this.connectedDaemon.info
+      : await this.resolveDaemonInfo(home);
     if (!info) {
       throw new Error(
         "Codesurf daemon is not running and could not be started. Run `codesurf daemon start`, then retry.",
       );
     }
+    this.connectedDaemon = { home, info };
     const baseUrl = `http://127.0.0.1:${info.port}`;
 
     controller.emit({ type: "status", status: "connecting" });
+    const streamIdentity = `${baseUrl}:${info.token}`;
+    if (this.cardStreamIdentity !== streamIdentity) {
+      this.cardStream?.close();
+      this.cardStream = new CodesurfCardStream(baseUrl, info.token, this.cardId);
+      this.cardStreamIdentity = streamIdentity;
+    }
+    const persistentStream = await this.cardStream!.prepare(input.abortSignal);
 
     // Build the request. The daemon accepts the desktop's full ChatRequest
     // shape but every field beyond {provider, model, messages, cardId,
@@ -719,7 +734,9 @@ class CodesurfDesktopSession implements ProviderSession {
 
     try {
       while (!terminalEvent) {
-        const streamResponse = await fetch(
+        const streamResponse = persistentStream
+          ? this.cardStream!.openJob(job.id, lastSequence, abortController.signal)
+          : await fetch(
           `${baseUrl}/chat/job/events?jobId=${encodeURIComponent(job.id)}&since=${encodeURIComponent(String(lastSequence))}`,
           {
             method: "GET",
@@ -803,6 +820,8 @@ class CodesurfDesktopSession implements ProviderSession {
           if (terminalEvent) break;
         }
 
+        await reader.cancel().catch(() => {});
+        reader.releaseLock();
         if (terminalEvent) break;
         if (abortController.signal.aborted) {
           throw new DOMException("Aborted", "AbortError");
@@ -872,6 +891,7 @@ class CodesurfDesktopSession implements ProviderSession {
       // across turns, so an un-removed listener would leak and fire stale
       // callbacks against the next turn's controller.
       input.abortSignal?.removeEventListener("abort", onHostAbort);
+      this.cardStream?.finishJob(job.id);
       // Aborting only tears down our local stream; the daemon keeps running
       // the job (and its tools) until told otherwise. This also covers an
       // interrupt that landed while /chat/job/start was in flight — the id is
@@ -920,6 +940,7 @@ class CodesurfDesktopSession implements ProviderSession {
   disconnect = async (): Promise<void> => {
     if (this.disconnected) return;
     this.disconnected = true;
+    this.cardStream?.close();
     const jobId = this.activeJobId;
     this.activeAbort?.abort();
     this.activeJobId = null;

@@ -2037,3 +2037,48 @@ test('GET /personas/list returns built-ins + agents.json overlay, never the disc
   assert.equal(overlaidById.get('ask')?.name, 'Ask Overridden', 'overlay applies a built-in override')
   assert.ok(!overlaid.payload.personas.some(p => String(p.id).startsWith('discovered-')), 'the discovered-* set must never be listed')
 })
+
+test('card SSE requires auth and cardId, flushes headers immediately and stays idle-open', async t => {
+  const daemon = await startDaemon()
+  t.after(() => daemon.stop())
+  const missing = await daemon.request('/chat/card/events')
+  assert.equal(missing.status, 400)
+  const unauthorized = await fetch(`http://127.0.0.1:${daemon.pidInfo.port}/chat/card/events?cardId=card`)
+  assert.equal(unauthorized.status, 401)
+  await unauthorized.text()
+  await new Promise((resolve, reject) => {
+    let response
+    const timeout = setTimeout(() => {
+      request.destroy()
+      reject(new Error('Card SSE headers did not flush immediately'))
+    }, 2_000)
+    const request = httpRequest({
+      hostname: '127.0.0.1', port: daemon.pidInfo.port,
+      path: '/chat/card/events?cardId=idle-card',
+      headers: { Authorization: `Bearer ${daemon.pidInfo.token}` },
+    }, incoming => {
+      response = incoming
+      try {
+        assert.equal(incoming.statusCode, 200)
+        assert.match(incoming.headers['content-type'], /text\/event-stream/)
+        assert.equal(incoming.headers['x-accel-buffering'], 'no')
+      } catch (error) {
+        clearTimeout(timeout)
+        request.destroy()
+        reject(error)
+        return
+      }
+      incoming.resume()
+      setTimeout(() => {
+        clearTimeout(timeout)
+        try {
+          assert.equal(response.complete, false)
+          request.destroy()
+          resolve()
+        } catch (error) { request.destroy(); reject(error) }
+      }, 50)
+    })
+    request.on('error', error => { clearTimeout(timeout); reject(error) })
+    request.end()
+  })
+})

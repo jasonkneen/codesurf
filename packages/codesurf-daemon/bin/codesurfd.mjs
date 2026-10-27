@@ -3694,6 +3694,28 @@ const server = createServer(async (req, res) => {
       return
     }
 
+    if (method === 'GET' && url.pathname === '/chat/card/events') {
+      const cardId = String(url.searchParams.get('cardId') ?? '').trim()
+      const jobId = String(url.searchParams.get('jobId') ?? '').trim()
+      const sinceSequence = Number(url.searchParams.get('since') ?? '0') || 0
+      if (!cardId) {
+        sendJson(res, 400, { error: 'cardId is required' })
+        return
+      }
+      req.socket?.setNoDelay?.(true)
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache, no-transform',
+        Connection: 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      })
+      res.flushHeaders?.()
+      // Response close/error listeners in the registry own disconnection cleanup.
+      const keepOpen = await chatJobs.streamCard(cardId, jobId, sinceSequence, res)
+      if (!keepOpen && !res.writableEnded && !res.destroyed) res.end()
+      return
+    }
+
     if (method === 'GET' && url.pathname === '/chat/job/events') {
       const jobId = String(url.searchParams.get('jobId') ?? '').trim()
       const sinceSequence = Number(url.searchParams.get('since') ?? '0') || 0

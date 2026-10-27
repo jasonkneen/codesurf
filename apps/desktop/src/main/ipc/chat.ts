@@ -34,7 +34,7 @@ import type { SessionEntryHint } from '../../shared/session-types'
 import type { ExecutionHostRecord } from '../../shared/types'
 import { daemonClient } from '../daemon/client'
 import { ensureDaemonRunning } from '../daemon/manager'
-import { parseSseJsonBuffer } from '@codesurf/daemon/sse'
+import { DaemonCardStream } from '../chat/daemon-card-stream.ts'
 import {
   MAX_SKILLS_SUMMARY_BYTES,
   previewContextToolInput,
@@ -397,6 +397,8 @@ function isSupportedVisionMediaType(mediaType: string): boolean {
  * the PTY master closes on parent death.
  */
 export async function killAllChatProcesses(): Promise<void> {
+  for (const entry of daemonCardStreams.values()) entry.stream.close()
+  daemonCardStreams.clear()
   const [processResult, openCodeResult] = await Promise.allSettled([
     stopAllActiveChatProcesses(),
     shutdownOpenCodeServer(),
@@ -1022,6 +1024,26 @@ async function buildProjectContext(workspaceDir: string | undefined): Promise<Pr
   return value
 }
 
+const daemonCardStreams = new Map<string, { identity: string; stream: DaemonCardStream }>()
+
+function closeDaemonCardStream(scope: ChatStreamScope): void {
+  const key = chatStreamScopeKey(scope)
+  daemonCardStreams.get(key)?.stream.close()
+  daemonCardStreams.delete(key)
+}
+
+async function getDaemonCardStream(scope: ChatStreamScope, host: ExecutionHostRecord): Promise<DaemonCardStream> {
+  const endpoint = await resolveHostEndpoint(host)
+  const identity = JSON.stringify([host.id, endpoint.baseUrl, endpoint.token])
+  const key = chatStreamScopeKey(scope)
+  const existing = daemonCardStreams.get(key)
+  if (existing?.identity === identity) return existing.stream
+  existing?.stream.close()
+  const stream = new DaemonCardStream(endpoint, scope.cardId)
+  daemonCardStreams.set(key, { identity, stream })
+  return stream
+}
+
 async function attachDaemonJobStream(
   scope: ChatStreamScope,
   host: ExecutionHostRecord,
@@ -1033,39 +1055,14 @@ async function attachDaemonJobStream(
   const abortController = activity.abortController
 
   try {
-    const endpoint = await resolveHostEndpoint(host)
-    const response = await fetch(`${endpoint.baseUrl}/chat/job/events?jobId=${encodeURIComponent(jobId)}&since=${encodeURIComponent(String(sinceSequence))}`, {
-      headers: {
-        Accept: 'text/event-stream',
-        ...(endpoint.token ? { Authorization: `Bearer ${endpoint.token}` } : {}),
-      },
-      signal: abortController.signal,
+    const stream = await getDaemonCardStream(scope, host)
+    await stream.consumeJob(jobId, sinceSequence, abortController.signal, payload => {
+      if (!activeDaemonJobs.isActive(activity) || abortController.signal.aborted) return
+      if (isProviderAcceptanceEvent(payload)) markRoomPromptAccepted(scope)
+      // Daemon SSE is never host attestation for a later local file read.
+      sendStream(scope, { ...payload, fileChangesTrusted: false })
     })
-
-    if (!response.ok || !response.body) {
-      const text = await response.text().catch(() => '')
-      throw new Error(text || `Failed to stream daemon job (${response.status})`)
-    }
-
-    const reader = response.body.getReader()
-    const decoder = new TextDecoder()
-    let buffer = ''
-
-    while (true) {
-      const { done, value } = await reader.read()
-      if (done) break
-      buffer += decoder.decode(value, { stream: true })
-      const parsed = parseSseJsonBuffer<Record<string, unknown>>(buffer)
-      buffer = parsed.remaining
-      for (const error of parsed.errors) {
-        log('daemon stream parse error', error)
-      }
-      for (const payload of parsed.events) {
-        if (isProviderAcceptanceEvent(payload)) markRoomPromptAccepted(scope)
-        // Daemon SSE is never host attestation for a later local file read.
-        sendStream(scope, { ...payload, fileChangesTrusted: false })
-      }
-    }
+    if (abortController.signal.aborted) return
     const state = await hostRequest<{ status: string; error?: string | null }>(
       host,
       `/chat/job/state?jobId=${encodeURIComponent(jobId)}`,
@@ -1149,9 +1146,18 @@ async function sendChatToDaemon(
     }
     : req
 
+  let cardStream: DaemonCardStream | undefined
   let job: { id: string; status: string }
   try {
     if (!chatPreparationFence.isCurrent(preparationLease)) {
+      return { ok: false, jobId: '', error: 'Chat preparation superseded' }
+    }
+    if (req.runMode !== 'background') {
+      cardStream = await getDaemonCardStream(scope, host)
+      await cardStream.prepare()
+    }
+    if (!chatPreparationFence.isCurrent(preparationLease)) {
+      cardStream?.finishPreparation()
       return { ok: false, jobId: '', error: 'Chat preparation superseded' }
     }
     job = await hostRequest<{
@@ -1167,6 +1173,7 @@ async function sendChatToDaemon(
       },
     })
     if (!chatPreparationFence.isCurrent(preparationLease)) {
+      cardStream?.finishPreparation()
       try {
         await hostRequest(host, '/chat/job/cancel', { body: { jobId: job.id } })
       } catch {
@@ -1176,6 +1183,7 @@ async function sendChatToDaemon(
     }
     registerRoomContextAcknowledgement(req)
   } catch (error) {
+    cardStream?.finishPreparation()
     const message = error instanceof Error ? error.message : String(error)
     sendStream(scope, { type: 'error', error: message })
     sendStream(scope, { type: 'done' })
@@ -1747,6 +1755,7 @@ export function registerChatIPC(): void {
         preservePreparation: true,
       })
       if (!stopResult.ok) return stopResult
+      closeDaemonCardStream(scope)
       let runtimeClearError: string | null = null
       try {
         await clearRuntimeSessionState(scope)
@@ -1784,7 +1793,10 @@ export function registerChatIPC(): void {
           reason: 'Session cleared',
           preservePreparation: true,
         }),
-        clearPersistedState: () => clearRuntimeSessionState(scope),
+        clearPersistedState: () => {
+          closeDaemonCardStream(scope)
+          return clearRuntimeSessionState(scope)
+        },
         evictSessionState: () => {
           deleteCardSessionIds(scope)
           clearOpenCodeSession(scope)
