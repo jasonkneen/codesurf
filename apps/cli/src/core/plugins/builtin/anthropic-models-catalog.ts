@@ -82,9 +82,16 @@ export const ANTHROPIC_MODELS: AnthropicModelCoreSpec[] = [
     images: true,
   },
   {
-    id: "claude-sonnet-5",
+    id: "claude-sonnet-5-5",
     contextWindow: 1_000_000,
     aliases: ["claude-sonnet", "sonnet"],
+    reasoning: true,
+    images: true,
+  },
+  {
+    id: "claude-sonnet-5",
+    contextWindow: 1_000_000,
+    aliases: [],
     reasoning: true,
     images: true,
   },
@@ -96,13 +103,36 @@ export const ANTHROPIC_MODELS: AnthropicModelCoreSpec[] = [
     images: true,
   },
   {
-    id: "claude-haiku-4-5",
-    contextWindow: 200_000,
+    id: "claude-haiku-5-5",
+    contextWindow: 1_000_000,
     aliases: ["claude-haiku", "haiku"],
     reasoning: true,
     images: true,
   },
+  {
+    id: "claude-haiku-4-5",
+    contextWindow: 200_000,
+    aliases: [],
+    reasoning: true,
+    images: true,
+  },
 ];
+
+/**
+ * Context window for any spelling of a catalogued Claude model: bare id,
+ * vendor-prefixed (`anthropic/claude-opus-5-5`), dated snapshot
+ * (`claude-haiku-4-5-20251001`) or Claude Code's `[1m]` suffix. Undefined for
+ * models this catalog doesn't know, so callers can keep their own default.
+ */
+export function anthropicContextWindow(modelId: string): number | undefined {
+  const id = modelId
+    .trim()
+    .toLowerCase()
+    .replace(/^[a-z0-9_-]+\//, "")
+    .replace(/\[1m\]$/, "")
+    .replace(/-\d{8}$/, "");
+  return ANTHROPIC_MODELS.find((model) => model.id === id || model.aliases.includes(id))?.contextWindow;
+}
 
 /** Indicative pricing keyed by canonical model id. Drift is acceptable here —
  *  the displayed numbers are advisory only. */
@@ -114,7 +144,9 @@ export const ANTHROPIC_MODEL_PRICING: Record<string, AnthropicModelPricing> = {
   "claude-opus-4-8": { inputPrice: 5, outputPrice: 25 },
   "claude-opus-4-7": { inputPrice: 5, outputPrice: 25 },
   "claude-opus-4-6": { inputPrice: 5, outputPrice: 25 },
+  "claude-sonnet-5-5": { inputPrice: 2, outputPrice: 10 },
   "claude-sonnet-5": { inputPrice: 3, outputPrice: 15 },
   "claude-sonnet-4-6": { inputPrice: 3, outputPrice: 15 },
+  "claude-haiku-5-5": { inputPrice: 0.1, outputPrice: 0.5 },
   "claude-haiku-4-5": { inputPrice: 1, outputPrice: 5 },
 };

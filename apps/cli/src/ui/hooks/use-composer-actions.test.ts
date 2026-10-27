@@ -114,7 +114,11 @@ const h = vi.hoisted(() => {
   const expand = vi.fn<(text: string, cwd: string) => Promise<{ enhancedMessage: string; mentionedFiles: string[] }>>();
   const host = { mentions: { expand }, models: { getProvider: vi.fn() } };
   const recordPrompt = vi.fn();
+  const serverMode = {
+    remoteFront: null as null | { client: { abort: (session: string) => void }; sessionId: string; url: string },
+  };
   return {
+    serverMode,
     inputText,
     input,
     inputRef,
@@ -137,6 +141,7 @@ vi.mock("../context/composer-context.js", () => ({ useComposer: () => h.composer
 vi.mock("../context/running-agents-context.js", () => ({ useRunningAgents: () => h.agents }));
 vi.mock("../context/approval-context.js", () => ({ useApproval: () => h.approval }));
 vi.mock("../context/telegram-context.js", () => ({ useTelegram: () => h.telegram }));
+vi.mock("../context/server-mode-context.js", () => ({ useServerMode: () => h.serverMode }));
 vi.mock("../context/model-context.js", () => ({
   useModel: () => ({ contextStatsRef: { current: null } }),
 }));
@@ -163,7 +168,7 @@ function deferredExpansion() {
 
 const flush = () => new Promise<void>((r) => setImmediate(r));
 
-const agent = { getCwd: () => "/repo", abort: vi.fn() } as unknown as Agent;
+const agent = { getCwd: () => "/repo", abort: vi.fn(), getSessionId: () => "s9" } as unknown as Agent;
 
 // Named as a hook: it composes the real hooks under test (rules-of-hooks lint).
 function useHarness() {
@@ -223,6 +228,7 @@ beforeEach(() => {
   h.approval.pendingEditApprovalRef.current = null;
   h.approval.pendingPaymentApprovalRef.current = null;
   h.coordinator.reset.mockReset();
+  h.serverMode.remoteFront = null;
 });
 
 describe("UI1 — queued submissions reserve their slot before mention expansion", () => {
@@ -474,5 +480,28 @@ describe("send-now", () => {
     expect(t.dispatchQueueHead()).toBe(true);
     expect(h.coordinator.reset).toHaveBeenCalledTimes(1);
     expect(t.processMessage.mock.calls[0]![0]).toBe("urgent");
+  });
+
+  // Attached to a server the replaced turn runs on the node; stopping only
+  // the local agent left it running and the steer was refused as busy.
+  it("stops the replaced turn on the node before sending the steer", () => {
+    const order: string[] = [];
+    h.serverMode.remoteFront = {
+      client: { abort: (session) => order.push(`node.abort:${session}`) },
+      sessionId: "attach-session",
+      url: "ws://node",
+    };
+    const t = useHarness();
+    t.processMessage.mockImplementation((text) => {
+      order.push(`send:${text}`);
+    });
+    h.expand.mockImplementation(async (text) => ({ enhancedMessage: text, mentionedFiles: [] }));
+    h.conv.isProcessingRef.current = true;
+    h.input.setText("do not push");
+    t.handleSubmit();
+
+    expect(t.dispatchQueueHead()).toBe(true);
+
+    expect(order).toEqual(["node.abort:s9", "send:do not push"]);
   });
 });

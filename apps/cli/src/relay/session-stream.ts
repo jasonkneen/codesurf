@@ -68,7 +68,18 @@ export type SessionFrameOut =
 
 export interface SessionFrameIn {
   op: "session";
-  action: "create" | "message" | "subscribe" | "status" | "destroy" | "ping" | "list" | "approval_decision" | "info";
+  /** abort: stop the session's running turn; the session itself stays. */
+  action:
+    | "create"
+    | "message"
+    | "abort"
+    | "subscribe"
+    | "status"
+    | "destroy"
+    | "ping"
+    | "list"
+    | "approval_decision"
+    | "info";
   approvalId?: string;
   approve?: boolean;
   session?: string;
@@ -101,6 +112,25 @@ export interface CreateSessionOptions {
  * for the browser); engine-node wires src/storage/issues.ts's recordIssue.
  */
 export type IssueReporter = (source: string, message: string, sessionId?: string) => void;
+
+/**
+ * How long a message sent right behind `abort` (steering) waits for the
+ * stopped turn to unwind before it is refused, so a turn that ignores the
+ * abort cannot run the steer much later, after the front gave up on it.
+ */
+export const STOP_GRACE_MS = 10_000;
+
+/** Resolves when `promise` settles or `ms` elapses, whichever is first. */
+function settleWithin(promise: Promise<void>, ms: number): Promise<void> {
+  return new Promise<void>((resolve) => {
+    const timer = setTimeout(resolve, ms);
+    const done = () => {
+      clearTimeout(timer);
+      resolve();
+    };
+    promise.then(done, done);
+  });
+}
 
 /** Node side: bridges WS session frames to a NodeSessionHost's observers. */
 export class SessionStreamServer {
@@ -172,31 +202,43 @@ export class SessionStreamServer {
         break;
       case "message": {
         const session = frame.session ?? "";
-        const status = this.host.status(session);
-        if (!status) {
-          // Unknown or reaped session: tell the front instead of leaving it waiting for `done`.
-          this.onIssue?.("relay.session-stream.message", `unknown session ${session}`, session);
-          sendBack({ op: "session", event: "error", session, turn: frame.turn, message: `unknown session ${session}` });
-          break;
-        }
-        if (status.turning) {
-          this.onIssue?.("relay.session-stream.busy", `session ${session} is busy with a running turn`, session);
-          sendBack({
-            op: "session",
-            event: "error",
-            session,
-            turn: frame.turn,
-            message: `session ${session} is busy with a running turn`,
-          });
-          break;
-        }
-        const detach = this.host.attach(session, observer(session));
-        void this.host
-          .message(session, frame.text ?? "", frame.turn)
-          .catch((e) => this.onIssue?.("relay.turn", e instanceof Error ? e.message : String(e), session))
-          .finally(() => safe(() => detach()));
+        const start = () => {
+          const status = this.host.status(session);
+          if (!status) {
+            // Unknown or reaped session: tell the front instead of leaving it waiting for `done`.
+            this.onIssue?.("relay.session-stream.message", `unknown session ${session}`, session);
+            sendBack({
+              op: "session",
+              event: "error",
+              session,
+              turn: frame.turn,
+              message: `unknown session ${session}`,
+            });
+            return;
+          }
+          if (status.turning) {
+            const message = this.host.stopping(session)
+              ? `session ${session} is still stopping its previous turn`
+              : `session ${session} is busy with a running turn`;
+            this.onIssue?.("relay.session-stream.busy", message, session);
+            sendBack({ op: "session", event: "error", session, turn: frame.turn, message });
+            return;
+          }
+          void this.host
+            .message(session, frame.text ?? "", frame.turn, observer(session))
+            .catch((e) => this.onIssue?.("relay.turn", e instanceof Error ? e.message : String(e), session));
+        };
+        // A stopped turn stays `turning` until its runner unwinds. A message
+        // sent right behind the `abort` (steering) waits for that instead of
+        // being refused as busy.
+        const stopping = this.host.stopping(session);
+        if (stopping) void settleWithin(stopping, STOP_GRACE_MS).then(() => safe(start));
+        else start();
         break;
       }
+      case "abort":
+        this.host.abort(frame.session ?? "");
+        break;
       case "subscribe":
         try {
           this.host.attach(frame.session ?? "", observer(frame.session ?? ""));
@@ -409,6 +451,15 @@ export class SessionStreamClient {
 
   sendMessage(session: string, text: string, turn?: string): void {
     this.send({ op: "session", action: "message", session, text, turn });
+  }
+
+  /**
+   * Stop the session's running turn on the node. Aborting the front's local
+   * Agent never reaches a turn the node is running. A node that predates
+   * this frame ignores it.
+   */
+  abort(session: string): void {
+    this.send({ op: "session", action: "abort", session });
   }
 
   subscribe(session: string): void {

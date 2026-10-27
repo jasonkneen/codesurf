@@ -23,6 +23,7 @@ export type MiniChatWindowProps = {
   isConnected: boolean
   isAutoConnected: boolean
   onChatModePreferenceChange?: (providerId: string, modeId: string) => void
+  onOpenWorkspace: () => void | Promise<void>
 }
 
 export function MiniChatWindow({
@@ -38,6 +39,7 @@ export function MiniChatWindow({
   isConnected,
   isAutoConnected,
   onChatModePreferenceChange,
+  onOpenWorkspace,
 }: MiniChatWindowProps): JSX.Element {
   useEffect(() => {
     void window.electron?.window?.setTitle?.(miniChatOptions.title)
@@ -140,6 +142,7 @@ export function MiniChatWindow({
                     reloadToken={chatReloadToken}
                     settings={settings}
                     onChatModePreferenceChange={onChatModePreferenceChange}
+                    onOpenWorkspace={onOpenWorkspace}
                     isConnected={isConnected}
                     isAutoConnected={isAutoConnected}
                     connectedPeers={miniChatPeers}

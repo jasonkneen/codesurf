@@ -1450,7 +1450,7 @@ function App(): JSX.Element {
     onFocusLinkedTile: handleFocusKanbanLinkedTile,
     onChatModePreferenceChange: rememberChatProviderMode,
     onOpenFile: handleOpenFile,
-    onOpenWorkspace: () => { void handleOpenFolder() },
+    onOpenWorkspace: handleOpenFolder,
     onAddTile: addTile,
     onExtensionActionsChanged: handleExtensionActionsChanged,
     getExtensionActions,
@@ -1602,6 +1602,7 @@ function App(): JSX.Element {
         isConnected={miniChatTile ? negotiatedDiscoveryState.connectedTileIds.has(miniChatTile.id) : false}
         isAutoConnected={Boolean(miniChatTile?.autoAgentMode && miniChatTile && negotiatedDiscoveryState.connectedTileIds.has(miniChatTile.id))}
         onChatModePreferenceChange={rememberChatProviderMode}
+        onOpenWorkspace={handleOpenFolder}
       />
     )
   }

@@ -1,13 +1,11 @@
 import { useCallback, useEffect, useMemo } from 'react'
 import { basename } from '../utils/dnd'
-import type { ChatMessage } from '../../../shared/chat-types'
 import type { useChatGitState } from './useChatGitState'
 
 type GitState = ReturnType<typeof useChatGitState>
 
 export function useChatTileGitMenus(options: {
   workspaceDir: string
-  workspaceId: string
   executionTarget: 'local' | 'cloud'
   executionDisplayDetail: string
   gitStatus: GitState['gitStatus']
@@ -20,11 +18,10 @@ export function useChatTileGitMenus(options: {
   remoteHosts: Array<{ id: string }>
   cloudHostId: string | null
   setCloudHostId: (value: string | null) => void
-  setMessages: React.Dispatch<React.SetStateAction<ChatMessage[]>>
+  onOpenWorkspace: () => void | Promise<void>
 }) {
   const {
     workspaceDir,
-    workspaceId,
     executionTarget,
     executionDisplayDetail,
     gitStatus,
@@ -36,7 +33,7 @@ export function useChatTileGitMenus(options: {
     remoteHosts,
     cloudHostId,
     setCloudHostId,
-    setMessages,
+    onOpenWorkspace,
   } = options
 
   const isGitRepo = gitStatus.isRepo || gitBranches.isRepo
@@ -69,30 +66,11 @@ export function useChatTileGitMenus(options: {
 
   const handleProjectFolderSwitch = useCallback(async () => {
     try {
-      const newPath = await window.electron?.workspace?.openFolder?.()
-      if (!newPath) return
-      const previousPath = normalizedRepoRoot || ''
-      if (newPath === previousPath) return
-      if (workspaceId) {
-        try {
-          await window.electron?.workspace?.addProjectFolder?.(workspaceId, newPath)
-        } catch (err) {
-          console.warn('[ChatTile] addProjectFolder failed:', err)
-        }
-      }
-      const switchMsg: ChatMessage = {
-        id: `msg-folder-switch-${Date.now()}`,
-        role: 'assistant',
-        content: previousPath
-          ? `Switched project folder from \`${previousPath}\` to \`${newPath}\`.`
-          : `Switched project folder to \`${newPath}\`.`,
-        timestamp: Date.now(),
-      }
-      setMessages(prev => [...prev, switchMsg])
-    } catch (err) {
-      console.warn('[ChatTile] folder switch failed:', err)
+      await onOpenWorkspace()
+    } catch (error) {
+      window.alert(error instanceof Error ? error.message : String(error))
     }
-  }, [normalizedRepoRoot, workspaceId, setMessages])
+  }, [onOpenWorkspace])
 
   const filteredBranches = useMemo(() => {
     const query = branchFilter.trim().toLowerCase()

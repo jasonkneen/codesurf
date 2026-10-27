@@ -231,6 +231,33 @@ describe("daemon model catalog parser", () => {
       },
     ]);
   });
+
+  it("fills Claude context windows from the Anthropic catalog when the daemon omits them", () => {
+    const models = parseCodesurfModelCatalog({
+      providers: [
+        {
+          id: "claude",
+          models: [
+            { id: "claude-opus-5-5" },
+            { id: "claude-sonnet-5-5" },
+            { id: "claude-haiku-5-5" },
+            { id: "claude-haiku-4-5-20251001" },
+            { id: "claude-opus-5-5", contextWindow: 123 },
+          ],
+        },
+        { id: "opencode", models: [{ id: "anthropic/claude-sonnet-5-5" }, { id: "openai/o4-mini" }] },
+      ],
+    });
+
+    expect(models.map((m) => [m.downstream, m.model, m.contextWindow])).toEqual([
+      ["claude", "claude-opus-5-5", 1_000_000],
+      ["claude", "claude-sonnet-5-5", 1_000_000],
+      ["claude", "claude-haiku-5-5", 1_000_000],
+      ["claude", "claude-haiku-4-5-20251001", 200_000],
+      ["opencode", "anthropic/claude-sonnet-5-5", 1_000_000],
+      ["opencode", "openai/o4-mini", undefined],
+    ]);
+  });
 });
 
 describe("home resolution", () => {

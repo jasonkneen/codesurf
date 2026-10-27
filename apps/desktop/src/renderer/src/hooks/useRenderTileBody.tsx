@@ -83,7 +83,7 @@ export type UseRenderTileBodyParams = {
   onFocusLinkedTile: (linkedId: string) => void
   onChatModePreferenceChange: (providerId: string, modeId: string) => void
   onOpenFile: (filePath: string, options?: { sourceTileId?: string }) => void
-  onOpenWorkspace: () => void
+  onOpenWorkspace: () => void | Promise<void>
   onAddTile: (
     type: TileType,
     filePath?: string,
@@ -248,6 +248,7 @@ export function useRenderTileBody(params: UseRenderTileBodyParams): (
             reloadToken={chatReloadTokensRef.current[tile.id] ?? 0}
             settings={settings}
             onChatModePreferenceChange={onChatModePreferenceChange}
+            onOpenWorkspace={onOpenWorkspace}
             isConnected={connectedTileIdsRef.current.has(tile.id)}
             isAutoConnected={tile.autoAgentMode && connectedTileIdsRef.current.has(tile.id)}
             connectedPeers={chatPeers}

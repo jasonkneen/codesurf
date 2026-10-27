@@ -20,6 +20,7 @@ import type {
   ProviderTurnInput,
   ProviderUsageSnapshot,
 } from "@codesurf/plugin-api";
+import { anthropicContextWindow } from "../builtin/anthropic-models-catalog";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
 // Pure config discovery + parsing lives in ./hermes-config (extracted
 // 2026-06-22). This module keeps the HTTP session / credential / registry
@@ -84,7 +85,7 @@ function toRegisteredModels(models: HermesModelSpec[] = FALLBACK_MODELS): ModelS
     ]
       .filter(Boolean)
       .join(" "),
-    contextWindow: model.contextWindow,
+    contextWindow: model.contextWindow ?? anthropicContextWindow(model.id),
     capabilities: model.capabilities,
   }));
 }

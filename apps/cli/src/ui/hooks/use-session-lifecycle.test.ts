@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { Agent } from "../../agent/agent";
 
 // Render-free harness (see use-plan-actions.test.ts): useCallback is identity
@@ -33,7 +33,10 @@ const h = vi.hoisted(() => {
   };
   const coordinator = { reset: vi.fn(() => events.push("coordinator.reset")) };
   const stoppedTelegramTurnKeysRef = { current: new Set<string>() };
-  return { events, conv, coordinator, stoppedTelegramTurnKeysRef };
+  const serverMode = {
+    remoteFront: null as null | { client: { abort: (session: string) => void }; sessionId: string; url: string },
+  };
+  return { events, conv, coordinator, stoppedTelegramTurnKeysRef, serverMode };
 });
 
 vi.mock("../context/conversation-state-context.js", () => ({ useConversationState: () => h.conv }));
@@ -68,6 +71,7 @@ vi.mock("../context/running-agents-context.js", () => ({
   }),
 }));
 vi.mock("../../core/plugins/builtin/file-tools-approval", () => ({ resetEditApprovalSession: vi.fn() }));
+vi.mock("../context/server-mode-context.js", () => ({ useServerMode: () => h.serverMode }));
 
 import { useSessionLifecycle } from "./use-session-lifecycle";
 
@@ -153,5 +157,42 @@ describe("useSessionLifecycle Ctrl+X on a telegram turn", () => {
 
     expect(h.stoppedTelegramTurnKeysRef.current.has("chat1:msg7")).toBe(true);
     expect(h.conv.isProcessingRef.current).toBe(false);
+  });
+});
+
+// Attached to a server, the turn runs on the node: aborting the local Agent
+// alone left it running, so the next message was refused as busy.
+describe("useSessionLifecycle on a server turn", () => {
+  beforeEach(() => {
+    h.events.length = 0;
+    h.conv.isProcessingRef.current = true;
+    h.conv.activeTurnRef.current = null;
+    h.serverMode.remoteFront = {
+      client: { abort: (session) => h.events.push(`node.abort:${session}`) },
+      sessionId: "attach-session",
+      url: "ws://node",
+    };
+  });
+  afterEach(() => {
+    h.serverMode.remoteFront = null;
+  });
+
+  it("Ctrl+X stops the turn on the node, not just the local agent", () => {
+    const agent = makeAgent();
+    const { abortActiveRun } = useSessionLifecycle(agent as unknown as Agent, vi.fn());
+
+    expect(abortActiveRun()).toBe(true);
+
+    expect(h.events).toContain("node.abort:s2");
+  });
+
+  it("/clear stops the old session's turn on the node before swapping", () => {
+    const agent = makeAgent();
+    const { resetToNewSession } = useSessionLifecycle(agent as unknown as Agent, vi.fn());
+
+    resetToNewSession();
+
+    expect(h.events).toContain("node.abort:s2");
+    expect(h.events.indexOf("node.abort:s2")).toBeLessThan(h.events.indexOf("agent.startNewSession"));
   });
 });

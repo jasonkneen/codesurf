@@ -1,8 +1,10 @@
 import type { RefObject } from "react";
 import { useCallback } from "react";
 import type { Agent } from "../../agent/agent";
+import { abortRemoteTurn } from "../../server/attach";
 import { useConversationState } from "../context/conversation-state-context.js";
 import { useQueue } from "../context/queue-context.js";
+import { useServerMode } from "../context/server-mode-context.js";
 import { useTelegram } from "../context/telegram-context.js";
 import { markTelegramTurnStopped } from "../telegram-turn-ui.js";
 import type { QueuedSubmission } from "./queue-submissions.js";
@@ -20,6 +22,7 @@ export function useQueueActions({ agent, clearLiveTurnUi, processMessageRef }: U
   const { isProcessingRef, interruptedRunIdRef, activeRunIdRef, cancelledRunIdsRef, activeTurnRef } =
     useConversationState();
   const { coordinatorRef, stoppedTelegramTurnKeysRef } = useTelegram();
+  const { remoteFront } = useServerMode();
 
   const dispatchQueueAt = useCallback(
     (targetId?: string): boolean => {
@@ -50,6 +53,9 @@ export function useQueueActions({ agent, clearLiveTurnUi, processMessageRef }: U
       activeTurnRef.current = null;
       clearLiveTurnUi();
       activeAgent.abort();
+      // On a server the replaced turn runs on the node; the node runs the
+      // steer once that turn has stopped instead of refusing it as busy.
+      abortRemoteTurn(remoteFront, agent.getSessionId());
       // Same as Ctrl+X: drop the coordinator queue so the replaced turn — or
       // one wedged on it and ignoring abort — can't hold the new turn hostage.
       coordinatorRef.current.reset();
@@ -78,6 +84,7 @@ export function useQueueActions({ agent, clearLiveTurnUi, processMessageRef }: U
       coordinatorRef,
       stoppedTelegramTurnKeysRef,
       processMessageRef.current,
+      remoteFront,
     ],
   );
   const dispatchQueueHead = useCallback((): boolean => dispatchQueueAt(), [dispatchQueueAt]);

@@ -31,6 +31,7 @@ interface Props {
   reloadToken?: number
   settings?: AppSettings
   onChatModePreferenceChange?: (providerId: string, modeId: string) => void
+  onOpenWorkspace: () => void | Promise<void>
   isConnected?: boolean
   isAutoConnected?: boolean
   connectedPeers?: DiscoveryPeer[]

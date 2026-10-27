@@ -1387,16 +1387,6 @@ function buildContexClaudeMdContent(): string {
 You are running inside CodeSurf, an infinite canvas workspace where multiple AI agents share agent rooms.
 Your block ID is the environment variable \`CARD_ID\`. Wires on the canvas put you in a room with other blocks.
 
-## MANDATORY: First Action on Every Session
-
-\`\`\`
-1. mcp__codesurf__room_status(tile_id=$CARD_ID)
-2. mcp__codesurf__peer_set_state(tile_id=$CARD_ID, tile_type="terminal", status="idle", task="Ready")
-3. mcp__codesurf__room_consume(tile_id=$CARD_ID)   # if unconsumed > 0
-\`\`\`
-
-Also read \`~/.codesurf/workspaces/$CODESURF_WORKSPACE_ID/agent-rooms/inboxes/$CARD_ID/ROOM.md\` for a live inbox dump.
-
 ## Agent Room Protocol
 
 **When you receive a task:**

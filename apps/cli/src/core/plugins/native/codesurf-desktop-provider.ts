@@ -47,6 +47,7 @@ import {
 } from "../../../daemon/session-repair";
 import { saveLastCardId } from "../../../storage/index";
 import { workspaceRoot } from "../../../utils/workspace-scope";
+import { anthropicContextWindow } from "../builtin/anthropic-models-catalog";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
 import { stringifyContent } from "../builtin/openai-chat-utils";
 import { getTileSessionContext, type TileSessionContext } from "../tile-state-integration";
@@ -152,9 +153,25 @@ const MODELS: CodesurfModelSpec[] = [
   },
   {
     downstream: "claude",
+    model: "claude-sonnet-5-5",
+    label: "Sonnet 5.5 (Codesurf)",
+    description: "Routed through the shared Codesurf daemon's Claude Agent SDK adapter.",
+    contextWindow: 1_000_000,
+    capabilities: { tools: true, reasoning: true, images: true },
+  },
+  {
+    downstream: "claude",
     model: "claude-sonnet-5",
     label: "Sonnet 5 (Codesurf)",
     description: "Routed through the shared Codesurf daemon's Claude Agent SDK adapter.",
+    contextWindow: 1_000_000,
+    capabilities: { tools: true, reasoning: true, images: true },
+  },
+  {
+    downstream: "claude",
+    model: "claude-haiku-5-5",
+    label: "Haiku 5.5 (Codesurf)",
+    description: "Fast Claude model via the shared Codesurf daemon.",
     contextWindow: 1_000_000,
     capabilities: { tools: true, reasoning: true, images: true },
   },
@@ -227,10 +244,18 @@ const MODELS: CodesurfModelSpec[] = [
   // OpenCode (via @opencode-ai/sdk in the shared daemon).
   {
     downstream: "opencode",
+    model: "anthropic/claude-sonnet-5-5",
+    label: "Sonnet 5.5 (Codesurf via OpenCode)",
+    description: "OpenCode SDK in the shared Codesurf daemon.",
+    contextWindow: 1_000_000,
+    capabilities: { tools: true, reasoning: true },
+  },
+  {
+    downstream: "opencode",
     model: "anthropic/claude-sonnet-5",
     label: "Sonnet 5 (Codesurf via OpenCode)",
     description: "OpenCode SDK in the shared Codesurf daemon.",
-    contextWindow: 200_000,
+    contextWindow: 1_000_000,
     capabilities: { tools: true, reasoning: true },
   },
   {
@@ -238,7 +263,7 @@ const MODELS: CodesurfModelSpec[] = [
     model: "anthropic/claude-sonnet-4-6",
     label: "Sonnet 4.6 (Codesurf via OpenCode)",
     description: "OpenCode SDK in the shared Codesurf daemon.",
-    contextWindow: 200_000,
+    contextWindow: 1_000_000,
     capabilities: { tools: true, reasoning: true },
   },
   {
@@ -246,7 +271,7 @@ const MODELS: CodesurfModelSpec[] = [
     model: "anthropic/claude-opus-4-6",
     label: "Opus 4.6 (Codesurf via OpenCode)",
     description: "OpenCode SDK in the shared Codesurf daemon.",
-    contextWindow: 200_000,
+    contextWindow: 1_000_000,
     capabilities: { tools: true, reasoning: true },
   },
   {
@@ -346,7 +371,9 @@ function parseCatalogModel(
     model,
     label,
     description,
-    contextWindow: numberField(record, ["contextWindow", "context_window", "contextLength", "context"]),
+    contextWindow:
+      numberField(record, ["contextWindow", "context_window", "contextLength", "context"]) ??
+      anthropicContextWindow(model),
     maxOutputTokens: numberField(record, ["maxOutputTokens", "max_output_tokens"]),
     capabilities: parseCapabilities(record.capabilities),
   };

@@ -944,7 +944,9 @@ export function useSidebarController({
   }, [generatingSessionTitleIds, loadWorkspaceSessions, onOpenFile, onOpenSessionInApp, onOpenSessionInChat, openSessionMiniFromSidebar, setSessionArchived, workspaceById])
 
   const handleOpenProjectFromSidebar = useCallback(() => {
-    onOpenFolder()
+    void Promise.resolve(onOpenFolder()).catch(error => {
+      window.alert(error instanceof Error ? error.message : String(error))
+    })
     setThreadMenuOpen(false)
   }, [onOpenFolder])
 

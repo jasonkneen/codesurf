@@ -74,6 +74,8 @@ interface SessionState {
   lastActivityMs: number;
   /** Aborts the running turn (set while turning). */
   controller?: AbortController;
+  /** Settles when the running turn has ended (set while turning). */
+  ended?: Promise<void>;
 }
 
 export class NodeSessionHost {
@@ -131,8 +133,10 @@ export class NodeSessionHost {
    * Begin a turn on a session. The host OWNS the turn: it proceeds even if every
    * observer detaches. Resolves when the turn ends. One turn at a time per
    * session: a message while a turn is running is rejected, not interleaved.
+   * `turnObserver` watches this turn only: it is attached as the turn starts and
+   * detached as it ends, before the session can take its next turn.
    */
-  async message(sessionId: string, text: string, turnId?: string): Promise<void> {
+  async message(sessionId: string, text: string, turnId?: string, turnObserver?: SessionObserver): Promise<void> {
     const session = this.require(sessionId);
     if (session.turning) throw new Error(`session ${sessionId} is busy with a running turn`);
     session.turnId = turnId;
@@ -140,6 +144,11 @@ export class NodeSessionHost {
     const controller = new AbortController();
     session.controller = controller;
     session.turning = true;
+    let markEnded!: () => void;
+    session.ended = new Promise<void>((resolve) => {
+      markEnded = resolve;
+    });
+    if (turnObserver) session.observers.add(turnObserver);
     try {
       for await (const chunk of this.runner(sessionId, text, controller.signal, session.workspace)) {
         session.lastActivityMs = Date.now();
@@ -159,8 +168,28 @@ export class NodeSessionHost {
     } finally {
       session.turning = false;
       session.controller = undefined;
+      session.ended = undefined;
       for (const observer of [...session.observers]) observer.onEnd();
+      if (turnObserver) session.observers.delete(turnObserver);
+      markEnded();
     }
+  }
+
+  /**
+   * Stop the session's running turn but keep the session (unlike `destroy`).
+   * The runner still has to unwind, so the session stays `turning` for a
+   * moment; `stopping` covers that window. Returns false when nothing runs.
+   */
+  abort(sessionId: string): boolean {
+    const controller = this.sessions.get(sessionId)?.controller;
+    controller?.abort();
+    return controller !== undefined;
+  }
+
+  /** While a stopped turn is still unwinding: settles when it has ended. Otherwise null. */
+  stopping(sessionId: string): Promise<void> | null {
+    const session = this.sessions.get(sessionId);
+    return session?.turning && session.controller?.signal.aborted ? (session.ended ?? null) : null;
   }
 
   /** Detach one observer without cancelling any in-flight turn. */

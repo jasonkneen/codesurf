@@ -185,6 +185,17 @@ describe("resolveModelRuntimeViaKernel", () => {
     expect(runtime.modelId).toBe("some-unknown-model");
   });
 
+  it("routes an unregistered codesurf catalog id to the daemon, not xAI", async () => {
+    await bootstrapPlugins(await loadBuiltinPlugins());
+    await enablePlugin("builtin.provider-codesurf-desktop");
+    const runtime = await resolveModelRuntimeViaKernel("codesurf:codex/gpt-6.1-sol", "session-codesurf-live");
+    expect(runtime.modelId).toBe("codesurf:codex/gpt-6.1-sol");
+    expect(runtime.adapterId).toBe("codesurf.daemon");
+    expect(runtime.providerId).toBe("codesurf");
+    expect(runtime.session?.sendTurn).toEqual(expect.any(Function));
+    expect(runtime.session?.getModel).toBeUndefined();
+  });
+
   it("xAI session getModel dispatches chat vs responses based on responsesOnly metadata", async () => {
     await bootstrapPlugins(await loadBuiltinPlugins());
     const runtime = await resolveModelRuntimeViaKernel("grok-code-fast-1", "session-chat");

@@ -420,6 +420,21 @@ export async function resolveModelRuntimeViaKernel(
   const matches = snapshot.models.filter((m) => m.id === modelId || m.aliases?.includes(modelId));
 
   if (matches.length === 0) {
+    const codesurf = syntheticCodesurfModel(modelId);
+    if (codesurf?.adapterId) {
+      const provider = getModelProviderById(codesurf.adapterId);
+      if (!provider) {
+        throw new Error(
+          `Codesurf daemon provider is not loaded, so "${modelId}" cannot run. Enable it in /extensions.`,
+        );
+      }
+      const status = await checkProviderAuth(codesurf, provider, conversationId);
+      if (!status.ok) {
+        throw new Error(status.reason ?? `Codesurf daemon is not available for "${modelId}".`);
+      }
+      return connectRuntime(codesurf, provider, conversationId);
+    }
+
     // Unknown to kernel — route through the xAI session anyway. The Agent's
     // pre-3b behavior was to treat any unknown id as xAI-by-default; preserve
     // that for now (alias support in /models add will land in 3c).
@@ -514,6 +529,29 @@ export async function resolveModelRuntimeViaKernel(
 
   const { model: registered, provider } = okCandidates[0];
   return connectRuntime(registered, provider, conversationId);
+}
+
+const CODESURF_DOWNSTREAMS = new Set(["claude", "codex", "opencode", "hermes"]);
+
+/**
+ * A `codesurf:<downstream>/<model>` id the registry does not know yet.
+ * Null for anything that is not that shape, so bare unknown ids still take
+ * the legacy xAI fallback.
+ */
+function syntheticCodesurfModel(modelId: string): RegisteredModel | null {
+  if (!modelId.startsWith("codesurf:")) return null;
+  const rest = modelId.slice("codesurf:".length);
+  const slash = rest.indexOf("/");
+  if (slash <= 0 || slash === rest.length - 1) return null;
+  const downstream = rest.slice(0, slash);
+  if (!CODESURF_DOWNSTREAMS.has(downstream)) return null;
+  return {
+    pluginId: "builtin.provider-codesurf-desktop",
+    id: modelId,
+    providerId: "codesurf",
+    adapterId: "codesurf.daemon",
+    label: rest.slice(slash + 1),
+  };
 }
 
 /** Convenience: does this runtime require the owning-adapter sendTurn path? */

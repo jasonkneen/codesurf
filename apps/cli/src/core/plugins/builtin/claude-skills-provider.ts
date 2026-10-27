@@ -128,20 +128,30 @@ const SKILLS_OVERLAY: Record<string, { idSuffix: string; labelPrefix: string; al
     aliases: [],
   },
   "claude-opus-4-6": { idSuffix: "-claude-skills", labelPrefix: "Claude Opus 4.6", aliases: [] },
+  "claude-sonnet-5-5": {
+    idSuffix: "-claude-skills",
+    labelPrefix: "Claude Sonnet 5.5",
+    aliases: ["claude-skills", "claude-skills-sonnet"],
+  },
   "claude-sonnet-5": {
     idSuffix: "-claude-skills",
     labelPrefix: "Claude Sonnet 5",
-    aliases: ["claude-skills", "claude-skills-sonnet", "claude-skills"],
+    aliases: ["claude-skills-sonnet-5"],
   },
   "claude-sonnet-4-6": {
     idSuffix: "-claude-skills",
     labelPrefix: "Claude Sonnet 4.6",
     aliases: [],
   },
+  "claude-haiku-5-5": {
+    idSuffix: "-claude-skills",
+    labelPrefix: "Claude Haiku 5.5",
+    aliases: ["claude-skills-haiku"],
+  },
   "claude-haiku-4-5": {
     idSuffix: "-claude-skills",
     labelPrefix: "Claude Haiku 4.5",
-    aliases: ["claude-skills-haiku"],
+    aliases: [],
   },
 };
 

@@ -79,4 +79,33 @@ describe("node session host (client-death resilience)", () => {
     expect(host.status(id)?.turning).toBe(false);
     expect(host.destroy(id)).toBe(true);
   });
+
+  it("abort stops the running turn but keeps the session", async () => {
+    const host = new NodeSessionHost(async function* (_id, _msg, signal) {
+      yield { type: "content", content: "a" } as StreamChunk;
+      await new Promise<void>((resolve) => {
+        if (signal.aborted) return resolve();
+        signal.addEventListener("abort", () => resolve(), { once: true });
+      });
+    });
+    const id = host.createSession();
+    expect(host.abort(id)).toBe(false); // nothing running
+
+    const running = host.message(id, "go");
+    expect(host.abort(id)).toBe(true);
+    expect(host.stopping(id)).not.toBeNull();
+    await running;
+
+    expect(host.status(id)?.turning).toBe(false);
+    expect(host.stopping(id)).toBeNull();
+  });
+
+  it("detaches a turn's own observer when that turn ends", async () => {
+    const host = new NodeSessionHost(delayedRunner());
+    const id = host.createSession();
+    const { observer, ended } = makeObserver();
+    await host.message(id, "go", "t1", observer);
+    expect(ended()).toBe(true);
+    expect(host.status(id)?.observers).toBe(0);
+  });
 });

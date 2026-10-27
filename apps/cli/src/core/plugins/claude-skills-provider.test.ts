@@ -69,12 +69,14 @@ describe("claude-skills provider", () => {
       "claude-fable-5-1-claude-skills",
       "claude-fable-5-claude-skills",
       "claude-haiku-4-5-claude-skills",
+      "claude-haiku-5-5-claude-skills",
       "claude-opus-4-6-claude-skills",
       "claude-opus-4-7-claude-skills",
       "claude-opus-4-8-claude-skills",
       "claude-opus-5-5-claude-skills",
       "claude-opus-5-claude-skills",
       "claude-sonnet-4-6-claude-skills",
+      "claude-sonnet-5-5-claude-skills",
       "claude-sonnet-5-claude-skills",
     ]);
   });
@@ -174,7 +176,7 @@ describe("claude-skills provider", () => {
 
     expect(forwardedModelId).toBe("claude-haiku-4-5");
     expect(emittedToolName).toBe("bash");
-    expect(toSdkModelIdForClaudeSkills("claude-skills")).toBe("claude-sonnet-5");
+    expect(toSdkModelIdForClaudeSkills("claude-skills")).toBe("claude-sonnet-5-5");
     expect(toCodesurfToolNameForClaudeSkills("execute")).toBe("bash");
   });
 

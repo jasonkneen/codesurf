@@ -75,11 +75,23 @@ describe("builtin.provider-anthropic", () => {
         "claude-fable-5",
         "claude-opus-4-7",
         "claude-opus-4-6",
+        "claude-sonnet-5-5",
         "claude-sonnet-5",
         "claude-sonnet-4-6",
+        "claude-haiku-5-5",
         "claude-haiku-4-5",
       ]),
     );
+  });
+
+  it("registers every current Claude model with its real context window", async () => {
+    await bootstrapPlugins(await loadBuiltinPlugins());
+    await enablePlugin("builtin.provider-anthropic");
+    const windowOf = (id: string) => getHostServices().models.get(id)?.contextWindow;
+    expect(windowOf("claude-opus-5-5")).toBe(1_000_000);
+    expect(windowOf("claude-sonnet-5-5")).toBe(1_000_000);
+    expect(windowOf("claude-haiku-5-5")).toBe(1_000_000);
+    expect(windowOf("claude-haiku-4-5")).toBe(200_000);
   });
 
   it("reports credentials missing when ANTHROPIC_API_KEY is unset", async () => {
@@ -120,10 +132,12 @@ describe("builtin.provider-anthropic", () => {
     await bootstrapPlugins(await loadBuiltinPlugins());
     await enablePlugin("builtin.provider-anthropic");
     const sonnet = getHostServices().models.get("sonnet");
-    expect(sonnet?.id).toBe("claude-sonnet-5");
-    // Bare family aliases track the NEWEST release, so `opus` follows Opus 5.
+    expect(sonnet?.id).toBe("claude-sonnet-5-5");
+    // Bare family aliases track the NEWEST release, so `opus` follows Opus 5.5.
     const opus = getHostServices().models.get("opus");
     expect(opus?.id).toBe("claude-opus-5-5");
+    const haiku = getHostServices().models.get("haiku");
+    expect(haiku?.id).toBe("claude-haiku-5-5");
     const fable = getHostServices().models.get("fable");
     expect(fable?.id).toBe("claude-fable-5-1");
   });

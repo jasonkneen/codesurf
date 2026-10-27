@@ -291,13 +291,21 @@ const AGENT_LABELS: Record<string, { label: string; description: string }> = {
     label: "Claude Opus 4.6 (Agent SDK)",
     description: "Opus 4.6. 1M context. Via @anthropic-ai/claude-agent-sdk.",
   },
+  "claude-sonnet-5-5": {
+    label: "Claude Sonnet 5.5 (Agent SDK)",
+    description: "Latest balanced flagship. 1M context. Via @anthropic-ai/claude-agent-sdk.",
+  },
   "claude-sonnet-5": {
     label: "Claude Sonnet 5 (Agent SDK)",
-    description: "Latest balanced flagship. 1M context. Via @anthropic-ai/claude-agent-sdk.",
+    description: "Sonnet 5. 1M context. Via @anthropic-ai/claude-agent-sdk.",
   },
   "claude-sonnet-4-6": {
     label: "Claude Sonnet 4.6 (Agent SDK)",
     description: "Balanced flagship. 1M context. Via @anthropic-ai/claude-agent-sdk.",
+  },
+  "claude-haiku-5-5": {
+    label: "Claude Haiku 5.5 (Agent SDK)",
+    description: "Fastest. 1M context. Via @anthropic-ai/claude-agent-sdk.",
   },
   "claude-haiku-4-5": {
     label: "Claude Haiku 4.5 (Agent SDK)",

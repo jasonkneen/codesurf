@@ -9,6 +9,7 @@ import type { KeyEvent } from "@opentui/core";
 import { useCallback } from "react";
 import type { Agent } from "../../agent/agent";
 import { resetEditApprovalSession } from "../../core/plugins/builtin/file-tools-approval";
+import { abortRemoteTurn } from "../../server/attach";
 import { useApproval } from "../context/approval-context.js";
 import { useComposer } from "../context/composer-context.js";
 import { useConversationState } from "../context/conversation-state-context.js";
@@ -16,6 +17,7 @@ import { useModalVisibility } from "../context/modal-context.js";
 import { useModel } from "../context/model-context.js";
 import { useQueue } from "../context/queue-context.js";
 import { useRunningAgents } from "../context/running-agents-context.js";
+import { useServerMode } from "../context/server-mode-context.js";
 import { useTelegram } from "../context/telegram-context.js";
 import { initialPlanQuestionsState } from "../plan";
 import { buildAssistantEntry, buildSystemEntry, markTelegramTurnStopped } from "../telegram-turn-ui";
@@ -46,6 +48,8 @@ export function useSessionLifecycle(agent: Agent, clearLiveTurnUi: () => void) {
   } = useConversationState();
 
   const { coordinatorRef, stoppedTelegramTurnKeysRef } = useTelegram();
+
+  const { remoteFront } = useServerMode();
 
   const { setPendingEditApproval } = useApproval();
 
@@ -96,6 +100,8 @@ export function useSessionLifecycle(agent: Agent, clearLiveTurnUi: () => void) {
         ),
       ]);
       activeAgent.abort();
+      // On a server the turn runs on the node, out of the local agent's reach.
+      abortRemoteTurn(remoteFront, agent.getSessionId());
       // Abort must be authoritative, not advisory. Previously this only called
       // agent.abort() and trusted the generator to unwind into finalizeActiveTurn
       // — the one place that released the processing latch. When the turn is
@@ -136,6 +142,7 @@ export function useSessionLifecycle(agent: Agent, clearLiveTurnUi: () => void) {
       stoppedTelegramTurnKeysRef,
       startTimeRef,
       setMessages,
+      remoteFront,
     ],
   );
 
@@ -153,11 +160,14 @@ export function useSessionLifecycle(agent: Agent, clearLiveTurnUi: () => void) {
     markTelegramTurnStopped(stoppedTelegramTurnKeysRef, activeTurnRef.current);
     activeTurnRef.current = null;
     activeAgent.abort();
+    // Before the swap: the node turn belongs to the session being left.
+    abortRemoteTurn(remoteFront, agent.getSessionId());
     coordinatorRef.current.reset();
     isProcessingRef.current = false;
     setIsProcessing(false);
   }, [
     agent,
+    remoteFront,
     activeTurnRef,
     activeRunIdRef,
     interruptedRunIdRef,

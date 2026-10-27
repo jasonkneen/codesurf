@@ -19,6 +19,7 @@ import { BashTool } from "../tools/bash";
 import type { StreamChunk } from "../types/index";
 import {
   getApiKey,
+  getCurrentModelSelection,
   getCurrentSandboxMode,
   getCurrentSandboxSettings,
   getUserSettingsPath,
@@ -149,7 +150,16 @@ export class NodeAgentHost {
       // The front (or another process) may have added turns since this agent
       // last ran; continue from the saved transcript, not a stale copy.
       const agent = hosted.agent;
-      runInWorkspace(hosted.scope, () => agent.reloadTranscript());
+      runInWorkspace(hosted.scope, () => {
+        agent.reloadTranscript();
+        // The attached front writes the picker choice into project settings.
+        // This agent was built once and never saw later switches, so every
+        // provider kept running as whichever model the session opened with.
+        const selection = getCurrentModelSelection();
+        if (agent.getModel() !== selection.model || agent.getModelAdapterId() !== selection.adapterId) {
+          agent.setModel(selection.model, selection.adapterId);
+        }
+      });
     }
     const apiKey = this.currentApiKey();
     if (apiKey && apiKey !== hosted.apiKey) {

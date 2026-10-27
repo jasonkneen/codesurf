@@ -23,6 +23,16 @@ export async function openRemoteFront(url: string, placement: SessionPlacement):
 }
 
 /**
+ * Stop the turn a front runs on its node session (the screen's session id,
+ * as use-turn-engine sends it). The front's local Agent never runs a server
+ * turn, so aborting only that left the node turn running and the next
+ * message was refused as busy. No-op when not attached to a server.
+ */
+export function abortRemoteTurn(front: RemoteFront | null | undefined, localSessionId: string | null): void {
+  if (front) front.client.abort(localSessionId ?? front.sessionId);
+}
+
+/**
  * Whether a front can send turns without a local API key: attached to a
  * server, the server owns the Agent and its credentials; serverless (including
  * after a failed attach) needs a model that can run here.

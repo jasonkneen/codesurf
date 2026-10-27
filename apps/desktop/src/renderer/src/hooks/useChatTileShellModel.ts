@@ -45,6 +45,7 @@ export interface UseChatTileShellModelOptions {
   connectedPeers: DiscoveryPeer[]
   isConnected?: boolean
   isAutoConnected?: boolean
+  onOpenWorkspace: () => void | Promise<void>
   // session core slice
   initialRuntimeStateRef: MutableRefObject<ChatTilePersistedState | null>
   initialMode: string
@@ -122,7 +123,7 @@ export interface UseChatTileShellModelOptions {
 export function useChatTileShellModel(opts: UseChatTileShellModelOptions) {
   const {
     tileId, workspaceId, workspaceDir, reloadToken, settings, connectedPeers,
-    isConnected, isAutoConnected,
+    isConnected, isAutoConnected, onOpenWorkspace,
     initialRuntimeStateRef, initialMode,
     messages, setMessages, input, setInput, isStreaming, setIsStreaming,
     executionTarget, setExecutionTarget, cloudHostId, setCloudHostId,
@@ -299,13 +300,13 @@ export function useChatTileShellModel(opts: UseChatTileShellModelOptions) {
   const contextUsage = useChatTileContextUsage({ provider, model, messages, input })
   const locationLabel = execution.executionDisplayLabel
   const gitMenus = useChatTileGitMenus({
-    workspaceDir, workspaceId, executionTarget,
+    workspaceDir, executionTarget,
     executionTargetCloud: executionTarget === 'cloud',
     executionDisplayDetail: execution.executionDisplayDetail,
     gitStatus, gitBranches, refreshGitState,
     branchFilter: menus.branchFilter, setBranchFilter: menus.setBranchFilter,
     setShowBranchMenu: menus.setShowBranchMenu,
-    remoteHosts: execution.remoteHosts, cloudHostId, setCloudHostId, setMessages,
+    remoteHosts: execution.remoteHosts, cloudHostId, setCloudHostId, onOpenWorkspace,
   })
 
   useEffect(() => {

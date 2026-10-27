@@ -34,8 +34,10 @@ const LABELS: Record<string, { label: string; description: string }> = {
   "claude-opus-4-8": { label: "Claude Opus 4.8", description: "Opus 4.8. 1M context." },
   "claude-opus-4-7": { label: "Claude Opus 4.7", description: "Opus 4.7. 1M context." },
   "claude-opus-4-6": { label: "Claude Opus 4.6", description: "Opus 4.6. 1M context." },
-  "claude-sonnet-5": { label: "Claude Sonnet 5", description: "Latest balanced flagship. 1M context." },
+  "claude-sonnet-5-5": { label: "Claude Sonnet 5.5", description: "Latest balanced flagship. 1M context." },
+  "claude-sonnet-5": { label: "Claude Sonnet 5", description: "Sonnet 5. 1M context." },
   "claude-sonnet-4-6": { label: "Claude Sonnet 4.6", description: "Balanced flagship. 1M context." },
+  "claude-haiku-5-5": { label: "Claude Haiku 5.5", description: "Fastest, budget-friendly. 1M context." },
   "claude-haiku-4-5": { label: "Claude Haiku 4.5", description: "Fast, budget-friendly. 200K context." },
 };
 

@@ -45,6 +45,7 @@ interface Props {
   reloadToken?: number
   settings?: AppSettings
   onChatModePreferenceChange?: (providerId: string, modeId: string) => void
+  onOpenWorkspace: () => void | Promise<void>
   isConnected?: boolean
   isAutoConnected?: boolean
   connectedPeers?: DiscoveryPeer[]
@@ -59,7 +60,7 @@ export {
 
 // --- Component -------------------------------------------------------------------
 
-export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, width, height, reloadToken = 0, settings, onChatModePreferenceChange, isConnected, isAutoConnected, connectedPeers = [] }: Props): JSX.Element {
+export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, width, height, reloadToken = 0, settings, onChatModePreferenceChange, onOpenWorkspace, isConnected, isAutoConnected, connectedPeers = [] }: Props): JSX.Element {
   const {
     theme,
     fontSans,
@@ -123,6 +124,7 @@ export function ChatTile({ tileId, workspaceId, workspaceDir: _workspaceDir, wid
     workspaceDir: _workspaceDir,
     reloadToken,
     settings,
+    onOpenWorkspace,
     connectedPeers,
     isConnected,
     isAutoConnected,

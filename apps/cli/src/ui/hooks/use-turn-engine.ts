@@ -196,6 +196,9 @@ export function useTurnEngine(agent: Agent) {
                 cwd: process.cwd(),
               })
             : null;
+          // Stopped during that round trip: the node already got the abort,
+          // so sending now would start the turn the user just stopped.
+          if (isStale()) return;
           const turnGenerator = remoteFront
             ? createRemoteSessionTurn(remoteFront.client, remoteSessionId!, isContinuation ? "" : preparedText.trim())
             : isContinuation
