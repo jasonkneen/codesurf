@@ -26,7 +26,7 @@ describe("gateway ACP surface", () => {
 
   async function initSessionId(): Promise<{ sessionId: string; presentation?: string }> {
     const message = await client.initSession({});
-    if (message.type !== "session/init/success") throw new Error("init failed: " + message.type);
+    if (message.type !== "session/init/success") throw new Error(`init failed: ${message.type}`);
     return { sessionId: message.sessionId, presentation: message.presentation };
   }
 

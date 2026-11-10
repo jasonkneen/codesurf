@@ -7,7 +7,7 @@ async function request(baseUrl: string, token: string, path: string, init: Reque
   const response = await fetch(baseUrl + path, {
     ...init,
     headers: {
-      authorization: "Bearer " + token,
+      authorization: `Bearer ${token}`,
       ...(init.body ? { "content-type": "application/json" } : {}),
       ...init.headers,
     },
@@ -31,30 +31,30 @@ export class GatewayClient {
       method: "POST",
       body: JSON.stringify(input),
     });
-    if (!response.ok) throw new Error("create session failed (" + response.status + ")");
+    if (!response.ok) throw new Error(`create session failed (${response.status})`);
     const json = (await response.json()) as { session: GatewaySessionRecord };
     return json.session;
   }
 
   async listSessions(): Promise<GatewaySessionRecord[]> {
     const response = await request(this.baseUrl, this.token, "/sessions");
-    if (!response.ok) throw new Error("list sessions failed (" + response.status + ")");
+    if (!response.ok) throw new Error(`list sessions failed (${response.status})`);
     const json = (await response.json()) as { sessions: GatewaySessionRecord[] };
     return json.sessions;
   }
 
   /** Send a message to a session and aggregate the streamed assistant text. */
   async sendMessage(sessionId: string, message: string): Promise<{ text: string; sessionId: string }> {
-    const response = await request(this.baseUrl, this.token, "/sessions/" + sessionId + "/messages", {
+    const response = await request(this.baseUrl, this.token, `/sessions/${sessionId}/messages`, {
       method: "POST",
       body: JSON.stringify({ message }),
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error("message failed (" + response.status + "): " + text.slice(0, 200));
+      throw new Error(`message failed (${response.status}): ${text.slice(0, 200)}`);
     }
     if (!(response.headers.get("content-type") ?? "").includes("text/event-stream")) {
-      throw new Error("expected SSE stream, got " + response.headers.get("content-type"));
+      throw new Error(`expected SSE stream, got ${response.headers.get("content-type")}`);
     }
     const body = await response.text();
     const parts: string[] = [];

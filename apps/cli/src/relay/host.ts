@@ -161,7 +161,7 @@ export class NodeSessionHost {
       // so the provider cannot connect) must reach the front as an error, not
       // as a bare `done` that reads as an empty, successful turn.
       const message = error instanceof Error ? error.message : String(error);
-      session.text += "\n[error: " + message + "]";
+      session.text += `\n[error: ${message}]`;
       const chunk: StreamChunk = { type: "error", content: message };
       for (const observer of [...session.observers]) observer.onChunk(chunk);
       throw error;

@@ -8,7 +8,7 @@ import { WsRelayClient } from "./ws-transport";
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 async function* runner(_id: string, message: string, _signal: AbortSignal) {
-  yield { type: "content" as const, content: "reply:" + message };
+  yield { type: "content" as const, content: `reply:${message}` };
   await sleep(35);
   yield { type: "content" as const, content: " done" };
 }
@@ -22,7 +22,7 @@ describe("runnable engine node over the wire (Phase 3)", () => {
     await node.start();
     const start = Date.now();
     while (node.port() === 0 && Date.now() - start < 3000) await sleep(10);
-    url = "ws://127.0.0.1:" + node.port();
+    url = `ws://127.0.0.1:${node.port()}`;
   });
 
   afterAll(async () => {
@@ -50,7 +50,7 @@ describe("runnable engine node over the wire (Phase 3)", () => {
 
     const accepted = await front.delegate("hub", "session_message", { sessionId, text: "hi" }, "front1", "scope");
     expect(accepted.ok).toBe(true);
-    expect(accepted.statement).toBe("accepted:" + sessionId);
+    expect(accepted.statement).toBe(`accepted:${sessionId}`);
 
     // Client death: the front vanishes mid-turn; the node keeps running the turn.
     await spoke.close();
@@ -72,7 +72,7 @@ describe("runnable engine node over the wire (Phase 3)", () => {
     expect(text).toContain("done");
 
     const rm = await front2.delegate("hub", "session_destroy", { sessionId }, "front2", "scope");
-    expect(rm.statement).toBe("removed:" + sessionId);
+    expect(rm.statement).toBe(`removed:${sessionId}`);
     await spoke2.close();
   });
 });
@@ -83,14 +83,14 @@ describe("runnable engine node jobs over the wire", () => {
   beforeAll(async () => {
     node = new EngineNode({
       turnRunner: runner,
-      jobRunner: async (spec) => ({ statement: "job ran: " + spec.type, anchors: [], handle: "x" }),
+      jobRunner: async (spec) => ({ statement: `job ran: ${spec.type}`, anchors: [], handle: "x" }),
       allowPrincipals: ["job-front"],
       port: 0,
     });
     await node.start();
     const start = Date.now();
     while (node.port() === 0 && Date.now() - start < 3000) await sleep(10);
-    url = "ws://127.0.0.1:" + node.port();
+    url = `ws://127.0.0.1:${node.port()}`;
   });
 
   afterAll(async () => {
@@ -151,7 +151,7 @@ describe("fleet telemetry over the wire", () => {
     await node.start();
     const start = Date.now();
     while (node.port() === 0 && Date.now() - start < 3000) await sleep(10);
-    url = "ws://127.0.0.1:" + node.port();
+    url = `ws://127.0.0.1:${node.port()}`;
   });
 
   afterAll(async () => {
@@ -211,14 +211,14 @@ describe("trace_path over the wire", () => {
   beforeAll(async () => {
     node = new EngineNode({
       turnRunner: runner,
-      jobRunner: async (spec) => ({ statement: "job ran: " + spec.type, anchors: [], handle: "x" }),
+      jobRunner: async (spec) => ({ statement: `job ran: ${spec.type}`, anchors: [], handle: "x" }),
       allowPrincipals: ["tr-front"],
       port: 0,
     });
     await node.start();
     const start = Date.now();
     while (node.port() === 0 && Date.now() - start < 3000) await sleep(10);
-    url = "ws://127.0.0.1:" + node.port();
+    url = `ws://127.0.0.1:${node.port()}`;
   });
 
   afterAll(async () => {
@@ -247,7 +247,7 @@ describe("trace_path over the wire", () => {
     expect(sub.ok).toBe(true);
 
     const tr = await front.delegate("hub", "trace_path", { traceId }, "tr-front", "s", { target: "node0" });
-    expect(tr.statement).toContain("trace " + traceId);
+    expect(tr.statement).toContain(`trace ${traceId}`);
     expect(tr.statement).toContain("forward");
     expect(tr.statement).toContain("run");
     expect(tr.statement).toContain("reply");
@@ -264,7 +264,7 @@ describe("token-protected engine node (C1)", () => {
     }
     const node = new EngineNode({ turnRunner: slow, port: 0, authToken: "tok" });
     await node.start();
-    const spoke = new WsRelayClient("ws://127.0.0.1:" + node.port(), { token: "tok" });
+    const spoke = new WsRelayClient(`ws://127.0.0.1:${node.port()}`, { token: "tok" });
     const front = new RelayNode("front-x", spoke, new Steward({ allow: {} }));
     try {
       await front.start();
@@ -274,11 +274,11 @@ describe("token-protected engine node (C1)", () => {
       const first = await front.delegate("hub", "session_message", { sessionId, text: "a" }, "x", "s", {
         target: "node0",
       });
-      expect(first.statement).toBe("accepted:" + sessionId);
+      expect(first.statement).toBe(`accepted:${sessionId}`);
       const second = await front.delegate("hub", "session_message", { sessionId, text: "b" }, "x", "s", {
         target: "node0",
       });
-      expect(second.statement).toBe("busy:" + sessionId);
+      expect(second.statement).toBe(`busy:${sessionId}`);
       release();
     } finally {
       await spoke.close();

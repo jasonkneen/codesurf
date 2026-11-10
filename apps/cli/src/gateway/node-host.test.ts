@@ -26,6 +26,14 @@ vi.mock("../agent/agent", () => ({
     reloadTranscript() {
       agents.reloads++;
     }
+    // Never matches the live selection, so the host always re-applies it.
+    getModel() {
+      return "";
+    }
+    getModelAdapterId() {
+      return "";
+    }
+    setModel() {}
     async *processMessage() {
       yield {
         type: "tool_approval_request",

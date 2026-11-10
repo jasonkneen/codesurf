@@ -57,9 +57,9 @@ export async function runServeCommand(options: ServeOptions): Promise<never> {
 
   const lines = [
     "codesurf gateway listening:",
-    "  url: " + started.url,
-    "  presentation default: " + presentation,
-    "  api key: " + (apiKey ? "configured" : "NOT SET (turns will fail with auth errors)"),
+    `  url: ${started.url}`,
+    `  presentation default: ${presentation}`,
+    `  api key: ${apiKey ? "configured" : "NOT SET (turns will fail with auth errors)"}`,
   ];
   console.log(lines.join("\n"));
 

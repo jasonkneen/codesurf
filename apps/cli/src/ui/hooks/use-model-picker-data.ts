@@ -1,10 +1,10 @@
+import { useEffect, useState } from "react";
 import type { Agent } from "../../agent/agent";
 import { getHostServices as kernelGetHostServices } from "../../core/plugins";
 import { refreshDynamicModelListings } from "../../core/plugins/native/host";
 import { permissionModeKeyForAdapter } from "../../core/plugins/permission-mode";
 import { getModelInfo } from "../../grok/models";
 import { MODES } from "../../types/index";
-import { useEffect, useState } from "react";
 import { useModalVisibility } from "../context/modal-visibility-context.js";
 import { preferredAdapterIdForModel, useModel } from "../context/model-context.js";
 import type { ProviderMeta } from "../model-picker-rows.js";

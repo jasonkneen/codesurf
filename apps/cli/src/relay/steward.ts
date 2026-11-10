@@ -21,7 +21,7 @@ export interface StewardPolicy {
 let auditSeq = 0;
 function nextAuditId(): string {
   auditSeq = (auditSeq + 1) % 100000;
-  return "aud-" + Date.now().toString(36) + "-" + auditSeq;
+  return `aud-${Date.now().toString(36)}-${auditSeq}`;
 }
 
 export class Steward {

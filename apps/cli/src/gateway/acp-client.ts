@@ -16,7 +16,7 @@ export class AcpClient {
     return fetch(this.baseUrl + path, {
       ...init,
       headers: {
-        authorization: "Bearer " + this.token,
+        authorization: `Bearer ${this.token}`,
         ...(init.body ? { "content-type": "application/json" } : {}),
         ...init.headers,
       },
@@ -24,7 +24,7 @@ export class AcpClient {
   }
 
   private async json<T>(response: Response): Promise<T> {
-    if (!response.ok) throw new Error("acp request failed (" + response.status + ")");
+    if (!response.ok) throw new Error(`acp request failed (${response.status})`);
     return (await response.json()) as T;
   }
 
@@ -37,7 +37,7 @@ export class AcpClient {
 
   /** Read a session's status message. */
   async status(sessionId: string): Promise<AcpEvent> {
-    const response = await this.request("/acp/sessions/" + sessionId);
+    const response = await this.request(`/acp/sessions/${sessionId}`);
     const message = (await this.json(response)) as AcpMessage;
     return message.message;
   }
@@ -47,16 +47,16 @@ export class AcpClient {
    * envelope list (fidelity-preserving) plus the concatenated assistant text.
    */
   async prompt(sessionId: string, prompt: string): Promise<{ events: AcpMessage[]; text: string }> {
-    const response = await this.request("/acp/sessions/" + sessionId + "/prompt", {
+    const response = await this.request(`/acp/sessions/${sessionId}/prompt`, {
       method: "POST",
       body: JSON.stringify({ prompt }),
     });
     if (!response.ok) {
       const text = await response.text();
-      throw new Error("acp prompt failed (" + response.status + "): " + text.slice(0, 200));
+      throw new Error(`acp prompt failed (${response.status}): ${text.slice(0, 200)}`);
     }
     if (!(response.headers.get("content-type") ?? "").includes("text/event-stream")) {
-      throw new Error("expected SSE stream, got " + response.headers.get("content-type"));
+      throw new Error(`expected SSE stream, got ${response.headers.get("content-type")}`);
     }
     const body = await response.text();
     const events: AcpMessage[] = [];
@@ -76,7 +76,7 @@ export class AcpClient {
 
   /** End (delete) a session. */
   async endSession(sessionId: string): Promise<AcpEvent> {
-    const response = await this.request("/acp/sessions/" + sessionId, { method: "DELETE" });
+    const response = await this.request(`/acp/sessions/${sessionId}`, { method: "DELETE" });
     const message = (await this.json(response)) as AcpMessage;
     return message.message;
   }

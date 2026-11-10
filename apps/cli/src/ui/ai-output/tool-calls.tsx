@@ -450,7 +450,7 @@ export const ToolChipGroup = memo(function ToolChipGroup({
       <box flexDirection="row" flexWrap="wrap" gap={1}>
         {thoughtCount > 0 ? (
           <box backgroundColor="#2a2440" paddingLeft={1} paddingRight={1} paddingTop={0} paddingBottom={0}>
-            <text fg="#a78bff">{"[Thought ×" + thoughtCount + "]"}</text>
+            <text fg="#a78bff">{`[Thought ×${thoughtCount}]`}</text>
           </box>
         ) : null}
         {items.map((item) => {

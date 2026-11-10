@@ -132,7 +132,7 @@ describe("gateway turn lifecycle (M10) and presentation default (L14)", () => {
       token: TOKEN,
       runner: async function* (_session, message, signal) {
         signals.push(signal);
-        yield { type: "content", content: "start:" + message };
+        yield { type: "content", content: `start:${message}` };
         if (message === "hang") {
           await new Promise<void>((resolve) => {
             release = resolve;

@@ -6,7 +6,7 @@ const TOKEN = "test-token";
 async function post(url: string, path: string, body: unknown, token = TOKEN) {
   return fetch(url + path, {
     method: "POST",
-    headers: { authorization: "Bearer " + token, "content-type": "application/json" },
+    headers: { authorization: `Bearer ${token}`, "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }

@@ -46,7 +46,7 @@ export function chunkToAcp(chunk: StreamChunk, sessionId: string): AcpMessage {
 
 /** Serialize an ACP message as an SSE data frame (one message per frame). */
 export function acpToSse(message: AcpMessage): string {
-  return "data: " + JSON.stringify(message) + "\n\n";
+  return `data: ${JSON.stringify(message)}\n\n`;
 }
 
 /** Serialize an ACP error as an SSE frame. */

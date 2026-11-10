@@ -38,7 +38,7 @@ export async function resolveToken(name: TokenName, homeDir?: string): Promise<s
   }
   const token = randomBytes(32).toString("hex");
   await mkdir(dirname(path), { recursive: true });
-  await writeFile(path, token + "\n", { encoding: "utf8", mode: 0o600 });
+  await writeFile(path, `${token}\n`, { encoding: "utf8", mode: 0o600 });
   await chmod(path, 0o600).catch(() => {});
   return token;
 }

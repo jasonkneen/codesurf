@@ -150,11 +150,11 @@ export class Hub {
     if (this.forwards.size > 1000) {
       for (const [key, expiry] of this.forwards) if (expiry < now) this.forwards.delete(key);
     }
-    this.forwards.set(worker + "|" + client + "|" + seq, now + 2 * Math.max(ttlMs, FORWARD_TTL_FLOOR_MS));
+    this.forwards.set(`${worker}|${client}|${seq}`, now + 2 * Math.max(ttlMs, FORWARD_TTL_FLOOR_MS));
   }
 
   private consumeForward(worker: string, client: string, seq: number): boolean {
-    const key = worker + "|" + client + "|" + seq;
+    const key = `${worker}|${client}|${seq}`;
     const expiry = this.forwards.get(key);
     if (expiry === undefined) return false;
     this.forwards.delete(key);
@@ -281,7 +281,7 @@ export class Hub {
             to: from,
             seq,
             ttlMs,
-            payload: { ok: false, auditId: "", reason: "no node offers " + request.tool },
+            payload: { ok: false, auditId: "", reason: `no node offers ${request.tool}` },
           }),
         );
         return;
@@ -309,7 +309,7 @@ export class Hub {
           event: "forward",
           at: new Date().toISOString(),
           status: "ok",
-          detail: from + " -> " + target + " tool=" + request.tool,
+          detail: `${from} -> ${target} tool=${request.tool}`,
         });
       }
       // Forward to the worker, preserving the client's identity so its steward gates the call.
@@ -333,7 +333,7 @@ export class Hub {
           event: "reply",
           at: new Date().toISOString(),
           status: reply.ok ? "ok" : "failed",
-          detail: message.from + " -> " + message.to,
+          detail: `${message.from} -> ${message.to}`,
         });
       }
       // A worker replied through a spoke; relay to the originating client's spoke.

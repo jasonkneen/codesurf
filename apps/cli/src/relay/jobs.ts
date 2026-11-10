@@ -60,7 +60,7 @@ export class JobHost {
   ) {}
 
   submit(spec: JobSpec): JobStatus {
-    const id = "job-" + ++this.seq;
+    const id = `job-${++this.seq}`;
     const record: JobRecord = { id, spec, status: "queued", queuedAt: new Date().toISOString() };
     this.jobs.set(id, record);
     this.pending.push(record);
@@ -172,7 +172,7 @@ export function registerJobTools(node: RelayNode, host: JobHost, onChange?: () =
       const id = String((args as { id?: string }).id ?? "");
       const status = host.status(id);
       onChange?.();
-      if (!status) return { statement: "unknown:" + id, anchors: [] };
+      if (!status) return { statement: `unknown:${id}`, anchors: [] };
       return { statement: JSON.stringify(status), anchors: [], handle: id };
     },
   });
@@ -182,7 +182,7 @@ export function registerJobTools(node: RelayNode, host: JobHost, onChange?: () =
     run: (args) => {
       const id = String((args as { id?: string }).id ?? "");
       const removed = host.cancel(id);
-      return { statement: removed ? "cancelled:" + id : "not:" + id, anchors: [] };
+      return { statement: removed ? `cancelled:${id}` : `not:${id}`, anchors: [] };
     },
   });
 }

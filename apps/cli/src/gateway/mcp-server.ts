@@ -15,7 +15,7 @@ export function buildMcpServer(client: GatewayClient): McpServer {
 
   server.registerTool("codesurf_list_sessions", { title: "List engine gateway sessions" }, async () => {
     const sessions = await client.listSessions();
-    return { content: [{ type: "text", text: sessions.map((s) => s.id + " " + s.presentation).join("\n") }] };
+    return { content: [{ type: "text", text: sessions.map((s) => `${s.id} ${s.presentation}`).join("\n") }] };
   });
 
   server.registerTool(

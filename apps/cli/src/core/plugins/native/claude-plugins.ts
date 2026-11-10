@@ -209,7 +209,7 @@ function scaffold(name: string): { ok: boolean; message: string } {
       "```",
       `${safe}/`,
       "  .claude-plugin/plugin.json    manifest",
-      "  commands/hello.md             → /" + safe + ":hello",
+      `  commands/hello.md             → /${safe}:hello`,
       "  skills/example/SKILL.md       a skill",
       "```",
       "",

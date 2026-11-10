@@ -1472,7 +1472,11 @@ describe("persistent card stream integration", () => {
     writePidFile(tempHome);
     let sink!: ReadableStreamDefaultController<Uint8Array>;
     let jobs = 0;
-    const upstream = new ReadableStream<Uint8Array>({ start: controller => { sink = controller; } });
+    const upstream = new ReadableStream<Uint8Array>({
+      start: (controller) => {
+        sink = controller;
+      },
+    });
     const fetchSpy = vi.spyOn(globalThis, "fetch").mockImplementation((async (input: string | URL | Request) => {
       const url = urlOf(input);
       if (url.includes("/health")) return makeHealthResponse(tempHome);
@@ -1488,7 +1492,8 @@ describe("persistent card stream integration", () => {
           { jobId: id, sequence: 1, type: "session", sessionId: "persistent-session" },
           { jobId: id, sequence: 2, type: "text", text: id },
           { jobId: id, sequence: 3, type: "done" },
-        ]) sink.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
+        ])
+          sink.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\n\n`));
         return makeJsonResponse({ id, status: "running" });
       }
       throw new Error(`unexpected fetch: ${url}`);
@@ -1498,13 +1503,13 @@ describe("persistent card stream integration", () => {
       for (let i = 1; i <= 2; i++) {
         const { events, controller } = collectStream();
         await session.sendTurn(baseTurn("persistent-integration"), controller);
-        expect(events.some(e => e.type === "text-delta" && e.delta === `persistent-${i}`)).toBe(true);
+        expect(events.some((e) => e.type === "text-delta" && e.delta === `persistent-${i}`)).toBe(true);
       }
       const urls = fetchSpy.mock.calls.map(([input]) => urlOf(input));
-      expect(urls.filter(url => url.includes("/chat/card/events"))).toHaveLength(1);
-      expect(urls.filter(url => url.includes("/chat/job/events"))).toHaveLength(0);
-      expect(urls.filter(url => url.includes("/health"))).toHaveLength(1);
-      expect(urls.filter(url => url.includes("/workspace/list"))).toHaveLength(1);
+      expect(urls.filter((url) => url.includes("/chat/card/events"))).toHaveLength(1);
+      expect(urls.filter((url) => url.includes("/chat/job/events"))).toHaveLength(0);
+      expect(urls.filter((url) => url.includes("/health"))).toHaveLength(1);
+      expect(urls.filter((url) => url.includes("/workspace/list"))).toHaveLength(1);
     } finally {
       await session.disconnect();
     }

@@ -20,7 +20,6 @@
 // A card SSE connection stays open across turns; older daemons fall back to
 // per-job SSE when the card endpoint returns 404/405.
 
-import { CodesurfCardStream } from "./codesurf-card-stream";
 import { execFile } from "node:child_process";
 import { realpathSync } from "node:fs";
 import * as path from "node:path";
@@ -53,6 +52,7 @@ import { anthropicContextWindow } from "../builtin/anthropic-models-catalog";
 import { CODESURF_PROVIDERS_GROUP } from "../builtin/groups";
 import { stringifyContent } from "../builtin/openai-chat-utils";
 import { getTileSessionContext, type TileSessionContext } from "../tile-state-integration";
+import { CodesurfCardStream } from "./codesurf-card-stream";
 
 const EXTENSION_ID = "builtin.provider-codesurf-desktop";
 const PROVIDER_ID = "codesurf";
@@ -637,9 +637,10 @@ class CodesurfDesktopSession implements ProviderSession {
     }
 
     const home = this.resolveHome();
-    const info = this.cardStream?.connected && this.connectedDaemon?.home === home
-      ? this.connectedDaemon.info
-      : await this.resolveDaemonInfo(home);
+    const info =
+      this.cardStream?.connected && this.connectedDaemon?.home === home
+        ? this.connectedDaemon.info
+        : await this.resolveDaemonInfo(home);
     if (!info) {
       throw new Error(
         "Codesurf daemon is not running and could not be started. Run `codesurf daemon start`, then retry.",
@@ -737,16 +738,16 @@ class CodesurfDesktopSession implements ProviderSession {
         const streamResponse = persistentStream
           ? this.cardStream!.openJob(job.id, lastSequence, abortController.signal)
           : await fetch(
-          `${baseUrl}/chat/job/events?jobId=${encodeURIComponent(job.id)}&since=${encodeURIComponent(String(lastSequence))}`,
-          {
-            method: "GET",
-            headers: {
-              Accept: "text/event-stream",
-              Authorization: `Bearer ${info.token}`,
-            },
-            signal: abortController.signal,
-          },
-        );
+              `${baseUrl}/chat/job/events?jobId=${encodeURIComponent(job.id)}&since=${encodeURIComponent(String(lastSequence))}`,
+              {
+                method: "GET",
+                headers: {
+                  Accept: "text/event-stream",
+                  Authorization: `Bearer ${info.token}`,
+                },
+                signal: abortController.signal,
+              },
+            );
 
         if (!streamResponse.ok || !streamResponse.body) {
           const text = await streamResponse.text().catch(() => "");

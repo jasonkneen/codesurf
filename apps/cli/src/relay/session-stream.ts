@@ -183,7 +183,8 @@ export class SessionStreamServer {
     const observer = (session: string) => ({
       onChunk: (c: StreamChunk) =>
         safe(() => sendBack({ op: "session", event: "chunk", session, chunk: c, turn: turnOf(session) })),
-      onEnd: () => safe(() => sendBack({ op: "session", event: "done", session, finished: true, turn: turnOf(session) })),
+      onEnd: () =>
+        safe(() => sendBack({ op: "session", event: "done", session, finished: true, turn: turnOf(session) })),
     });
     switch (action) {
       case "create":

@@ -41,7 +41,7 @@ describe("websocket relay transport (Phase 3 W3)", () => {
     const hub = new Hub("hub");
     server = new WsRelayServer({ hub });
     const port = await waitPort();
-    url = "ws://127.0.0.1:" + port;
+    url = `ws://127.0.0.1:${port}`;
 
     bSpoke = new WsRelayClient(url);
     const bSteward = new Steward({ allow: { nodeB_ping: ["nodeA"] } });
@@ -99,7 +99,7 @@ describe("websocket relay auth (C1/H2)", () => {
     writeFileSync(join(fileDir, "a.txt"), "file-body");
     server = new WsRelayServer({ hub: new Hub("hub"), authToken: token, fileRoots: [fileDir] });
     await server.ready;
-    base = "127.0.0.1:" + server.port();
+    base = `127.0.0.1:${server.port()}`;
   });
 
   afterAll(async () => {

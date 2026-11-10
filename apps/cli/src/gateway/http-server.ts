@@ -320,10 +320,7 @@ export class GatewayServer {
             }
           } catch (error) {
             response.write(
-              openaiContentFrame(
-                model,
-                "\n[engine error: " + (error instanceof Error ? error.message : String(error)) + "]",
-              ),
+              openaiContentFrame(model, `\n[engine error: ${error instanceof Error ? error.message : String(error)}]`),
             );
           }
           response.write(openaiStopFrame(model));
@@ -338,7 +335,7 @@ export class GatewayServer {
               if (text) partsOut.push(text);
             }
           } catch (error) {
-            partsOut.push("\n[engine error: " + (error instanceof Error ? error.message : String(error)) + "]");
+            partsOut.push(`\n[engine error: ${error instanceof Error ? error.message : String(error)}]`);
           }
           sendJson(response, 200, openaiCompletion(model, partsOut.join("")));
         }

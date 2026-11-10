@@ -2,7 +2,10 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { CodesurfCardStream } from "./native/codesurf-card-stream";
 
 const streams: CodesurfCardStream[] = [];
-afterEach(() => { for (const stream of streams.splice(0)) stream.close(); vi.restoreAllMocks(); });
+afterEach(() => {
+  for (const stream of streams.splice(0)) stream.close();
+  vi.restoreAllMocks();
+});
 function makeClient() {
   const client = new CodesurfCardStream("http://localhost:1", "secret", "card-a");
   streams.push(client);
@@ -10,10 +13,23 @@ function makeClient() {
 }
 function source() {
   let sink!: ReadableStreamDefaultController<Uint8Array>;
-  const stream = new ReadableStream<Uint8Array>({ start: c => { sink = c; } });
-  return { stream, emit: (event: object) => sink.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\r\n\r\n`)), end: () => sink.close() };
+  const stream = new ReadableStream<Uint8Array>({
+    start: (c) => {
+      sink = c;
+    },
+  });
+  return {
+    stream,
+    emit: (event: object) => sink.enqueue(new TextEncoder().encode(`data: ${JSON.stringify(event)}\r\n\r\n`)),
+    end: () => sink.close(),
+  };
 }
-const event = (jobId: string, sequence: number, type = "text") => ({ jobId, sequence, type, text: `${jobId}-${sequence}` });
+const event = (jobId: string, sequence: number, type = "text") => ({
+  jobId,
+  sequence,
+  type,
+  text: `${jobId}-${sequence}`,
+});
 
 describe("persistent CodeSurf card SSE", () => {
   it("opens before submission and reuses one connection across jobs, including early events", async () => {
@@ -40,8 +56,12 @@ describe("persistent CodeSurf card SSE", () => {
   });
 
   it("reconnects with the active job cursor and drops duplicate replay", async () => {
-    const a = source(), b = source();
-    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(new Response(a.stream)).mockResolvedValueOnce(new Response(b.stream));
+    const a = source(),
+      b = source();
+    const fetch = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValueOnce(new Response(a.stream))
+      .mockResolvedValueOnce(new Response(b.stream));
     const client = makeClient();
     await client.prepare();
     const reader = client.openJob("job", 0, new AbortController().signal).body!.getReader();

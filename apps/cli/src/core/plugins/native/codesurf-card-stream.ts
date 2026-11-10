@@ -13,10 +13,16 @@ export class CodesurfCardStream {
   private replayOnAttach = false;
   private failures = 0;
   private online = false;
-  get connected(): boolean { return this.online && !this.lifetime.signal.aborted; }
+  get connected(): boolean {
+    return this.online && !this.lifetime.signal.aborted;
+  }
   private detachJob: (() => void) | null = null;
 
-  constructor(private baseUrl: string, private token: string, private cardId: string) {}
+  constructor(
+    private baseUrl: string,
+    private token: string,
+    private cardId: string,
+  ) {}
 
   /** Establish before POST so fast jobs cannot outrun subscription. */
   async prepare(signal?: AbortSignal): Promise<boolean> {
@@ -37,38 +43,41 @@ export class CodesurfCardStream {
   openJob(jobId: string, since: number, signal: AbortSignal): Response {
     let detach = () => {};
     this.detachJob?.();
-    const body = new ReadableStream<Uint8Array>({
-      start: sink => {
-        this.active = { jobId, sequence: since, sink };
-        this.awaitingJob = false;
-        const abort = () => {
-          if (this.active?.sink !== sink) return;
-          this.active = null;
-          sink.error(new DOMException("Aborted", "AbortError"));
-        };
-        signal.addEventListener("abort", abort, { once: true });
-        detach = () => {
-          signal.removeEventListener("abort", abort);
-          if (this.active?.sink === sink) this.active = null;
-        };
-        this.detachJob = detach;
-        if (!this.replayOnAttach) for (const event of this.early) this.deliver(event);
-        this.early = [];
-        this.earlyBytes = 0;
-        if (signal.aborted) abort();
-        if (this.replayOnAttach) {
-          this.connection?.abort();
-          this.ready = null;
-        }
-        void this.ensureConnected().catch(error => {
-          if (this.active?.sink === sink) {
+    const body = new ReadableStream<Uint8Array>(
+      {
+        start: (sink) => {
+          this.active = { jobId, sequence: since, sink };
+          this.awaitingJob = false;
+          const abort = () => {
+            if (this.active?.sink !== sink) return;
             this.active = null;
-            sink.error(error);
+            sink.error(new DOMException("Aborted", "AbortError"));
+          };
+          signal.addEventListener("abort", abort, { once: true });
+          detach = () => {
+            signal.removeEventListener("abort", abort);
+            if (this.active?.sink === sink) this.active = null;
+          };
+          this.detachJob = detach;
+          if (!this.replayOnAttach) for (const event of this.early) this.deliver(event);
+          this.early = [];
+          this.earlyBytes = 0;
+          if (signal.aborted) abort();
+          if (this.replayOnAttach) {
+            this.connection?.abort();
+            this.ready = null;
           }
-        });
+          void this.ensureConnected().catch((error) => {
+            if (this.active?.sink === sink) {
+              this.active = null;
+              sink.error(error);
+            }
+          });
+        },
+        cancel: () => detach(),
       },
-      cancel: () => detach(),
-    }, { highWaterMark: 1024 * 1024, size: chunk => chunk?.byteLength ?? 0 });
+      { highWaterMark: 1024 * 1024, size: (chunk) => chunk?.byteLength ?? 0 },
+    );
     return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
   }
 
@@ -79,7 +88,9 @@ export class CodesurfCardStream {
     this.detachJob = null;
     this.active = null;
     // Cancel/release is owned by the caller's reader; do not close the physical SSE.
-    try { active?.sink.close(); } catch {}
+    try {
+      active?.sink.close();
+    } catch {}
     this.awaitingJob = false;
     this.early = [];
     this.earlyBytes = 0;
@@ -108,7 +119,7 @@ export class CodesurfCardStream {
     const ready = fetch(`${this.baseUrl}/chat/card/events?${params}`, {
       headers: { Accept: "text/event-stream", Authorization: `Bearer ${this.token}` },
       signal,
-    }).then(response => {
+    }).then((response) => {
       clearTimeout(headerTimer);
       if (signal.aborted) {
         void response.body?.cancel();
@@ -159,7 +170,9 @@ export class CodesurfCardStream {
       while (!this.lifetime.signal.aborted) {
         const { done, value } = await reader.read();
         if (done || this.connection !== connection || connection.signal.aborted) break;
-        const parsed = parseSseJsonBuffer<{ jobId: string; sequence?: number; [key: string]: unknown }>(buffer + decoder.decode(value, { stream: true }));
+        const parsed = parseSseJsonBuffer<{ jobId: string; sequence?: number; [key: string]: unknown }>(
+          buffer + decoder.decode(value, { stream: true }),
+        );
         buffer = parsed.remaining;
         for (const event of parsed.events) {
           if (!event || typeof event.jobId !== "string") continue;
@@ -195,9 +208,12 @@ export class CodesurfCardStream {
       this.active.sink.error(new Error("CodeSurf card stream repeatedly disconnected"));
       this.active = null;
     }
-    const timer = setTimeout(() => {
-      if (!this.lifetime.signal.aborted) void this.ensureConnected().catch(() => this.scheduleReconnect());
-    }, Math.min(250 * this.failures, 2_000));
+    const timer = setTimeout(
+      () => {
+        if (!this.lifetime.signal.aborted) void this.ensureConnected().catch(() => this.scheduleReconnect());
+      },
+      Math.min(250 * this.failures, 2_000),
+    );
     timer.unref?.();
   }
 }

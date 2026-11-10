@@ -7,11 +7,11 @@
 import type { Span } from "./protocol";
 
 export function nextTraceId(): string {
-  return "tr-" + Date.now().toString(36) + "-" + ((Math.random() * 1e9) | 0).toString(36);
+  return `tr-${Date.now().toString(36)}-${((Math.random() * 1e9) | 0).toString(36)}`;
 }
 
 export function nextSpanId(): string {
-  return "sp-" + ((Math.random() * 1e9) | 0).toString(36) + "-" + ((Math.random() * 1e9) | 0).toString(36);
+  return `sp-${((Math.random() * 1e9) | 0).toString(36)}-${((Math.random() * 1e9) | 0).toString(36)}`;
 }
 
 /** In-memory trace store aggregated at a hub (the shared rendezvous). */
@@ -65,14 +65,14 @@ export function renderTraceTrajectory(spans: Span[]): string {
   if (spans.length === 0) return "trace: (no spans recorded)";
   const lines: string[] = [];
   const first = spans[0];
-  lines.push("trace " + first.traceId + " (" + first.at + ")");
+  lines.push(`trace ${first.traceId} (${first.at})`);
   spans.forEach((span, i) => {
-    const rail = STEP[i % STEP.length] + " ";
+    const rail = `${STEP[i % STEP.length]} `;
     const ev = span.event.padEnd(8);
-    const where = span.detail ? "  [" + span.detail + "]" : "";
-    const t = span.durMs !== undefined ? "  " + span.durMs.toFixed(1) + "ms" : "";
+    const where = span.detail ? `  [${span.detail}]` : "";
+    const t = span.durMs !== undefined ? `  ${span.durMs.toFixed(1)}ms` : "";
     const st = span.status === "failed" ? "  ✗ failed" : span.status === "ok" ? "  ✓ ok" : "";
-    lines.push("  " + rail + (i + 1) + " " + ev + " " + span.node + where + t + st);
+    lines.push(`  ${rail}${i + 1} ${ev} ${span.node}${where}${t}${st}`);
   });
   return lines.join("\n");
 }

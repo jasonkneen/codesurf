@@ -43,7 +43,7 @@ export interface OpenAIChatCompletionChunk {
 let seq = 0;
 function completionId(): string {
   seq = (seq + 1) % 100000;
-  return "chatcmpl-" + Date.now().toString(36) + "-" + seq;
+  return `chatcmpl-${Date.now().toString(36)}-${seq}`;
 }
 
 /** Last user message text, or null when the request carries none. */
@@ -71,7 +71,7 @@ export function openaiRoleFrame(model: string): string {
     model,
     choices: [{ index: 0, delta: { role: "assistant" }, finish_reason: null }],
   };
-  return "data: " + JSON.stringify(chunk) + "\n\n";
+  return `data: ${JSON.stringify(chunk)}\n\n`;
 }
 
 /** SSE content delta frame for one engine content chunk. */
@@ -84,7 +84,7 @@ export function openaiContentFrame(model: string, content: string): string {
     model,
     choices: [{ index: 0, delta: { content }, finish_reason: null }],
   };
-  return "data: " + JSON.stringify(chunk) + "\n\n";
+  return `data: ${JSON.stringify(chunk)}\n\n`;
 }
 
 /** SSE finish_reason=stop frame, then the client treats the stream as over. */
@@ -97,7 +97,7 @@ export function openaiStopFrame(model: string): string {
     model,
     choices: [{ index: 0, delta: {}, finish_reason: "stop" }],
   };
-  return "data: " + JSON.stringify(chunk) + "\n\n";
+  return `data: ${JSON.stringify(chunk)}\n\n`;
 }
 
 export function openaiDone(): string {

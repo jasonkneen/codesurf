@@ -87,17 +87,17 @@ export async function runNodeCommand(options: NodeCommandOptions): Promise<never
   // failures are visible without anyone going looking for them.
   const stopIssueReviewer = startIssueReviewer();
 
-  const wsUrl = "ws://" + (host.includes(":") ? "[" + host + "]" : host) + ":" + engine.port();
+  const wsUrl = `ws://${host.includes(":") ? `[${host}]` : host}:${engine.port()}`;
   console.log("codesurf node listening:");
-  console.log("  ws:  " + wsUrl);
-  console.log("  connect: " + wsUrl + "/?token=" + token);
-  console.log("  token: " + tokenPath("node") + " (or CODESURF_NODE_TOKEN)");
+  console.log(`  ws:  ${wsUrl}`);
+  console.log(`  connect: ${wsUrl}/?token=${token}`);
+  console.log(`  token: ${tokenPath("node")} (or CODESURF_NODE_TOKEN)`);
   console.log(
-    "  tool approvals: " + (options.autoApprove ? "AUTO-APPROVED (--auto-approve)" : "denied (no front to ask)"),
+    `  tool approvals: ${options.autoApprove ? "AUTO-APPROVED (--auto-approve)" : "denied (no front to ask)"}`,
   );
-  console.log("  serves: " + (scope.scope === "project" ? "project " + scope.project : "any folder (user server)"));
-  if (scope.name) console.log("  name: " + scope.name);
-  console.log("  hub: " + engine.hub.peers().length + " node registered");
+  console.log(`  serves: ${scope.scope === "project" ? `project ${scope.project}` : "any folder (user server)"}`);
+  if (scope.name) console.log(`  name: ${scope.name}`);
+  console.log(`  hub: ${engine.hub.peers().length} node registered`);
   console.log(
     "  api key: " +
       (apiKey

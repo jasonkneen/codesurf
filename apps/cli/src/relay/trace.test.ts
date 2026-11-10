@@ -39,7 +39,7 @@ describe("relay tracing (full traceroute)", () => {
     expect(run?.status).toBe("ok");
 
     const rendered = renderTraceTrajectory(spans);
-    expect(rendered).toContain("trace " + traceId);
+    expect(rendered).toContain(`trace ${traceId}`);
     expect(rendered).toContain("forward");
     expect(rendered).toContain("run");
     expect(rendered).toContain("reply");
