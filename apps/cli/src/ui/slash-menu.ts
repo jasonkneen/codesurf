@@ -41,12 +41,23 @@ export function filterSlashMenuItems(items: SlashMenuItem[], query: string): Sla
 
 export function filterVisibleSlashItems(items: SlashMenuItem[], query: string): SlashMenuItem[] {
   const normalized = normalizeSlashSearchQuery(query);
-  return items.filter((item) => {
+  const matches = items.filter((item) => {
     if (normalized === "ui" && (item.id === "quit" || item.id === "exit")) return false;
     if (!normalized) return true;
-    const needle = normalized.toLowerCase();
-    return item.label.toLowerCase().includes(needle) || (item.description ?? "").toLowerCase().includes(needle);
+    return item.label.toLowerCase().includes(normalized) || (item.description ?? "").toLowerCase().includes(normalized);
   });
+  if (!normalized) return matches;
+  // Enter runs the first row, so the command the user typed has to be it.
+  // Array.prototype.sort is stable: rows with the same rank keep menu order.
+  return matches.sort((a, b) => visibleSlashRank(a, normalized) - visibleSlashRank(b, normalized));
+}
+
+function visibleSlashRank(item: SlashMenuItem, needle: string): number {
+  const label = item.label.toLowerCase();
+  if (label === needle) return 0;
+  if (label.startsWith(needle)) return 1;
+  if (label.includes(needle)) return 2;
+  return 3;
 }
 
 function normalizeSlashSearchQuery(query: string): string {

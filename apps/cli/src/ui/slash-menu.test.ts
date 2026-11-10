@@ -33,6 +33,41 @@ describe("filterVisibleSlashItems", () => {
 
     expect(filterVisibleSlashItems(items, "/ui").map((item) => item.id)).toEqual(["ui"]);
   });
+
+  it("puts the exact command first so Enter runs what was typed", () => {
+    const items = [
+      { id: "dsh-skills", label: "dsh-skills", description: "List the skills contributed by the harness plugins." },
+      { id: "plugin", label: "plugin", description: "List, scaffold, install and remove Claude Code plugins." },
+      { id: "plugins", label: "plugins", description: "Open the plugins modal." },
+      {
+        id: "resource-counter",
+        label: "resource-counter",
+        description: "Toggle the footer resource counter (plugins).",
+      },
+    ];
+
+    expect(filterVisibleSlashItems(items, "/plugins").map((item) => item.id)).toEqual([
+      "plugins",
+      "dsh-skills",
+      "plugin",
+      "resource-counter",
+    ]);
+    expect(filterVisibleSlashItems(items, "plug").map((item) => item.id)).toEqual([
+      "plugin",
+      "plugins",
+      "dsh-skills",
+      "resource-counter",
+    ]);
+  });
+
+  it("keeps the original order when nothing is typed", () => {
+    const items = [
+      { id: "models", label: "models" },
+      { id: "agents", label: "agents" },
+    ];
+
+    expect(filterVisibleSlashItems(items, "/").map((item) => item.id)).toEqual(["models", "agents"]);
+  });
 });
 
 describe("formatSlashMenuInlineRow", () => {
