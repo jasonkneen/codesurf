@@ -1,4 +1,19 @@
 # Root of the CodeSurf monorepo. Each app/package keeps its own .gitignore;
-# this only covers what the root workspace install creates.
+# this covers what the root workspace install creates plus local-only files.
 node_modules/
 .DS_Store
+/packages/codesurf-daemon/.tmp
+*.tsbuildinfo
+*.profraw
+
+# Per-machine agent state
+/.codesurf
+/.grok/
+
+# Local-only files that must never be committed: raw agent session
+# transcripts and a personal launcher script. Both have carried API keys.
+/apps/cli/old.txt
+/apps/cli/latest-session.md
+/apps/cli/status.md
+/apps/cli/lazartui.sh
+*.bak-*

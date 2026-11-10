@@ -1,0 +1,9 @@
+# Run before pushing:  gitleaks git --log-opts="HEAD --not --remotes" .
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Dummy key written by a test that checks non-image files are rejected"
+paths = ['''test/image-edit-source-authorization\.test\.ts''']
+regexes = ['''API_KEY=sk-live''']
+condition = "AND"

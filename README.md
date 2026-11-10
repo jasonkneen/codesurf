@@ -33,6 +33,22 @@ cd apps/desktop && npm ci && npm run check && npm test
 npm --prefix packages/codesurf-daemon ci && npm --prefix packages/codesurf-daemon test
 ```
 
+## CI and releases
+
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) runs on every PR and push to `main`: CLI typecheck, lint, tests and build, the shared-package tests, and the daemon package on its own.
+- [`.github/workflows/release-on-tag.yml`](.github/workflows/release-on-tag.yml) builds the desktop app when a `v*.*.*` tag is pushed.
+- The workflows under `apps/cli/.github/` came over from the CLI's old standalone repo. GitHub only reads the root `.github/`, so they do not run here.
+
+## Before you push
+
+This repo is public. Scan what you are about to publish:
+
+```bash
+gitleaks git --log-opts="HEAD --not --remotes" .
+```
+
+[`.gitleaks.toml`](.gitleaks.toml) holds the one allowlisted test fixture. Agent session transcripts and personal launcher scripts stay out of git; the root `.gitignore` lists the ones that have leaked keys before.
+
 ## Licenses
 
 Each app keeps its own license: `apps/desktop` is AGPL-3.0 ([LICENSE](apps/desktop/LICENSE)), `apps/cli` is MIT ([LICENSE](apps/cli/LICENSE)).

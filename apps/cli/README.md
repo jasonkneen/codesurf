@@ -1,6 +1,6 @@
 # There are many coding agents. **This one is powered by Grok.**
 
-[![CI](https://github.com/jasonkneen/codesurf-cli/actions/workflows/typecheck.yml/badge.svg)](https://github.com/jasonkneen/codesurf-cli/actions/workflows/typecheck.yml)
+[![CI](https://github.com/jasonkneen/codesurf/actions/workflows/ci.yml/badge.svg)](https://github.com/jasonkneen/codesurf/actions/workflows/ci.yml)
 [![npm](https://img.shields.io/npm/v/codesurf.svg)](https://www.npmjs.com/package/codesurf)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](./LICENSE)
 [![TypeScript](https://img.shields.io/badge/TypeScript-5.9-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
@@ -544,7 +544,7 @@ If you're on Intel Mac or Linux, sandbox mode is not available. Use standard mod
 
 ### Getting help
 
-- Check existing [issues](https://github.com/jasonkneen/codesurf-cli/issues)
+- Check existing [issues](https://github.com/jasonkneen/codesurf/issues)
 - Open a new issue with:
   - OS and terminal emulator version
   - CodeSurf CLI version (`codesurf --version`)
@@ -555,10 +555,11 @@ If you're on Intel Mac or Linux, sandbox mode is not available. Use standard mod
 
 ## Development
 
-From a clone:
+The CLI lives in the [CodeSurf monorepo](../../README.md) at `apps/cli`. Dependencies install from the repo root (Bun workspace), everything else runs from this folder:
 
 ```bash
-bun install
+bun install            # at the repo root
+cd apps/cli
 bun run build
 bun run start
 # or: bun dist/index.js

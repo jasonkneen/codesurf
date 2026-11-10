@@ -4,9 +4,9 @@ The CodeSurf local HTTP daemon (`codesurfd`) and its process supervisor.
 
 This package is consumed by:
 
-- **collaborator-clone** (Electron desktop app) — adapter at `src/main/daemon/manager.ts`
+- **`apps/desktop`** (Electron desktop app) — adapter at `apps/desktop/src/main/daemon/manager.ts`
 - **Browser / Native shells** — via `scripts/web-host.mjs` (proxies `/d/*` with auth; see `docs/multi-target.md`)
-- **grok-cli / codesurf TUI** — adapter at `src/daemon/manager.ts`
+- **`apps/cli`** (the `codesurf` TUI) — adapter at `apps/cli/src/daemon/codesurf-daemon.ts`
 
 All clients spawn / supervise the same daemon binary and talk to it over an
 authenticated localhost HTTP socket. State lives under `~/.codesurf/`.
